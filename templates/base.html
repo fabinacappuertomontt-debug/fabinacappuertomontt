@@ -1,0 +1,89 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Seguimiento de proyectos{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+    <div class="institution-strip">
+        <div class="container d-flex justify-content-between align-items-center">
+            <span>Seguimiento académico de proyectos</span>
+            <span class="d-none d-md-inline">Aprender Haciendo</span>
+        </div>
+    </div>
+    <nav class="navbar navbar-expand-lg navbar-light app-navbar">
+        <div class="container">
+            <a class="navbar-brand app-brand" href="{% url 'dashboard' %}">
+                <img src="https://portal.inacap.cl/documents/d/guest/logofooter60a" alt="INACAP">
+                <span>Proyectos</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarContent">
+                {% if user.is_authenticated %}
+                    <ul class="navbar-nav me-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'dashboard' %}">Panel</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'proyecto_lista' %}">Proyectos</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'usuario_lista' %}">Usuarios</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'proyecto_crear' %}">Nuevo proyecto</a>
+                        </li>
+                    </ul>
+                    <div class="d-flex align-items-center gap-3 user-session">
+                        <span>{{ user.nombre|default:user.username }}</span>
+                        <form method="post" action="{% url 'logout' %}">
+                            {% csrf_token %}
+                            <button class="btn btn-outline-dark btn-sm" type="submit">Salir</button>
+                        </form>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <main class="container app-main">
+        {% if messages %}
+            <div class="mb-3">
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags|default:'info' }} mb-2" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="app-footer">
+        <div class="container d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <strong>INACAP Proyectos</strong>
+                <span>Gestión, avance y seguimiento académico.</span>
+            </div>
+            <span>Chile</span>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.querySelectorAll("form[data-confirm]").forEach((form) => {
+            form.addEventListener("submit", (event) => {
+                if (!window.confirm(form.dataset.confirm)) {
+                    event.preventDefault();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

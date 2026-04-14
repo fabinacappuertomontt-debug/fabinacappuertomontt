@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}{{ proyecto.nombre }}{% endblock %}
+
+{% block content %}
+<div class="project-hero">
+    <div>
+        <span class="eyebrow">Detalle de proyecto</span>
+        <h1>{{ proyecto.nombre }}</h1>
+        <p>{{ proyecto.descripcion }}</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" href="{% url 'proyecto_lista' %}">Volver</a>
+        <a class="btn btn-primary" href="{% url 'proyecto_editar' proyecto.pk %}">Editar</a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <section class="content-panel mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="h5 mb-0">Avance del proyecto</h2>
+                <div class="d-flex flex-wrap gap-2">
+                    <span class="status-pill status-{{ proyecto.estado }}">{{ proyecto.get_estado_display }}</span>
+                    <span class="alert-dot alert-{{ proyecto.nivel_alerta }}">{{ proyecto.texto_alerta }}</span>
+                </div>
+            </div>
+            <div class="progress project-detail-progress" role="progressbar" aria-valuenow="{{ proyecto.porcentaje_avance }}" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar" style="width: {{ proyecto.porcentaje_avance }}%">{{ proyecto.porcentaje_avance }}%</div>
+            </div>
+            {% if proyecto.nivel_alerta != "ok" %}
+                <div class="project-alert alert-{{ proyecto.nivel_alerta }} mt-3">
+                    <strong>Atención:</strong> {{ proyecto.texto_alerta }}. Revisa tareas pendientes, fecha de término y porcentaje de avance.
+                </div>
+            {% endif %}
+        </section>
+
+        <section class="content-panel mb-4">
+            <h2 class="h5 mb-3">Avances registrados</h2>
+            <div class="list-group">
+                {% for avance in proyecto.avances.all %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between">
+                            <strong>{{ avance.fecha }}</strong>
+                            <span>{{ avance.responsable }}</span>
+                        </div>
+                        <p class="mb-0 mt-2">{{ avance.descripcion }}</p>
+                    </div>
+                {% empty %}
+                    <div class="list-group-item text-muted">No hay avances registrados.</div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="content-panel mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h5 mb-0">Evidencias</h2>
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'evidencia_crear' proyecto.pk %}">Subir evidencia</a>
+            </div>
+            <div class="list-group">
+                {% for evidencia in proyecto.evidencias.all %}
+                    <div class="list-group-item evidence-item">
+                        <div class="d-flex flex-wrap justify-content-between gap-2">
+                            <strong>{{ evidencia.nombre }}</strong>
+                            <span class="text-muted small">{{ evidencia.fecha_subida }} · {{ evidencia.usuario }}</span>
+                        </div>
+                        {% if evidencia.descripcion %}
+                            <p class="mb-0 mt-2">{{ evidencia.descripcion }}</p>
+                        {% endif %}
+                        <a class="btn btn-sm btn-outline-primary mt-3" href="{{ evidencia.archivo.url }}" download>Descargar evidencia</a>
+                    </div>
+                {% empty %}
+                    <div class="list-group-item text-muted">No hay evidencias subidas.</div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="content-panel mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h5 mb-0">Tareas pendientes</h2>
+                <span class="badge status-badge">{{ tareas_pendientes|length }}</span>
+            </div>
+            <div class="list-group">
+                {% for tarea in tareas_pendientes %}
+                    <div class="list-group-item">
+                        <div class="d-flex flex-wrap justify-content-between gap-2">
+                            <div>
+                                <strong>{{ tarea.nombre }}</strong>
+                                <div class="small task-meta">
+                                    <span class="status-pill status-{{ tarea.estado }}">{{ tarea.get_estado_display }}</span>
+                                    {% if tarea.responsable %} · {{ tarea.responsable }}{% endif %}
+                                </div>
+                            </div>
+                            {% if not tarea.completada %}
+                                <form method="post" action="{% url 'tarea_completar' tarea.pk %}" data-confirm="¿Marcar esta tarea como completada?">
+                                    {% csrf_token %}
+                                    <button class="btn btn-sm btn-success" type="submit">Completar</button>
+                                </form>
+                            {% endif %}
+                        </div>
+                        {% if tarea.descripcion %}
+                            <p class="mb-0 mt-2">{{ tarea.descripcion }}</p>
+                        {% endif %}
+                    </div>
+                {% empty %}
+                    <div class="list-group-item text-muted">No hay tareas pendientes.</div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="content-panel mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h5 mb-0">Tareas completadas</h2>
+                <span class="badge status-badge">{{ tareas_completadas|length }}</span>
+            </div>
+            <div class="list-group">
+                {% for tarea in tareas_completadas %}
+                    <div class="list-group-item completed-task">
+                        <div>
+                            <strong>{{ tarea.nombre }}</strong>
+                            <div class="small task-meta">
+                                <span class="status-pill status-{{ tarea.estado }}">{{ tarea.get_estado_display }}</span>
+                                {% if tarea.responsable %} · {{ tarea.responsable }}{% endif %}
+                            </div>
+                        </div>
+                        {% if tarea.descripcion %}
+                            <p class="mb-0 mt-2">{{ tarea.descripcion }}</p>
+                        {% endif %}
+                    </div>
+                {% empty %}
+                    <div class="list-group-item text-muted">Todavía no hay tareas completadas.</div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="content-panel">
+            <h2 class="h5 mb-3">Observaciones</h2>
+            <div class="list-group">
+                {% for observacion in proyecto.observaciones.all %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between">
+                            <strong>{{ observacion.usuario }}</strong>
+                            <span class="text-muted small">{{ observacion.fecha }}</span>
+                        </div>
+                        <p class="mb-0 mt-2">{{ observacion.comentario }}</p>
+                    </div>
+                {% empty %}
+                    <div class="list-group-item text-muted">No hay observaciones registradas.</div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+
+    <div class="col-lg-4">
+        <aside class="side-panel">
+            <h2 class="h5">Datos principales</h2>
+            <dl class="mb-3">
+                <dt>Inicio</dt>
+                <dd>{{ proyecto.fecha_inicio }}</dd>
+                <dt>Fin</dt>
+                <dd>{{ proyecto.fecha_fin|default:"Sin definir" }}</dd>
+                <dt>Responsables</dt>
+                <dd>
+                    {% for responsable in proyecto.responsables.all %}
+                        <span class="person-chip">{{ responsable }}</span>
+                    {% empty %}
+                        <span class="text-muted">Sin asignar</span>
+                    {% endfor %}
+                </dd>
+            </dl>
+
+            <hr>
+            <h3 class="h6">Acciones del proyecto</h3>
+            <div class="detail-actions">
+                <a class="btn btn-primary" href="{% url 'proyecto_estado' proyecto.pk %}">Actualizar estado</a>
+                <a class="btn btn-outline-primary" href="{% url 'avance_crear' proyecto.pk %}">Registrar avance</a>
+                <a class="btn btn-outline-primary" href="{% url 'tarea_crear' proyecto.pk %}">Crear tarea</a>
+                <a class="btn btn-outline-primary" href="{% url 'evidencia_crear' proyecto.pk %}">Subir evidencia</a>
+                <a class="btn btn-outline-primary" href="{% url 'observacion_crear' proyecto.pk %}">Agregar observación</a>
+                <a class="btn btn-outline-secondary" href="{% url 'proyecto_editar' proyecto.pk %}">Editar información</a>
+            </div>
+        </aside>
+    </div>
+</div>
+{% endblock %}

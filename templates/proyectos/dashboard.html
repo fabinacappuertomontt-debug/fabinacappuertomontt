@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Panel general{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Panel general</span>
+        <h1>Estado global de proyectos</h1>
+        <p>Revisa el avance del año, tareas pendientes y proyectos que necesitan atención.</p>
+    </div>
+    <a class="btn btn-primary" href="{% url 'proyecto_crear' %}">Crear proyecto</a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="stat-box">
+            <span>Proyectos registrados</span>
+            <strong>{{ total_proyectos }}</strong>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-box">
+            <span>Avance promedio</span>
+            <strong>{{ promedio_avance|floatformat:0 }}%</strong>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-box">
+            <span>Tareas pendientes</span>
+            <strong>{{ tareas_pendientes }}</strong>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        <section class="content-panel mb-4">
+            <h2 class="h5 mb-3">Proyectos atrasados</h2>
+            <div class="list-group">
+                {% for proyecto in proyectos_atrasados %}
+                    <a class="list-group-item list-group-item-action" href="{{ proyecto.get_absolute_url }}">
+                        <div class="d-flex justify-content-between gap-3">
+                            <strong>{{ proyecto.nombre }}</strong>
+                            <span class="alert-dot alert-riesgo">Atrasado</span>
+                        </div>
+                        <div class="small text-muted mt-2">
+                            Venció el {{ proyecto.fecha_fin }} · {{ proyecto.porcentaje_avance }}% avance
+                        </div>
+                    </a>
+                {% empty %}
+                    <div class="list-group-item text-muted">No hay proyectos atrasados.</div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="content-panel mb-4">
+            <h2 class="h5 mb-3">Proyectos con alertas</h2>
+            <div class="list-group">
+                {% for proyecto in proyectos_riesgo %}
+                    <a class="list-group-item list-group-item-action" href="{{ proyecto.get_absolute_url }}">
+                        <div class="d-flex justify-content-between gap-3">
+                            <strong>{{ proyecto.nombre }}</strong>
+                            <span class="alert-dot alert-{{ proyecto.nivel_alerta }}">{{ proyecto.texto_alerta }}</span>
+                        </div>
+                        <div class="small text-muted mt-2">
+                            {{ proyecto.porcentaje_avance }}% avance
+                            {% if proyecto.fecha_fin %} · vence {{ proyecto.fecha_fin }}{% endif %}
+                        </div>
+                    </a>
+                {% empty %}
+                    <div class="list-group-item text-muted">No hay proyectos con alertas por ahora.</div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="content-panel">
+            <h2 class="h5 mb-3">Resumen por estado</h2>
+            <div class="list-group">
+                {% for item in resumen_estados %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>{{ item.label }}</span>
+                        <span class="badge status-badge">{{ item.total }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+    <div class="col-lg-7">
+        <section class="content-panel mb-4">
+            <h2 class="h5 mb-3">Proyectos recientes</h2>
+            <div class="list-group">
+                {% for proyecto in proyectos_recientes %}
+                    <a class="list-group-item list-group-item-action" href="{{ proyecto.get_absolute_url }}">
+                        <div class="d-flex justify-content-between">
+                            <strong>{{ proyecto.nombre }}</strong>
+                            <span class="status-pill status-{{ proyecto.estado }}">{{ proyecto.get_estado_display }}</span>
+                        </div>
+                        <div class="progress mt-2" role="progressbar" aria-valuenow="{{ proyecto.porcentaje_avance }}" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar" style="width: {{ proyecto.porcentaje_avance }}%">{{ proyecto.porcentaje_avance }}%</div>
+                        </div>
+                    </a>
+                {% empty %}
+                    <div class="list-group-item">Todavía no hay proyectos registrados.</div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <div class="row g-4">
+            <div class="col-md-7">
+                <section class="content-panel h-100">
+                    <h2 class="h5 mb-3">Últimos avances</h2>
+                    <div class="timeline-list">
+                        {% for avance in ultimos_avances %}
+                            <a class="timeline-item" href="{{ avance.proyecto.get_absolute_url }}">
+                                <strong>{{ avance.proyecto.nombre }}</strong>
+                                <span>{{ avance.fecha }} · {{ avance.responsable }}</span>
+                                <p>{{ avance.descripcion|truncatechars:90 }}</p>
+                            </a>
+                        {% empty %}
+                            <p class="text-muted mb-0">Todavía no hay avances registrados.</p>
+                        {% endfor %}
+                    </div>
+                </section>
+            </div>
+            <div class="col-md-5">
+                <section class="content-panel h-100">
+                    <h2 class="h5 mb-3">Tareas por responsable</h2>
+                    <div class="list-group">
+                        {% for usuario in tareas_por_responsable %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>{{ usuario }}</span>
+                                <span class="badge status-badge">{{ usuario.pendientes }}</span>
+                            </div>
+                        {% empty %}
+                            <div class="list-group-item text-muted">Sin tareas pendientes asignadas.</div>
+                        {% endfor %}
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

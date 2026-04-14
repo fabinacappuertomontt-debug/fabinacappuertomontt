@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Ingresar{% endblock %}
+{% block body_class %}login-page{% endblock %}
+
+{% block content %}
+<div class="login-layout">
+    <section class="login-intro">
+        <span class="eyebrow">INACAP Chile</span>
+        <h1>INACAP Puerto Montt</h1>
+        <p>Seguimiento de proyectos académicos, avances, evidencias y tareas del equipo durante el año.</p>
+        <figure class="login-campus">
+            <img src="https://portal.inacap.cl/documents/47032/512274/Semana-de-Bienvenida-1200x400.jpg/727a5c67-2371-977d-d43c-70481dbd019c?t=1716405736841&version=1.0" alt="Estudiantes de INACAP Puerto Montt">
+            <figcaption>Sede Puerto Montt</figcaption>
+        </figure>
+    </section>
+    <section class="login-card">
+        <div class="card">
+            <div class="card-body p-4">
+                <h2 class="h4 mb-1">Ingresar</h2>
+                <p class="text-muted mb-4">Usa tu correo institucional para acceder al sistema.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    {% if form.errors %}
+                        <div class="alert alert-danger">Usuario o contraseña incorrectos.</div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.username.id_for_label }}">Correo institucional</label>
+                        {{ form.username }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.password.id_for_label }}">Contraseña</label>
+                        {{ form.password }}
+                    </div>
+                    <button class="btn btn-primary w-100" type="submit">Entrar</button>
+                </form>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}

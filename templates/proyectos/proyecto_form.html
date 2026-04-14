@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Editar proyecto{% else %}Nuevo proyecto{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Proyectos</span>
+        <h1>{% if object %}Editar proyecto{% else %}Nuevo proyecto{% endif %}</h1>
+        <p>Registra los datos principales, responsables, fechas y avance inicial.</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'proyecto_lista' %}">Volver</a>
+</div>
+
+<form method="post" class="form-panel" data-confirm="¿Guardar los cambios del proyecto?">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div class="row g-3">
+        {% for field in form %}
+            <div class="{% if field.name == 'descripcion' or field.name == 'responsables' %}col-12{% else %}col-md-6{% endif %}">
+                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {% if field.name == "responsables" %}
+                    <div class="responsables-list">
+                        {% for checkbox in field %}
+                            <label class="responsable-option" for="{{ checkbox.id_for_label }}">
+                                {{ checkbox.tag }}
+                                <span>{{ checkbox.choice_label }}</span>
+                            </label>
+                        {% empty %}
+                            <p class="text-muted mb-0">Primero crea usuarios para poder asignarlos como responsables.</p>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    {{ field }}
+                {% endif %}
+                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                {% for error in field.errors %}
+                    <div class="text-danger small">{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </div>
+    <div class="d-flex gap-2 mt-4">
+        <button class="btn btn-primary" type="submit">Guardar</button>
+        {% if object %}
+            <a class="btn btn-outline-secondary" href="{{ object.get_absolute_url }}">Cancelar</a>
+        {% endif %}
+    </div>
+</form>
+{% endblock %}

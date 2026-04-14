@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Proyectos{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Proyectos</span>
+        <h1>Seguimiento del año</h1>
+        <p>Filtra por estado o responsable para revisar rápidamente el trabajo del equipo.</p>
+    </div>
+    <a class="btn btn-primary" href="{% url 'proyecto_crear' %}">Nuevo proyecto</a>
+</div>
+
+<form class="row g-2 mb-4 filter-panel" method="get">
+    <div class="col-lg-4">
+        <input class="form-control" type="search" name="q" value="{{ busqueda }}" placeholder="Buscar por nombre o descripción">
+    </div>
+    <div class="col-lg-3">
+        <select class="form-select" name="estado">
+            <option value="">Todos los estados</option>
+            {% for value, label in estados %}
+                <option value="{{ value }}" {% if value == estado_actual %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-lg-3">
+        <select class="form-select" name="responsable">
+            <option value="">Todos los responsables</option>
+            {% for responsable in responsables %}
+                <option value="{{ responsable.id }}" {% if responsable.id|stringformat:"s" == responsable_actual %}selected{% endif %}>
+                    {{ responsable }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-lg-2 d-grid">
+        <button class="btn btn-outline-primary" type="submit">Filtrar</button>
+    </div>
+</form>
+
+<div class="table-responsive content-panel p-0">
+    <table class="table align-middle">
+        <thead>
+            <tr>
+                <th>Proyecto</th>
+                <th>Estado</th>
+                <th>Alerta</th>
+                <th>Avance</th>
+                <th>Responsables</th>
+                <th>Tareas</th>
+                <th class="text-end">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for proyecto in proyectos %}
+                <tr>
+                    <td>
+                        <strong>{{ proyecto.nombre }}</strong>
+                        <div class="text-muted small">{{ proyecto.fecha_inicio }}{% if proyecto.fecha_fin %} - {{ proyecto.fecha_fin }}{% endif %}</div>
+                    </td>
+                    <td><span class="status-pill status-{{ proyecto.estado }}">{{ proyecto.get_estado_display }}</span></td>
+                    <td><span class="alert-dot alert-{{ proyecto.nivel_alerta }}">{{ proyecto.texto_alerta }}</span></td>
+                    <td class="project-progress">
+                        <div class="progress" role="progressbar" aria-valuenow="{{ proyecto.porcentaje_avance }}" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar" style="width: {{ proyecto.porcentaje_avance }}%">{{ proyecto.porcentaje_avance }}%</div>
+                        </div>
+                    </td>
+                    <td>
+                        {% for responsable in proyecto.responsables.all %}
+                            <span class="person-chip">{{ responsable }}</span>
+                        {% empty %}
+                            <span class="text-muted">Sin asignar</span>
+                        {% endfor %}
+                    </td>
+                    <td>{{ proyecto.tareas_completadas }}/{{ proyecto.total_tareas }}</td>
+                    <td class="text-end">
+                        <div class="table-actions">
+                            <a class="btn btn-sm btn-primary" href="{{ proyecto.get_absolute_url }}">Ver detalle</a>
+                            <a class="btn btn-sm btn-outline-secondary" href="{% url 'proyecto_editar' proyecto.pk %}">Editar</a>
+                        </div>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">No se encontraron proyectos.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if is_paginated %}
+    <nav aria-label="Paginación">
+        <ul class="pagination">
+            {% if page_obj.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a></li>
+            {% endif %}
+            <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+            {% if page_obj.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+{% endif %}
+{% endblock %}
