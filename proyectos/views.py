@@ -9,11 +9,13 @@ from .forms import (
     AvanceForm,
     EstadoProyectoForm,
     EvidenciaForm,
+    FaseProyectoForm,
     ObservacionForm,
     ProyectoForm,
     TareaForm,
+    UsuarioRegistroForm,
 )
-from .models import Avance, Proyecto, Tarea, Usuario
+from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, Avance, FaseProyecto, Proyecto, Tarea, Usuario
 
 
 @login_required
@@ -77,7 +79,7 @@ class ProyectoListView(LoginRequiredMixin, ListView):
             queryset = queryset.filter(
                 Q(nombre__icontains=busqueda) | Q(descripcion__icontains=busqueda)
             )
-        return queryset
+        return queryset.order_by("-actualizado_en", "nombre")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -105,15 +107,99 @@ class UsuarioListView(LoginRequiredMixin, ListView):
         ).order_by("rol", "nombre", "username")
 
 
+
+class UsuarioCreateView(LoginRequiredMixin, CreateView):
+    model = Usuario
+    form_class = UsuarioRegistroForm
+    template_name = "proyectos/usuario_form.html"
+    success_url = "/usuarios/"
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            messages.error(request, "Solo un usuario administrador puede crear usuarios.")
+            return redirect("usuario_lista")
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        messages.success(self.request, "Usuario creado correctamente.")
+        return super().form_valid(form)
+
+
+
+
+PALABRAS_ACTIVIDAD = {
+    "charla", "reunion", "reunión", "conversacion", "conversación",
+    "presentacion", "presentación", "capacitacion", "capacitación",
+    "evento", "coordinacion", "coordinación", "jornada", "taller",
+    "seminario", "clase", "induccion", "inducción",
+}
+
+PALABRAS_TECNOLOGIA = {
+    "sistema", "web", "app", "movil", "móvil", "software", "plataforma",
+    "prototipo", "sensor", "hardware", "ia", "inteligencia artificial",
+    "dispositivo", "tecnologia", "tecnología", "herramienta digital",
+    "validar", "automatizacion", "automatización", "producto innovador",
+}
+
+
+def detectar_tipo_proyecto(proyecto):
+    texto = f"{proyecto.nombre} {proyecto.descripcion}".lower()
+    if any(palabra in texto for palabra in PALABRAS_TECNOLOGIA):
+        return Proyecto.TipoProyecto.TECNOLOGICO
+    if any(palabra in texto for palabra in PALABRAS_ACTIVIDAD):
+        return Proyecto.TipoProyecto.ACTIVIDAD
+    return Proyecto.TipoProyecto.GENERAL
+
+
+def fases_por_tipo(tipo_proyecto):
+    if tipo_proyecto == Proyecto.TipoProyecto.TECNOLOGICO:
+        return [
+            (numero, nombre, f"Evidenciar el cumplimiento del {nombre.lower()}.")
+            for numero, nombre in TRL_DEFINICIONES
+        ]
+    if tipo_proyecto == Proyecto.TipoProyecto.ACTIVIDAD:
+        objetivos = {
+            1: "Definir objetivo, público, fecha tentativa y responsables de la actividad.",
+            2: "Preparar presentación, pauta, recursos y materiales necesarios.",
+            3: "Coordinar sala, participantes, difusión y confirmaciones.",
+            4: "Realizar la actividad y dejar registro de asistencia o evidencia.",
+            5: "Registrar resultados, comentarios, aprendizajes y mejoras detectadas.",
+            6: "Cerrar la actividad con evidencias, conclusiones y próximos pasos.",
+        }
+        return [(numero, nombre, objetivos[numero]) for numero, nombre in ACTIVIDAD_FASES]
+    objetivos = {
+        1: "Levantar necesidad, alcance inicial y responsables.",
+        2: "Ordenar actividades, fechas, tareas y recursos disponibles.",
+        3: "Ejecutar las tareas principales y registrar avances.",
+        4: "Revisar resultados, evidencias y cumplimiento del objetivo.",
+        5: "Cerrar el proyecto con conclusiones y pendientes documentados.",
+    }
+    return [(numero, nombre, objetivos[numero]) for numero, nombre in GENERAL_FASES]
+
+
+def crear_fases_para_proyecto(proyecto):
+    tipo_proyecto = detectar_tipo_proyecto(proyecto)
+    if proyecto.tipo_proyecto != tipo_proyecto:
+        proyecto.tipo_proyecto = tipo_proyecto
+        proyecto.save(update_fields=["tipo_proyecto"])
+    for numero, nombre, objetivo in fases_por_tipo(tipo_proyecto):
+        FaseProyecto.objects.get_or_create(
+            proyecto=proyecto,
+            trl=numero,
+            defaults={"nombre": nombre, "objetivo": objetivo},
+        )
+
+
 class ProyectoCreateView(LoginRequiredMixin, CreateView):
     model = Proyecto
     form_class = ProyectoForm
     template_name = "proyectos/proyecto_form.html"
 
     def form_valid(self, form):
+        response = super().form_valid(form)
+        crear_fases_para_proyecto(self.object)
         messages.success(self.request, "Proyecto creado correctamente.")
-        return super().form_valid(form)
-
+        return response
 
 class ProyectoUpdateView(LoginRequiredMixin, UpdateView):
     model = Proyecto
@@ -141,8 +227,84 @@ def proyecto_detalle(request, pk):
         "proyecto": proyecto,
         "tareas_pendientes": proyecto.tareas.exclude(estado=Tarea.Estado.COMPLETADA),
         "tareas_completadas": proyecto.tareas.filter(estado=Tarea.Estado.COMPLETADA),
+        "timeline_items": construir_linea_temporal(proyecto),
     }
     return render(request, "proyectos/proyecto_detalle.html", contexto)
+
+
+
+
+def construir_linea_temporal(proyecto):
+    items = [
+        {
+            "fecha": proyecto.fecha_inicio,
+            "tipo": "Inicio",
+            "titulo": "Inicio del proyecto",
+            "descripcion": proyecto.nombre,
+        }
+    ]
+
+    for avance in proyecto.avances.all():
+        items.append({
+            "fecha": avance.fecha,
+            "tipo": "Avance",
+            "titulo": avance.responsable,
+            "descripcion": avance.descripcion,
+        })
+
+    for evidencia in proyecto.evidencias.all():
+        items.append({
+            "fecha": evidencia.fecha_subida.date(),
+            "tipo": "Evidencia",
+            "titulo": evidencia.nombre,
+            "descripcion": evidencia.usuario,
+        })
+
+    for tarea in proyecto.tareas.all():
+        items.append({
+            "fecha": tarea.actualizada_en.date(),
+            "tipo": "Tarea",
+            "titulo": tarea.nombre,
+            "descripcion": tarea.get_estado_display(),
+        })
+
+    for observacion in proyecto.observaciones.all():
+        items.append({
+            "fecha": observacion.fecha.date(),
+            "tipo": "Observación",
+            "titulo": observacion.usuario,
+            "descripcion": observacion.comentario,
+        })
+
+    if proyecto.fecha_fin:
+        items.append({
+            "fecha": proyecto.fecha_fin,
+            "tipo": "Cierre",
+            "titulo": "Fecha de término",
+            "descripcion": proyecto.get_estado_display(),
+        })
+
+    return sorted(items, key=lambda item: item["fecha"])
+
+@login_required
+def fase_detalle(request, pk):
+    fase = get_object_or_404(FaseProyecto.objects.select_related("proyecto"), pk=pk)
+    form = FaseProyectoForm(instance=fase)
+    if request.method == "POST":
+        form = FaseProyectoForm(request.POST, instance=fase)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Fase actualizada correctamente.")
+            return redirect("fase_detalle", pk=fase.pk)
+    return render(
+        request,
+        "proyectos/fase_detalle.html",
+        {
+            "fase": fase,
+            "proyecto": fase.proyecto,
+            "form": form,
+        },
+    )
 
 
 @login_required

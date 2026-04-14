@@ -1,4 +1,4 @@
-:root {
+﻿:root {
     --inacap-red: #d71920;
     --inacap-red-dark: #a80f16;
     --ink: #1f242d;
@@ -72,6 +72,25 @@ a {
     font-weight: 700;
 }
 
+
+.app-shell {
+    max-width: 1840px;
+    padding-left: 2rem;
+    padding-right: 2rem;
+}
+
+@media (min-width: 1600px) {
+    .app-shell {
+        max-width: 1880px;
+    }
+}
+
+@media (max-width: 767px) {
+    .app-shell {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+}
 .app-main {
     min-height: calc(100vh - 190px);
     padding-bottom: 2.5rem;
@@ -598,5 +617,251 @@ a {
         align-items: flex-end;
         flex-direction: column;
         white-space: normal;
+    }
+}
+
+.horizontal-timeline {
+    display: flex;
+    gap: .9rem;
+    overflow-x: auto;
+    padding: .25rem .1rem 1rem;
+    scroll-snap-type: x mandatory;
+}
+
+.horizontal-timeline::before {
+    background: var(--inacap-red);
+    content: "";
+    flex: 0 0 36px;
+    height: 4px;
+    margin-top: 2.1rem;
+}
+
+.timeline-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-top: 4px solid var(--inacap-red);
+    border-radius: 8px;
+    flex: 0 0 245px;
+    min-height: 145px;
+    padding: .9rem;
+    scroll-snap-align: start;
+}
+
+.timeline-card strong {
+    display: block;
+    font-weight: 800;
+    margin-top: .35rem;
+}
+
+.timeline-card p {
+    color: var(--ink);
+    font-weight: 700;
+    margin: .35rem 0;
+}
+
+.timeline-card small,
+.timeline-date {
+    color: var(--muted);
+    display: block;
+}
+
+.project-timeline-strip {
+    --timeline-line: 3px;
+    align-items: stretch;
+    display: grid;
+    gap: 1rem;
+    grid-auto-columns: 240px;
+    grid-auto-flow: column;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 1.15rem .2rem 1.35rem;
+    position: relative;
+    scroll-snap-type: x mandatory;
+}
+
+.project-timeline-strip::before {
+    background: var(--inacap-red);
+    content: "";
+    height: var(--timeline-line);
+    left: .2rem;
+    position: absolute;
+    right: .2rem;
+    top: 2.45rem;
+    z-index: 0;
+}
+
+.project-timeline-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 8px 18px rgba(31, 36, 45, .06);
+    min-height: 150px;
+    padding: 1rem;
+    position: relative;
+    scroll-snap-align: start;
+    z-index: 1;
+}
+
+.project-timeline-card::before {
+    background: var(--inacap-red);
+    border: 4px solid #fff;
+    border-radius: 999px;
+    box-shadow: 0 0 0 1px rgba(215, 25, 32, .2);
+    content: "";
+    height: 18px;
+    left: 1rem;
+    position: absolute;
+    top: -1.03rem;
+    width: 18px;
+}
+
+.project-timeline-date {
+    color: var(--muted);
+    display: block;
+    font-size: .82rem;
+    font-weight: 800;
+    margin-bottom: .45rem;
+}
+
+.project-timeline-card strong {
+    color: var(--inacap-red);
+    display: block;
+    font-size: .78rem;
+    font-weight: 900;
+    letter-spacing: .04rem;
+    text-transform: uppercase;
+}
+
+.project-timeline-card p {
+    color: var(--ink);
+    font-weight: 800;
+    line-height: 1.25;
+    margin: .4rem 0;
+}
+
+.project-timeline-card small {
+    color: var(--muted);
+    display: block;
+    line-height: 1.35;
+}
+
+
+@media (min-width: 1200px) {
+    .project-detail-grid {
+        align-items: flex-start;
+    }
+
+    .project-timeline-strip {
+        grid-auto-columns: 270px;
+    }
+}
+
+
+.trl-panel {
+    overflow: hidden;
+}
+
+.trl-timeline {
+    align-items: stretch;
+    display: grid;
+    gap: .85rem;
+    grid-auto-columns: minmax(170px, 1fr);
+    grid-auto-flow: column;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 1rem .15rem 1.15rem;
+    position: relative;
+    scroll-snap-type: x mandatory;
+}
+
+.trl-timeline::before {
+    background: var(--inacap-red);
+    content: "";
+    height: 3px;
+    left: .2rem;
+    position: absolute;
+    right: .2rem;
+    top: 2rem;
+}
+
+.trl-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 8px 18px rgba(31, 36, 45, .06);
+    color: var(--ink);
+    min-height: 138px;
+    padding: 1rem;
+    position: relative;
+    scroll-snap-align: start;
+    text-decoration: none;
+    z-index: 1;
+}
+
+.trl-card::before {
+    background: #98a2b3;
+    border: 4px solid #fff;
+    border-radius: 999px;
+    box-shadow: 0 0 0 1px rgba(31, 36, 45, .12);
+    content: "";
+    height: 18px;
+    left: 1rem;
+    position: absolute;
+    top: -1rem;
+    width: 18px;
+}
+
+.trl-card:hover {
+    border-color: rgba(215, 25, 32, .45);
+    color: var(--ink);
+    transform: translateY(-2px);
+}
+
+.trl-number {
+    color: var(--inacap-red);
+    display: block;
+    font-size: .78rem;
+    font-weight: 900;
+    letter-spacing: .04rem;
+    text-transform: uppercase;
+}
+
+.trl-card strong {
+    display: block;
+    font-weight: 800;
+    line-height: 1.2;
+    margin: .45rem 0;
+}
+
+.trl-card small {
+    color: var(--muted);
+    font-weight: 800;
+}
+
+.trl-completada {
+    background: #f1fbf5;
+    border-color: #bce8cc;
+}
+
+.trl-completada::before {
+    background: #2fbf71;
+}
+
+.trl-en_proceso {
+    background: #eef7ff;
+    border-color: #b9dfff;
+}
+
+.trl-en_proceso::before {
+    background: #237fc4;
+}
+
+.trl-pendiente::before {
+    background: #98a2b3;
+}
+
+@media (min-width: 1500px) {
+    .trl-timeline {
+        grid-auto-columns: minmax(185px, 1fr);
     }
 }

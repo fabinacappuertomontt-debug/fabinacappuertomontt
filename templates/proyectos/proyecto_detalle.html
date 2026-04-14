@@ -34,6 +34,30 @@
                 </div>
             {% endif %}
         </section>
+        <section class="content-panel mb-4 trl-panel">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <div>
+                    <h2 class="h5 mb-1">{{ proyecto.nombre_escala }}</h2>
+                    <p class="text-muted mb-0">Nivel actual: <strong>{{ proyecto.nivel_actual_texto }}</strong></p>
+                </div>
+                {% if proyecto.siguiente_fase %}
+                    <span class="alert-dot alert-advertencia">Siguiente: {{ proyecto.siguiente_fase.etiqueta }}</span>
+                {% else %}
+                    <span class="alert-dot alert-ok">Fases completas</span>
+                {% endif %}
+            </div>
+            <div class="trl-timeline" aria-label="Fases del proyecto">
+                {% for fase in proyecto.fases.all %}
+                    <a class="trl-card trl-{{ fase.estado }}" href="{% url 'fase_detalle' fase.pk %}">
+                        <span class="trl-number">{{ fase.etiqueta }}</span>
+                        <strong>{{ fase.nombre }}</strong>
+                        <small>{{ fase.get_estado_display }}</small>
+                    </a>
+                {% empty %}
+                    <div class="list-group-item text-muted">Este proyecto todavía no tiene fases creadas.</div>
+                {% endfor %}
+            </div>
+        </section>
 
         <section class="content-panel mb-4">
             <h2 class="h5 mb-3">Avances registrados</h2>
@@ -151,10 +175,12 @@
         </section>
     </div>
 
-    <div class="col-lg-4">
+    <div class="col-xl-3 col-lg-4">
         <aside class="side-panel">
             <h2 class="h5">Datos principales</h2>
             <dl class="mb-3">
+                <dt>Tipo</dt>
+                <dd>{{ proyecto.get_tipo_proyecto_display }}</dd>
                 <dt>Inicio</dt>
                 <dd>{{ proyecto.fecha_inicio }}</dd>
                 <dt>Fin</dt>

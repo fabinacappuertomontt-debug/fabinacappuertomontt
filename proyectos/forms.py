@@ -1,6 +1,7 @@
-from django import forms
+﻿from django import forms
+from django.contrib.auth.forms import UserCreationForm
 
-from .models import Avance, Evidencia, Observacion, Proyecto, Tarea
+from .models import Avance, Evidencia, FaseProyecto, Observacion, Proyecto, Tarea, Usuario
 
 
 class BootstrapFormMixin:
@@ -25,6 +26,12 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
             "porcentaje_avance",
             "responsables",
         ]
+        labels = {
+            "responsables": "Responsables asociados al proyecto",
+        }
+        help_texts = {
+            "responsables": "Selecciona uno o más usuarios responsables del seguimiento.",
+        }
         widgets = {
             "fecha_inicio": forms.DateInput(attrs={"type": "date"}),
             "fecha_fin": forms.DateInput(attrs={"type": "date"}),
@@ -55,6 +62,18 @@ class AvanceForm(BootstrapFormMixin, forms.ModelForm):
         }
 
 
+class FaseProyectoForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = FaseProyecto
+        fields = ["estado", "realizado"]
+        labels = {
+            "realizado": "Qué se hizo en esta fase",
+        }
+        widgets = {
+            "realizado": forms.Textarea(attrs={"rows": 5}),
+        }
+
+
 class TareaForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Tarea
@@ -74,3 +93,21 @@ class EvidenciaForm(BootstrapFormMixin, forms.ModelForm):
         model = Evidencia
         fields = ["nombre", "descripcion", "archivo"]
         widgets = {"descripcion": forms.Textarea(attrs={"rows": 3})}
+
+
+class UsuarioRegistroForm(BootstrapFormMixin, UserCreationForm):
+    class Meta:
+        model = Usuario
+        fields = ["username", "nombre", "email", "rol", "is_staff", "is_superuser"]
+        labels = {
+            "username": "Usuario",
+            "is_staff": "Puede entrar al admin",
+            "is_superuser": "Administrador total",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["password1"].widget.attrs.setdefault("class", "form-control")
+        self.fields["password2"].widget.attrs.setdefault("class", "form-control")
+        self.fields["is_staff"].widget.attrs.setdefault("class", "form-check-input")
+        self.fields["is_superuser"].widget.attrs.setdefault("class", "form-check-input")

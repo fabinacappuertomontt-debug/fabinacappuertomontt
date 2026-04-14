@@ -46,6 +46,7 @@
                 <th>Proyecto</th>
                 <th>Estado</th>
                 <th>Alerta</th>
+                                <th>Nivel</th>
                 <th>Avance</th>
                 <th>Responsables</th>
                 <th>Tareas</th>
@@ -61,6 +62,17 @@
                     </td>
                     <td><span class="status-pill status-{{ proyecto.estado }}">{{ proyecto.get_estado_display }}</span></td>
                     <td><span class="alert-dot alert-{{ proyecto.nivel_alerta }}">{{ proyecto.texto_alerta }}</span></td>
+                                                            <td>
+                        <span class="status-pill">
+                            {% if proyecto.usa_trl %}
+                                TRL {{ proyecto.nivel_actual|default:"0" }}
+                            {% elif proyecto.nivel_actual %}
+                                Fase {{ proyecto.nivel_actual }}
+                            {% else %}
+                                Pendiente
+                            {% endif %}
+                        </span>
+                    </td>
                     <td class="project-progress">
                         <div class="progress" role="progressbar" aria-valuenow="{{ proyecto.porcentaje_avance }}" aria-valuemin="0" aria-valuemax="100">
                             <div class="progress-bar" style="width: {{ proyecto.porcentaje_avance }}%">{{ proyecto.porcentaje_avance }}%</div>
@@ -83,7 +95,7 @@
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center text-muted py-4">No se encontraron proyectos.</td>
+                    <td colspan="8" class="text-center text-muted py-4">No se encontraron proyectos.</td>
                 </tr>
             {% endfor %}
         </tbody>

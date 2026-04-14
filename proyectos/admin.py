@@ -1,7 +1,7 @@
-from django.contrib import admin
+﻿from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import Avance, Evidencia, Observacion, Proyecto, Tarea, Usuario
+from .models import Avance, Evidencia, FaseProyecto, Observacion, Proyecto, Tarea, Usuario
 
 
 @admin.register(Usuario)
@@ -14,6 +14,12 @@ class UsuarioAdmin(UserAdmin):
     )
     list_display = ("username", "nombre", "email", "rol", "is_staff")
     search_fields = ("username", "nombre", "email")
+
+
+class FaseProyectoInline(admin.TabularInline):
+    model = FaseProyecto
+    extra = 0
+    fields = ("trl", "nombre", "estado", "realizado")
 
 
 class AvanceInline(admin.TabularInline):
@@ -44,7 +50,14 @@ class ProyectoAdmin(admin.ModelAdmin):
     list_filter = ("estado", "fecha_inicio")
     search_fields = ("nombre", "descripcion")
     filter_horizontal = ("responsables",)
-    inlines = [TareaInline, AvanceInline, ObservacionInline, EvidenciaInline]
+    inlines = [FaseProyectoInline, TareaInline, AvanceInline, ObservacionInline, EvidenciaInline]
+
+
+@admin.register(FaseProyecto)
+class FaseProyectoAdmin(admin.ModelAdmin):
+    list_display = ("proyecto", "trl", "nombre", "estado", "fecha_actualizacion")
+    list_filter = ("trl", "estado")
+    search_fields = ("proyecto__nombre", "nombre", "realizado")
 
 
 @admin.register(Avance)

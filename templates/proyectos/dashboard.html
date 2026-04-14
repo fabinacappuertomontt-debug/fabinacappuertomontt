@@ -34,7 +34,7 @@
 </div>
 
 <div class="row g-4">
-    <div class="col-lg-5">
+    <div class="col-xl-4 col-lg-5">
         <section class="content-panel mb-4">
             <h2 class="h5 mb-3">Proyectos atrasados</h2>
             <div class="list-group">
@@ -86,7 +86,7 @@
             </div>
         </section>
     </div>
-    <div class="col-lg-7">
+    <div class="col-xl-8 col-lg-7">
         <section class="content-panel mb-4">
             <h2 class="h5 mb-3">Proyectos recientes</h2>
             <div class="list-group">
@@ -94,7 +94,16 @@
                     <a class="list-group-item list-group-item-action" href="{{ proyecto.get_absolute_url }}">
                         <div class="d-flex justify-content-between">
                             <strong>{{ proyecto.nombre }}</strong>
-                            <span class="status-pill status-{{ proyecto.estado }}">{{ proyecto.get_estado_display }}</span>
+                                                        <span class="status-pill status-{{ proyecto.estado }}">{{ proyecto.get_estado_display }}</span>
+                            <span class="status-pill">
+                                {% if proyecto.usa_trl %}
+                                    TRL {{ proyecto.nivel_actual|default:"0" }}
+                                {% elif proyecto.nivel_actual %}
+                                    Fase {{ proyecto.nivel_actual }}
+                                {% else %}
+                                    Pendiente
+                                {% endif %}
+                            </span>
                         </div>
                         <div class="progress mt-2" role="progressbar" aria-valuenow="{{ proyecto.porcentaje_avance }}" aria-valuemin="0" aria-valuemax="100">
                             <div class="progress-bar" style="width: {{ proyecto.porcentaje_avance }}%">{{ proyecto.porcentaje_avance }}%</div>

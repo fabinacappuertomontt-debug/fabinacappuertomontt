@@ -4,6 +4,39 @@ from django.urls import reverse
 from django.utils import timezone
 
 
+
+TRL_DEFINICIONES = [
+    (1, "Principios básicos observados"),
+    (2, "Concepto tecnológico formulado"),
+    (3, "Prueba de concepto experimental"),
+    (4, "Validación en laboratorio"),
+    (5, "Validación en entorno relevante"),
+    (6, "Prototipo demostrado en entorno relevante"),
+    (7, "Prototipo demostrado en entorno real"),
+    (8, "Sistema completo y validado"),
+    (9, "Sistema probado con éxito en entorno real"),
+]
+
+TRL_DESCRIPCIONES = dict(TRL_DEFINICIONES)
+
+ACTIVIDAD_FASES = [
+    (1, "Planificación"),
+    (2, "Preparación de materiales"),
+    (3, "Coordinación y difusión"),
+    (4, "Ejecución"),
+    (5, "Evaluación"),
+    (6, "Cierre"),
+]
+
+GENERAL_FASES = [
+    (1, "Levantamiento"),
+    (2, "Planificación"),
+    (3, "Ejecución"),
+    (4, "Validación"),
+    (5, "Cierre"),
+]
+
+
 class Usuario(AbstractUser):
     class Rol(models.TextChoices):
         PRACTICANTE = "practicante", "Practicante"
@@ -30,8 +63,18 @@ class Proyecto(models.Model):
         EN_PAUSA = "en_pausa", "En pausa"
         FINALIZADO = "finalizado", "Finalizado"
 
+    class TipoProyecto(models.TextChoices):
+        TECNOLOGICO = "tecnologico", "Proyecto tecnológico"
+        ACTIVIDAD = "actividad", "Actividad académica"
+        GENERAL = "general", "Proyecto general"
+
     nombre = models.CharField(max_length=200)
     descripcion = models.TextField()
+    tipo_proyecto = models.CharField(
+        max_length=20,
+        choices=TipoProyecto.choices,
+        default=TipoProyecto.GENERAL,
+    )
     fecha_inicio = models.DateField()
     fecha_fin = models.DateField(blank=True, null=True)
     estado = models.CharField(
@@ -101,6 +144,94 @@ class Proyecto(models.Model):
             return "Próximo a vencer"
         return "Avance normal"
 
+
+
+
+    @property
+    def usa_trl(self):
+        return self.tipo_proyecto == self.TipoProyecto.TECNOLOGICO
+
+    @property
+    def fase_actual(self):
+        return self.fases.filter(estado=FaseProyecto.Estado.COMPLETADA).order_by("-trl").first()
+
+    @property
+    def nivel_actual(self):
+        return self.fase_actual.trl if self.fase_actual else 0
+
+    @property
+    def trl_actual(self):
+        return self.nivel_actual
+
+    @property
+    def avance_fases_actual(self):
+        return self.nivel_actual
+
+    @property
+    def nivel_actual_texto(self):
+        if self.usa_trl:
+            if not self.nivel_actual:
+                return "Sin TRL completado"
+            return f"TRL {self.nivel_actual}: {TRL_DESCRIPCIONES[self.nivel_actual]}"
+        if not self.fase_actual:
+            return "Sin fases completadas"
+        return f"Fase {self.fase_actual.trl}: {self.fase_actual.nombre}"
+
+    @property
+    def trl_actual_texto(self):
+        return self.nivel_actual_texto
+
+    @property
+    def siguiente_fase(self):
+        return self.fases.exclude(estado=FaseProyecto.Estado.COMPLETADA).order_by("trl").first()
+
+    @property
+    def trl_siguiente(self):
+        return self.siguiente_fase
+
+    @property
+    def nombre_escala(self):
+        return "Madurez tecnológica TRL" if self.usa_trl else "Fases del proyecto"
+
+
+class FaseProyecto(models.Model):
+    class Estado(models.TextChoices):
+        PENDIENTE = "pendiente", "Pendiente"
+        EN_PROCESO = "en_proceso", "En proceso"
+        COMPLETADA = "completada", "Completada"
+
+    proyecto = models.ForeignKey(
+        Proyecto,
+        on_delete=models.CASCADE,
+        related_name="fases",
+    )
+    trl = models.PositiveSmallIntegerField(choices=TRL_DEFINICIONES)
+    nombre = models.CharField(max_length=200)
+    objetivo = models.TextField()
+    realizado = models.TextField(blank=True)
+    estado = models.CharField(
+        max_length=20,
+        choices=Estado.choices,
+        default=Estado.PENDIENTE,
+    )
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["trl"]
+        unique_together = ["proyecto", "trl"]
+
+    def __str__(self):
+        return f"{self.etiqueta} - {self.proyecto}"
+
+    @property
+    def completada(self):
+        return self.estado == self.Estado.COMPLETADA
+
+    @property
+    def etiqueta(self):
+        if self.proyecto.usa_trl:
+            return f"TRL {self.trl}"
+        return f"Fase {self.trl}"
 
 class Avance(models.Model):
     proyecto = models.ForeignKey(

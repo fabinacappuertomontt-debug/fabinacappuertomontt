@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}Usuarios{% endblock %}
 
@@ -10,7 +10,7 @@
         <p>Consulta roles, proyectos asignados y tareas pendientes por integrante.</p>
     </div>
     {% if user.is_staff %}
-        <a class="btn btn-outline-primary" href="/admin/proyectos/usuario/add/">Crear usuario</a>
+        <a class="btn btn-primary" href="{% url 'usuario_crear' %}">Crear usuario</a>
     {% endif %}
 </div>
 
@@ -45,3 +45,4 @@
     </table>
 </div>
 {% endblock %}
+
