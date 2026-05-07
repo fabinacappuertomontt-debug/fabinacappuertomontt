@@ -9,7 +9,7 @@
         <h1>{{ fase.etiqueta }}: {{ fase.nombre }}</h1>
         <p>{{ fase.objetivo }}</p>
     </div>
-    <a class="btn btn-outline-secondary" href="{{ proyecto.get_absolute_url }}">Volver al proyecto</a>
+    <a class="btn btn-outline-secondary" href="{% url 'proyecto_trabajo' proyecto.pk %}">Volver a la mesa</a>
 </div>
 
 <div class="row g-4">
@@ -29,7 +29,7 @@
         </section>
     </div>
     <div class="col-lg-5">
-        <form method="post" class="form-panel" data-confirm="¿Actualizar esta fase?">
+        <form method="post" class="form-panel">
             {% csrf_token %}
             {{ form.non_field_errors }}
             {% for field in form %}
@@ -47,3 +47,4 @@
     </div>
 </div>
 {% endblock %}
+

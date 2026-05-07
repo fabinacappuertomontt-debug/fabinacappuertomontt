@@ -4,86 +4,214 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}Seguimiento de proyectos{% endblock %}</title>
+    <title>Área personal | AAI</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=20260414f">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="{% static 'img/inacap-favicon.svg' %}">
+    <link rel="shortcut icon" type="image/svg+xml" href="{% static 'img/inacap-favicon.svg' %}">
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=20260504-chat">
 </head>
 <body class="{% block body_class %}{% endblock %}">
-    <div class="institution-strip">
-        <div class="container-fluid app-shell d-flex justify-content-between align-items-center">
-            <span>Seguimiento académico de proyectos</span>
-            <span class="d-none d-md-inline">Aprender Haciendo</span>
-        </div>
-    </div>
-    <nav class="navbar navbar-expand-lg navbar-light app-navbar">
-        <div class="container-fluid app-shell">
-            <a class="navbar-brand app-brand" href="{% url 'dashboard' %}">
-                <img src="https://portal.inacap.cl/documents/d/guest/logofooter60a" alt="INACAP">
-                <span>Proyectos</span>
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarContent">
-                {% if user.is_authenticated %}
-                    <ul class="navbar-nav me-auto">
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'dashboard' %}">Panel</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'proyecto_lista' %}">Proyectos</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'usuario_lista' %}">Usuarios</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'proyecto_crear' %}">Nuevo proyecto</a>
-                        </li>
-                    </ul>
-                    <div class="d-flex align-items-center gap-3 user-session">
-                        <span>{{ user.nombre|default:user.username }}</span>
-                        <form method="post" action="{% url 'logout' %}">
-                            {% csrf_token %}
-                            <button class="btn btn-outline-dark btn-sm" type="submit">Salir</button>
-                        </form>
+    {% if user.is_authenticated %}
+        <div class="app-layout">
+            <aside class="app-sidebar">
+                <div class="app-sidebar-brand">
+                    <div class="sidebar-brand-tools">
+                        <a class="app-brand" href="{% url 'dashboard' %}">
+                            <img src="https://portal.inacap.cl/documents/d/guest/logofooter60a" alt="INACAP">
+                        </a>
+                        <button class="sidebar-toggle" type="button" title="Ocultar menú" aria-label="Ocultar menú" aria-pressed="false">
+                            <i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i>
+                        </button>
                     </div>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
+                    <div class="sidebar-brand-copy">
+                        <strong>FAB {{ user.get_sede_display|default:"Puerto Montt" }}</strong>
+                        <span>Seguimiento de proyectos</span>
+                    </div>
+                </div>
 
-    <main class="container-fluid app-shell app-main">
-        {% if messages %}
-            <div class="mb-3">
-                {% for message in messages %}
-                    <div class="alert alert-{{ message.tags|default:'info' }} mb-2" role="alert">
-                        {{ message }}
+                <div class="sidebar-section">
+                    <span class="sidebar-label">Navegación</span>
+                    <nav class="sidebar-nav">
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'dashboard' %}is-active{% endif %}" href="{% url 'dashboard' %}">
+                            <i class="bi bi-house-door-fill"></i>
+                            <span>Bienvenida</span>
+                        </a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'panel_general' %}is-active{% endif %}" href="{% url 'panel_general' %}">
+                            <i class="bi bi-grid-1x2-fill"></i>
+                            <span>Panel general</span>
+                        </a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'proyecto_lista' or request.resolver_match.url_name == 'proyecto_detalle' or request.resolver_match.url_name == 'proyecto_trabajo' or request.resolver_match.url_name == 'proyecto_crear' or request.resolver_match.url_name == 'proyecto_editar' or request.resolver_match.url_name == 'proyecto_estado' or request.resolver_match.url_name == 'avance_crear' or request.resolver_match.url_name == 'tarea_crear' or request.resolver_match.url_name == 'evidencia_crear' or request.resolver_match.url_name == 'observacion_crear' or request.resolver_match.url_name == 'etapa_trabajo' or request.resolver_match.url_name == 'proyecto_eliminar' %}is-active{% endif %}" href="{% url 'proyecto_lista' %}">
+                            <i class="bi bi-kanban-fill"></i>
+                            <span>Proyectos</span>
+                        </a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'inventario_lista' or request.resolver_match.url_name == 'inventario_crear' or request.resolver_match.url_name == 'inventario_agregar_stock' or request.resolver_match.url_name == 'inventario_usar' %}is-active{% endif %}" href="{% url 'inventario_lista' %}">
+                            <i class="bi bi-box-seam-fill"></i>
+                            <span>Inventario</span>
+                        </a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'usuario_lista' or request.resolver_match.url_name == 'usuario_crear' %}is-active{% endif %}" href="{% url 'usuario_lista' %}">
+                            <i class="bi bi-people-fill"></i>
+                            <span>Usuarios</span>
+                        </a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'chat_lista' or request.resolver_match.url_name == 'chat_privado' %}is-active{% endif %}" href="{% url 'chat_lista' %}">
+                            <i class="bi bi-chat-dots-fill"></i>
+                            <span>Chat</span>
+                            {% if chat_no_leidos %}
+                                <strong class="sidebar-notification-dot">{{ chat_no_leidos }}</strong>
+                            {% endif %}
+                        </a>
+                        <a class="sidebar-link sidebar-link-accent {% if request.resolver_match.url_name == 'proyecto_crear' %}is-active{% endif %}" href="{% url 'proyecto_crear' %}">
+                            <i class="bi bi-plus-circle-fill"></i>
+                            <span>Nuevo proyecto</span>
+                        </a>
+                    </nav>
+                </div>
+
+                <div class="sidebar-section sidebar-helper">
+                    <span class="sidebar-label">Contexto</span>
+                    <div class="sidebar-helper-card">
+                        <strong>Área Aprender Haciendo</strong>
+                        <p>Controla proyectos, avances, etapas y recursos desde una sola vista de trabajo.</p>
                     </div>
-                {% endfor %}
+                </div>
+
+                <div class="sidebar-session">
+                    <div class="sidebar-session-person">
+                        {% if user.foto %}
+                            <img class="sidebar-user-photo" src="{{ user.foto.url }}" alt="{{ user.nombre|default:user.username }}">
+                        {% else %}
+                            <span class="sidebar-user-mark" aria-hidden="true">
+                                <i class="bi bi-person-fill"></i>
+                            </span>
+                        {% endif %}
+                        <div class="sidebar-session-copy">
+                            <strong>{{ user.nombre|default:user.username }}</strong>
+                            <span>{{ user.email }}</span>
+                        </div>
+                    </div>
+                    <a class="sidebar-profile-link" href="{% url 'perfil_editar' %}">
+                        <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                        <span>Editar perfil</span>
+                    </a>
+                    <form method="post" action="{% url 'logout' %}">
+                        {% csrf_token %}
+                        <button class="sidebar-logout" type="submit">
+                            <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+                            <span>Cerrar sesión</span>
+                        </button>
+                    </form>
+                </div>
+            </aside>
+
+            <div class="app-content-shell">
+                <header class="app-topbar">
+                    <div class="app-topbar-copy">
+                        <span class="app-topbar-kicker">Área personal</span>
+                        <strong class="app-topbar-current">
+                            {% if request.resolver_match.url_name == 'dashboard' %}
+                                Bienvenida
+                            {% elif request.resolver_match.url_name == 'panel_general' %}
+                                Panel general
+                            {% elif request.resolver_match.url_name == 'proyecto_lista' %}
+                                Proyectos
+                            {% elif request.resolver_match.url_name == 'inventario_lista' %}
+                                Inventario
+                            {% elif request.resolver_match.url_name == 'usuario_lista' %}
+                                Usuarios
+                            {% elif request.resolver_match.url_name == 'chat_lista' or request.resolver_match.url_name == 'chat_privado' %}
+                                Chat
+                            {% else %}
+                                FAB INACAP {{ user.get_sede_display|default:"Puerto Montt" }}
+                            {% endif %}
+                        </strong>
+                    </div>
+                    <div class="app-topbar-meta">
+                        <span><i class="bi bi-building"></i> {{ user.get_sede_display|default:"Puerto Montt" }}</span>
+                        <span><i class="bi bi-mortarboard-fill"></i> Aprender Haciendo</span>
+                        <span><i class="bi bi-shield-check"></i> Interno</span>
+                    </div>
+                </header>
+    {% endif %}
+
+    {% if messages %}
+        <div class="modal fade" id="messageModal" tabindex="-1" aria-labelledby="messageModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content app-message-modal">
+                    <div class="modal-header">
+                        <div>
+                            <span class="eyebrow">Aviso del sistema</span>
+                            <h2 class="modal-title h5" id="messageModalLabel">Listo</h2>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body">
+                        {% for message in messages %}
+                            <p class="message-line message-{{ message.tags|default:'info' }}">{{ message }}</p>
+                        {% endfor %}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Aceptar</button>
+                    </div>
+                </div>
             </div>
-        {% endif %}
+        </div>
+    {% endif %}
+
+    <main class="{% if user.is_authenticated %}app-main app-main-shell{% else %}container-fluid app-shell app-main{% endif %}">
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="app-footer">
-        <div class="container-fluid app-shell d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <div>
-                <strong>INACAP Proyectos</strong>
-                <span>Gestión, avance y seguimiento académico.</span>
+    {% if user.is_authenticated %}
+                <footer class="app-footer">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                        <div>
+                            <strong>INACAP {{ user.get_sede_display|default:"Puerto Montt" }}</strong>
+                            <span>Gestión, avance y seguimiento académico.</span>
+                        </div>
+                        <span>Chile</span>
+                    </div>
+                </footer>
             </div>
-            <span>Chile</span>
         </div>
-    </footer>
+    {% endif %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        document.querySelectorAll("form[data-confirm]").forEach((form) => {
-            form.addEventListener("submit", (event) => {
-                if (!window.confirm(form.dataset.confirm)) {
-                    event.preventDefault();
-                }
-            });
+        document.addEventListener("DOMContentLoaded", () => {
+            const messageModal = document.getElementById("messageModal");
+            if (messageModal && window.bootstrap) {
+                bootstrap.Modal.getOrCreateInstance(messageModal).show();
+            }
+
+            const appLayout = document.querySelector(".app-layout");
+            const sidebarToggle = document.querySelector(".sidebar-toggle");
+            if (appLayout && sidebarToggle) {
+                const storageKey = "fabSidebarCollapsed";
+                const icon = sidebarToggle.querySelector("i");
+
+                const setCollapsed = (collapsed) => {
+                    appLayout.classList.toggle("sidebar-collapsed", collapsed);
+                    sidebarToggle.setAttribute("aria-pressed", collapsed ? "true" : "false");
+                    sidebarToggle.setAttribute("aria-label", collapsed ? "Mostrar menú" : "Ocultar menú");
+                    sidebarToggle.setAttribute("title", collapsed ? "Mostrar menú" : "Ocultar menú");
+                    if (icon) {
+                        icon.className = collapsed ? "bi bi-layout-sidebar-inset-reverse" : "bi bi-layout-sidebar-inset";
+                    }
+                    localStorage.setItem(storageKey, collapsed ? "true" : "false");
+                };
+
+                setCollapsed(localStorage.getItem(storageKey) === "true");
+                sidebarToggle.addEventListener("click", () => {
+                    setCollapsed(!appLayout.classList.contains("sidebar-collapsed"));
+                });
+            }
         });
     </script>
 </body>
 </html>
+
+
+
+
+
+

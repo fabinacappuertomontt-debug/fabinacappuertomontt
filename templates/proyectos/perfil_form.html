@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Editar perfil{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Mi perfil</span>
+        <h1>Editar perfil</h1>
+        <p>Actualiza tu foto, teléfono y datos personales visibles para el equipo.</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}">Volver</a>
+</div>
+
+<div class="profile-edit-layout">
+    <aside class="profile-preview-card">
+        {% if user.foto %}
+            <img src="{{ user.foto.url }}" alt="{{ user.nombre|default:user.username }}">
+        {% else %}
+            <div class="profile-preview-avatar">{{ user.nombre|default:user.username|slice:":1"|upper }}</div>
+        {% endif %}
+        <strong>{{ user.nombre|default:user.username }}</strong>
+        <span>{{ user.get_rol_display }} · {{ user.get_sede_display }}</span>
+        <p>{{ user.email }}</p>
+    </aside>
+
+    <form method="post" enctype="multipart/form-data" class="form-panel">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        {% for field in form %}
+            <div class="mb-3">
+                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                {% for error in field.errors %}
+                    <div class="text-danger small">{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary" type="submit">Guardar perfil</button>
+            <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

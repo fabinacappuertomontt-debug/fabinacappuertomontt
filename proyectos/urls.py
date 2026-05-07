@@ -4,13 +4,31 @@ from . import views
 
 
 urlpatterns = [
+    path("registro/", views.registro_publico, name="registro"),
+    path("registro/pendiente/<int:pk>/", views.registro_pendiente, name="registro_pendiente"),
+    path("registro/resolver/<str:token>/", views.registro_resolver, name="registro_resolver"),
+    path("registro/verificar/<int:pk>/", views.verificar_correo, name="verificar_correo"),
     path("", views.dashboard, name="dashboard"),
+    path("panel/", views.panel_general, name="panel_general"),
     path("usuarios/", views.UsuarioListView.as_view(), name="usuario_lista"),
     path("usuarios/nuevo/", views.UsuarioCreateView.as_view(), name="usuario_crear"),
+    path("perfil/editar/", views.perfil_editar, name="perfil_editar"),
+    path("usuarios/<int:pk>/", views.usuario_detalle, name="usuario_detalle"),
+    path("usuarios/<int:pk>/editar/", views.UsuarioUpdateView.as_view(), name="usuario_editar"),
+    path("usuarios/<int:pk>/eliminar/", views.usuario_eliminar, name="usuario_eliminar"),
+    path("chat/", views.chat_privado, name="chat_lista"),
+    path("chat/<int:usuario_id>/", views.chat_privado, name="chat_privado"),
     path("proyectos/", views.ProyectoListView.as_view(), name="proyecto_lista"),
+    path("inventario/", views.inventario_lista, name="inventario_lista"),
+    path("inventario/nuevo/", views.inventario_crear, name="inventario_crear"),
+    path("inventario/lector/", views.inventario_lector, name="inventario_lector"),
+    path("inventario/<int:pk>/stock/", views.inventario_agregar_stock, name="inventario_agregar_stock"),
     path("proyectos/nuevo/", views.ProyectoCreateView.as_view(), name="proyecto_crear"),
     path("proyectos/<int:pk>/", views.proyecto_detalle, name="proyecto_detalle"),
+    path("proyectos/<int:pk>/trabajo/", views.proyecto_trabajo, name="proyecto_trabajo"),
+    path("proyectos/<int:pk>/etapas/<slug:slug>/", views.etapa_trabajo, name="etapa_trabajo"),
     path("proyectos/<int:pk>/editar/", views.ProyectoUpdateView.as_view(), name="proyecto_editar"),
+    path("proyectos/<int:pk>/eliminar/", views.proyecto_eliminar, name="proyecto_eliminar"),
     path("fases/<int:pk>/", views.fase_detalle, name="fase_detalle"),
     path("proyectos/<int:pk>/estado/", views.actualizar_estado, name="proyecto_estado"),
     path("proyectos/<int:pk>/avances/nuevo/", views.crear_avance, name="avance_crear"),
@@ -18,6 +36,5 @@ urlpatterns = [
     path("proyectos/<int:pk>/evidencias/nueva/", views.subir_evidencia, name="evidencia_crear"),
     path("tareas/<int:pk>/completar/", views.completar_tarea, name="tarea_completar"),
     path("proyectos/<int:pk>/observaciones/nueva/", views.crear_observacion, name="observacion_crear"),
+    path("proyectos/<int:pk>/inventario/usar/", views.registrar_uso_inventario, name="inventario_usar"),
 ]
-
-

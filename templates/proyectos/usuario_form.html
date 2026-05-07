@@ -1,20 +1,20 @@
 ﻿{% extends "base.html" %}
 
-{% block title %}Crear usuario{% endblock %}
+{% block title %}{% if object %}Editar usuario{% else %}Crear usuario{% endif %}{% endblock %}
 
 {% block content %}
 <div class="page-header">
     <div>
         <span class="eyebrow">Usuarios</span>
-        <h1>Crear usuario</h1>
-        <p>Registra una cuenta para practicantes, profesores o administradores.</p>
+        <h1>{% if object %}Editar usuario{% else %}Crear usuario{% endif %}</h1>
+        <p>{% if object %}Actualiza datos, sede, permisos y estado de la cuenta.{% else %}Registra una cuenta para practicantes, profesores o administradores.{% endif %}</p>
     </div>
     <a class="btn btn-outline-secondary" href="{% url 'usuario_lista' %}">Volver</a>
 </div>
 
 <div class="row justify-content-center">
     <div class="col-lg-7">
-        <form method="post" class="form-panel">
+        <form method="post" class="form-panel" enctype="multipart/form-data">
             {% csrf_token %}
             {{ form.non_field_errors }}
             {% for field in form %}
@@ -33,7 +33,7 @@
                 </div>
             {% endfor %}
             <div class="d-flex gap-2">
-                <button class="btn btn-primary" type="submit">Crear usuario</button>
+                <button class="btn btn-primary" type="submit">{% if object %}Guardar cambios{% else %}Crear usuario{% endif %}</button>
                 <a class="btn btn-outline-secondary" href="{% url 'usuario_lista' %}">Cancelar</a>
             </div>
         </form>

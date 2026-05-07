@@ -7,39 +7,87 @@
     <div>
         <span class="eyebrow">Proyectos</span>
         <h1>{% if object %}Editar proyecto{% else %}Nuevo proyecto{% endif %}</h1>
-        <p>Registra los datos principales, responsables, fechas y avance inicial.</p>
+        <p>
+            {% if object %}
+                Actualiza datos generales, responsables y fechas del proyecto. El cambio de estado para pausar, reactivar o finalizar se realiza en la opción de estado del proyecto.
+            {% else %}
+                Registra datos principales, objetivos, resultados esperados, indicadores, fechas y responsables.
+            {% endif %}
+        </p>
     </div>
     <a class="btn btn-outline-secondary" href="{% url 'proyecto_lista' %}">Volver</a>
 </div>
 
-<form method="post" class="form-panel" data-confirm="¿Guardar los cambios del proyecto?">
+<form method="post" class="form-panel">
     {% csrf_token %}
     {{ form.non_field_errors }}
     <div class="row g-3">
         {% for field in form %}
-            <div class="{% if field.name == 'descripcion' or field.name == 'responsables' %}col-12{% else %}col-md-6{% endif %}">
-                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {% if field.name == "responsables" %}
-                    <div class="responsables-list">
-                        {% for checkbox in field %}
-                            <label class="responsable-option" for="{{ checkbox.id_for_label }}">
-                                {{ checkbox.tag }}
-                                <span>{{ checkbox.choice_label }}</span>
-                            </label>
-                        {% empty %}
-                            <p class="text-muted mb-0">Primero crea usuarios para poder asignarlos como responsables.</p>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    {{ field }}
-                {% endif %}
-                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-                {% for error in field.errors %}
-                    <div class="text-danger small">{{ error }}</div>
-                {% endfor %}
-            </div>
+            {% if field.name != 'empresa_externa' and field.name != 'empresa_externa_nombre' and field.name != 'empresa_externa_rut' and field.name != 'empresa_externa_rubro' and field.name != 'empresa_externa_contacto' and field.name != 'empresa_externa_correo' and field.name != 'empresa_externa_telefono' and field.name != 'empresa_externa_rol' and field.name != 'empresa_externa_observaciones' %}
+                <div class="{% if field.name == 'descripcion' or field.name == 'objetivo_principal' or field.name == 'objetivo_especifico' or field.name == 'resultados_esperados' or field.name == 'indicadores' or field.name == 'responsables' %}col-12{% else %}col-md-6{% endif %}" {% if field.name == 'trl_inicial' or field.name == 'trl_objetivo' %}data-trl-wrapper{% endif %}>
+                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {% if field.name == "responsables" %}
+                        <div class="responsables-field-header">
+                            {% if es_admin_laboratorio %}
+                                <a class="btn btn-sm btn-outline-primary" href="{% url 'usuario_crear' %}">Agregar usuario</a>
+                            {% endif %}
+                        </div>
+                        <details class="responsables-collapsible">
+                            <summary>Seleccionar responsables</summary>
+                            <div class="responsables-list compact">
+                                {% for checkbox in field %}
+                                    <label class="responsable-option" for="{{ checkbox.id_for_label }}">
+                                        {{ checkbox.tag }}
+                                        <span>{{ checkbox.choice_label }}</span>
+                                    </label>
+                                {% empty %}
+                                    <p class="text-muted mb-0">Primero crea usuarios para poder asignarlos como responsables.</p>
+                                {% endfor %}
+                            </div>
+                        </details>
+                    {% else %}
+                        {{ field }}
+                    {% endif %}
+                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                    {% for error in field.errors %}
+                        <div class="text-danger small">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
         {% endfor %}
     </div>
+
+    <section class="external-company-panel mt-4" data-external-company>
+        <label class="external-company-switch" for="{{ form.empresa_externa.id_for_label }}">
+            {{ form.empresa_externa }}
+            <span>
+                <strong>{{ form.empresa_externa.label }}</strong>
+                <small>Activa esto solo si el proyecto incluye una empresa o institución externa a INACAP.</small>
+            </span>
+        </label>
+        {% if form.empresa_externa.help_text %}<div class="form-text">{{ form.empresa_externa.help_text }}</div>{% endif %}
+        {% for error in form.empresa_externa.errors %}
+            <div class="text-danger small">{{ error }}</div>
+        {% endfor %}
+
+        <div class="external-company-fields" data-external-company-fields>
+            <div class="row g-3">
+                {% for field in form %}
+                    {% if field.name == 'empresa_externa_nombre' or field.name == 'empresa_externa_rut' or field.name == 'empresa_externa_rubro' or field.name == 'empresa_externa_contacto' or field.name == 'empresa_externa_correo' or field.name == 'empresa_externa_telefono' or field.name == 'empresa_externa_rol' or field.name == 'empresa_externa_observaciones' %}
+                        <div class="{% if field.name == 'empresa_externa_observaciones' %}col-12{% else %}col-md-6{% endif %}">
+                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                            {% for error in field.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
     <div class="d-flex gap-2 mt-4">
         <button class="btn btn-primary" type="submit">Guardar</button>
         {% if object %}
@@ -47,4 +95,32 @@
         {% endif %}
     </div>
 </form>
+
+<script>
+    (() => {
+        const panel = document.querySelector("[data-external-company]");
+        if (panel) {
+            const checkbox = panel.querySelector("#{{ form.empresa_externa.id_for_label }}");
+            const fields = panel.querySelector("[data-external-company-fields]");
+            const sync = () => {
+                fields.hidden = !checkbox.checked;
+            };
+            checkbox.addEventListener("change", sync);
+            sync();
+        }
+
+        const methodology = document.querySelector("[data-project-methodology]");
+        const trlFields = document.querySelectorAll("[data-trl-wrapper]");
+        const syncMethodology = () => {
+            const usesTrl = methodology && methodology.value === "trl";
+            trlFields.forEach((field) => {
+                field.hidden = !usesTrl;
+            });
+        };
+        if (methodology) {
+            methodology.addEventListener("change", syncMethodology);
+            syncMethodology();
+        }
+    })();
+</script>
 {% endblock %}
