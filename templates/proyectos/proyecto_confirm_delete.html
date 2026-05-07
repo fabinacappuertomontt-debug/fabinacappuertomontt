@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Eliminar proyecto{% endblock %}
+
+{% block content %}
+<div class="delete-confirm-shell">
+    <section class="delete-confirm-panel">
+        <span class="eyebrow">Zona administrador</span>
+        <h1>Eliminar proyecto</h1>
+        <p>Esta acción eliminará el proyecto <strong>{{ proyecto.nombre }}</strong> junto con sus tareas, avances, observaciones, evidencias y archivos asociados.</p>
+
+        <div class="delete-warning-box">
+            <strong>Acción permanente</strong>
+            <span>Después de confirmar, la información se eliminará de la base de datos y no aparecerá en el sistema.</span>
+        </div>
+
+        <form method="post" class="delete-actions">
+            {% csrf_token %}
+            <a class="btn btn-outline-secondary" href="{{ proyecto.get_absolute_url }}">Cancelar</a>
+            <button class="btn btn-danger" type="submit">Eliminar definitivamente</button>
+        </form>
+    </section>
+</div>
+{% endblock %}

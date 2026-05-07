@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Confirmar correo{% endblock %}
+{% block body_class %}login-page{% endblock %}
+
+{% block content %}
+<div class="login-layout">
+    <section class="login-intro">
+        <div class="login-brand-row">
+            <span class="login-logo-mark">F</span>
+            <span>FAB INACAP</span>
+        </div>
+        <span class="eyebrow">Confirmacion</span>
+        <h1>Revisa tu correo</h1>
+        <p>Enviamos un código de 6 dígitos a {{ usuario.email }}. El código vence en 10 minutos.</p>
+        <figure class="login-campus">
+            <img src="https://portal.inacap.cl/documents/47032/512274/Semana-de-Bienvenida-1200x400.jpg/727a5c67-2371-977d-d43c-70481dbd019c?t=1716405736841&version=1.0" alt="Estudiantes de INACAP">
+            <figcaption>
+                <strong>{{ usuario.get_sede_display }}</strong>
+                <span>Activacion de cuenta</span>
+            </figcaption>
+        </figure>
+        <div class="login-feature-grid">
+            <article><strong>6</strong><span>Digitos</span></article>
+            <article><strong>10m</strong><span>Vigencia</span></article>
+            <article><strong>OK</strong><span>Acceso seguro</span></article>
+        </div>
+    </section>
+    <section class="login-card">
+        <div class="card login-access-card">
+            <div class="card-body">
+                <span class="eyebrow">Activar cuenta</span>
+                <h2>Código de confirmación</h2>
+                <p>Ingresa el código recibido para activar tu cuenta.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form.non_field_errors }}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.codigo.id_for_label }}">{{ form.codigo.label }}</label>
+                        {{ form.codigo }}
+                        {% for error in form.codigo.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    <button class="btn btn-primary w-100" type="submit">
+                        <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                        Confirmar correo
+                    </button>
+                    <button class="btn btn-outline-secondary w-100 mt-2" type="submit" name="reenviar" value="1">
+                        <i class="bi bi-envelope-arrow-up" aria-hidden="true"></i>
+                        Reenviar código
+                    </button>
+                </form>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}

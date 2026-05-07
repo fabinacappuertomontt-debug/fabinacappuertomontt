@@ -9,6 +9,7 @@ USUARIOS_BASE = [
         "nombre": "Diego Henríquez",
         "email": "diego.henriquez34@inacapmail.cl",
         "rol": Usuario.Rol.PRACTICANTE,
+        "sede": "puerto_montt",
         "is_staff": True,
         "is_superuser": True,
     },
@@ -17,6 +18,7 @@ USUARIOS_BASE = [
         "nombre": "Jorge Navarro",
         "email": "jorge.navarrp@inacapmail.cl",
         "rol": Usuario.Rol.PRACTICANTE,
+        "sede": "puerto_montt",
         "is_staff": True,
         "is_superuser": True,
     },
@@ -25,6 +27,7 @@ USUARIOS_BASE = [
         "nombre": "Víctor Marín",
         "email": "vmarina@inacap.cl",
         "rol": Usuario.Rol.PROFESOR,
+        "sede": "puerto_montt",
         "is_staff": True,
         "is_superuser": True,
     },
@@ -51,6 +54,7 @@ class Command(BaseCommand):
                     "nombre": datos["nombre"],
                     "email": datos["email"],
                     "rol": datos["rol"],
+                    "sede": datos["sede"],
                     "is_staff": datos["is_staff"],
                     "is_superuser": datos["is_superuser"],
                 },
@@ -59,7 +63,7 @@ class Command(BaseCommand):
             if creado:
                 estado = "creado"
             else:
-                for campo in ["nombre", "email", "rol", "is_staff", "is_superuser"]:
+                for campo in ["nombre", "email", "rol", "sede", "is_staff", "is_superuser"]:
                     setattr(usuario, campo, datos[campo])
                 estado = "actualizado"
 

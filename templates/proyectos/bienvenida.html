@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Bienvenida{% endblock %}
+
+{% block content %}
+<div class="welcome-page">
+    <section class="welcome-hero">
+        <div class="welcome-copy">
+            <span class="eyebrow">INACAP Puerto Montt</span>
+            <h1>Bienvenido, {{ user.nombre|default:user.username }}</h1>
+            <p>
+                Este espacio reúne el seguimiento académico del FAB: proyectos, tareas, avances,
+                evidencias, observaciones e inventario del laboratorio en un solo lugar.
+            </p>
+        </div>
+        <div class="welcome-actions">
+            <a class="btn btn-primary" href="{% url 'panel_general' %}">Ir al panel general</a>
+            <a class="btn btn-outline-primary" href="{% url 'proyecto_lista' %}">Ver proyectos</a>
+        </div>
+    </section>
+
+    <section class="welcome-grid" aria-label="Resumen de acceso rápido">
+        <article class="welcome-card welcome-card-primary">
+            <span>Proyectos</span>
+            <strong>{{ total_proyectos }}</strong>
+            <p>Revisa el portafolio completo, responsables, estados y fechas clave.</p>
+        </article>
+        <article class="welcome-card">
+            <span>Tareas pendientes</span>
+            <strong>{{ tareas_pendientes }}</strong>
+            <p>Consulta el trabajo operativo que sigue activo dentro de los proyectos.</p>
+        </article>
+        <article class="welcome-card">
+            <span>Inventario activo</span>
+            <strong>{{ total_inventario }}</strong>
+            <p>Controla materiales, equipos y recursos del laboratorio desde inventario.</p>
+        </article>
+    </section>
+
+    <section class="welcome-info-grid">
+        <article class="welcome-panel">
+            <div class="welcome-panel-heading">
+                <div>
+                    <span class="eyebrow">¿Qué puedes hacer aquí?</span>
+                    <h2>Tu espacio de trabajo</h2>
+                </div>
+            </div>
+            <div class="welcome-feature-list">
+                <article>
+                    <strong>Panel general</strong>
+                    <p>Obtén una visión completa del estado de proyectos, alertas y actividad reciente.</p>
+                </article>
+                <article>
+                    <strong>Proyectos</strong>
+                    <p>Entra a cada proyecto para revisar detalle, etapas de trabajo, tareas y evidencias.</p>
+                </article>
+                <article>
+                    <strong>Inventario</strong>
+                    <p>Consulta materiales y registra uso de insumos vinculados al trabajo del laboratorio.</p>
+                </article>
+                <article>
+                    <strong>Usuarios</strong>
+                    <p>Gestiona participantes, responsables y accesos del equipo académico.</p>
+                </article>
+            </div>
+        </article>
+
+        <article class="welcome-panel">
+            <div class="welcome-panel-heading">
+                <div>
+                    <span class="eyebrow">Atención rápida</span>
+                    <h2>Proyectos con alerta</h2>
+                </div>
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'panel_general' %}">Ver tablero</a>
+            </div>
+            <div class="welcome-alert-list">
+                {% for proyecto in proyectos_riesgo %}
+                    <a class="welcome-alert-item" href="{{ proyecto.get_absolute_url }}">
+                        <div>
+                            <strong>{{ proyecto.nombre }}</strong>
+                            <span>{{ proyecto.porcentaje_avance }}% de avance</span>
+                        </div>
+                        <span class="alert-dot alert-{{ proyecto.nivel_alerta }}">{{ proyecto.texto_alerta }}</span>
+                    </a>
+                {% empty %}
+                    <div class="dashboard-empty-state good">
+                        <strong>No hay alertas críticas</strong>
+                        <span>El seguimiento actual se ve estable para comenzar la jornada.</span>
+                    </div>
+                {% endfor %}
+            </div>
+        </article>
+    </section>
+</div>
+{% endblock %}

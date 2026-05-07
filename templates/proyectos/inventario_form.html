@@ -1,0 +1,101 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Inventario laboratorio</span>
+        <h1>{{ titulo }}</h1>
+        <p>{{ descripcion }}</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url volver_url %}">Volver</a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <form method="post" class="form-panel" {% if modo_lector %}data-barcode-reader="true"{% elif captura_codigo_barra %}data-barcode-capture="true"{% endif %}>
+            {% csrf_token %}
+            {% if modo_lector %}
+                <div class="barcode-reader-hint">
+                    <strong>Lector listo</strong>
+                    <span>Escanea directamente. El sistema mantiene activo el campo de código y guarda cuando el lector envía Enter.</span>
+                </div>
+            {% endif %}
+            {{ form.non_field_errors }}
+            {% for field in form %}
+                <div class="mb-3">
+                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                    {% for error in field.errors %}
+                        <div class="text-danger small">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary" type="submit">{{ boton }}</button>
+                <a class="btn btn-outline-secondary" href="{% url volver_url %}">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% if modo_lector or captura_codigo_barra %}
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const form = document.querySelector("[data-barcode-reader='true'], [data-barcode-capture='true']");
+        if (!form) {
+            return;
+        }
+
+        const barcodeInput = form.querySelector("[name='codigo_barra']");
+        const isReaderMode = form.dataset.barcodeReader === "true";
+        const messageModal = document.getElementById("messageModal");
+
+        const focusBarcode = () => {
+            if (!barcodeInput || barcodeInput.disabled) {
+                return;
+            }
+            barcodeInput.focus({ preventScroll: true });
+            barcodeInput.select();
+        };
+
+        if (isReaderMode && messageModal && window.bootstrap) {
+            const modal = bootstrap.Modal.getOrCreateInstance(messageModal);
+            setTimeout(() => {
+                modal.hide();
+                focusBarcode();
+            }, 900);
+            messageModal.addEventListener("hidden.bs.modal", focusBarcode);
+        }
+
+        setTimeout(focusBarcode, 80);
+        window.addEventListener("focus", focusBarcode);
+
+        document.addEventListener("keydown", (event) => {
+            if (!barcodeInput || event.ctrlKey || event.metaKey || event.altKey) {
+                return;
+            }
+
+            const active = document.activeElement;
+            const activeIsField = active && ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(active.tagName);
+
+            if (activeIsField && active !== barcodeInput) {
+                return;
+            }
+
+            if (active !== barcodeInput) {
+                if (event.key.length === 1) {
+                    event.preventDefault();
+                    focusBarcode();
+                    barcodeInput.value += event.key;
+                } else if (isReaderMode && event.key === "Enter" && barcodeInput.value.trim()) {
+                    event.preventDefault();
+                    form.requestSubmit();
+                }
+            }
+        });
+    });
+</script>
+{% endif %}
+{% endblock %}

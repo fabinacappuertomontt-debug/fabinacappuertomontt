@@ -1,185 +1,360 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}{{ proyecto.nombre }}{% endblock %}
 
 {% block content %}
-<div class="project-hero">
-    <div>
-        <span class="eyebrow">Detalle de proyecto</span>
-        <h1>{{ proyecto.nombre }}</h1>
-        <p>{{ proyecto.descripcion }}</p>
-    </div>
-    <div class="d-flex gap-2">
-        <a class="btn btn-outline-secondary" href="{% url 'proyecto_lista' %}">Volver</a>
-        <a class="btn btn-primary" href="{% url 'proyecto_editar' proyecto.pk %}">Editar</a>
-    </div>
-</div>
-
-<div class="row g-4">
-    <div class="col-lg-8">
-        <section class="content-panel mb-4">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h2 class="h5 mb-0">Avance del proyecto</h2>
-                <div class="d-flex flex-wrap gap-2">
-                    <span class="status-pill status-{{ proyecto.estado }}">{{ proyecto.get_estado_display }}</span>
-                    <span class="alert-dot alert-{{ proyecto.nivel_alerta }}">{{ proyecto.texto_alerta }}</span>
-                </div>
-            </div>
-            <div class="progress project-detail-progress" role="progressbar" aria-valuenow="{{ proyecto.porcentaje_avance }}" aria-valuemin="0" aria-valuemax="100">
-                <div class="progress-bar" style="width: {{ proyecto.porcentaje_avance }}%">{{ proyecto.porcentaje_avance }}%</div>
-            </div>
-            {% if proyecto.nivel_alerta != "ok" %}
-                <div class="project-alert alert-{{ proyecto.nivel_alerta }} mt-3">
-                    <strong>Atención:</strong> {{ proyecto.texto_alerta }}. Revisa tareas pendientes, fecha de término y porcentaje de avance.
-                </div>
+<div class="project-overview-page">
+    <header class="overview-hero">
+        <div>
+            <span class="eyebrow">Detalle del proyecto</span>
+            <h1>{{ proyecto.nombre }}</h1>
+            <p>{{ proyecto.descripcion }}</p>
+        </div>
+        <div class="project-hero-actions">
+            <a class="btn btn-outline-secondary" href="{% url 'proyecto_lista' %}">Volver</a>
+            <a class="btn btn-primary" href="{% url 'proyecto_trabajo' proyecto.pk %}">Mesa de trabajo</a>
+            {% if puede_editar_proyecto %}
+                <a class="btn btn-outline-primary" href="{% url 'proyecto_editar' proyecto.pk %}">Editar datos</a>
             {% endif %}
-        </section>
+            {% if puede_eliminar_proyecto %}
+                <a class="btn btn-outline-danger" href="{% url 'proyecto_eliminar' proyecto.pk %}">Eliminar</a>
+            {% endif %}
+        </div>
+    </header>
 
-        <section class="content-panel mb-4">
-            <h2 class="h5 mb-3">Avances registrados</h2>
-            <div class="list-group">
-                {% for avance in proyecto.avances.all %}
-                    <div class="list-group-item">
-                        <div class="d-flex justify-content-between">
-                            <strong>{{ avance.fecha }}</strong>
-                            <span>{{ avance.responsable }}</span>
-                        </div>
-                        <p class="mb-0 mt-2">{{ avance.descripcion }}</p>
-                    </div>
-                {% empty %}
-                    <div class="list-group-item text-muted">No hay avances registrados.</div>
-                {% endfor %}
+    <section class="overview-top-grid" aria-label="Resumen ejecutivo del proyecto">
+        <article class="overview-score-card">
+            <span class="eyebrow">Nivel de referencia</span>
+            <div class="overview-score-number">{% if proyecto.usa_trl %}TRL {{ trl_estimado }}{% else %}{{ trl_estimado }}{% endif %}</div>
+            <p>{{ trl_estimado_texto }}</p>
+            <div class="overview-score-note">
+                {% if proyecto.usa_trl %}
+                    Rango definido para este proyecto: {{ proyecto.rango_trl_texto }}.
+                {% else %}
+                    Referencia basada en los criterios completados dentro de cada etapa.
+                {% endif %}
+            </div>
+        </article>
+
+        <article class="overview-progress-card">
+            <div class="overview-card-title">
+                <div>
+                    <span class="eyebrow">Avance técnico por fases</span>
+                    <h2>{{ avance_madurez }}%</h2>
+                </div>
+                <span class="alert-dot alert-{{ proyecto.nivel_alerta }}">{{ proyecto.texto_alerta }}</span>
+            </div>
+            <div class="progress overview-main-progress" role="progressbar" aria-valuenow="{{ avance_madurez }}" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar" style="width: {{ avance_madurez }}%">{{ avance_madurez }}%</div>
+            </div>
+            <p>Vista solo lectura para profesor o jefe: madurez, fases completadas y respaldo del trabajo.</p>
+        </article>
+
+        <article class="overview-data-card">
+            <span class="eyebrow">Datos principales</span>
+            <div class="overview-data-list">
+                <div><span>Estado</span><strong>{{ proyecto.get_estado_display }}</strong></div>
+                <div><span>Inicio</span><strong>{{ proyecto.fecha_inicio }}</strong></div>
+                <div><span>Fin</span><strong>{{ proyecto.fecha_fin|default:"Sin fecha" }}</strong></div>
+                <div><span>Tipo</span><strong>{{ proyecto.get_tipo_proyecto_display }}</strong></div>
+                {% if proyecto.usa_trl %}
+                    <div><span>TRL inicial</span><strong>{{ proyecto.trl_inicial_efectivo }}</strong></div>
+                    <div><span>TRL objetivo</span><strong>{{ proyecto.trl_objetivo_efectivo }}</strong></div>
+                {% endif %}
+                <div>
+                    <span>Responsables</span>
+                    <strong>
+                        {% for responsable in proyecto.responsables.all %}
+                            {{ responsable }}{% if not forloop.last %}, {% endif %}
+                        {% empty %}
+                            Sin responsables
+                        {% endfor %}
+                    </strong>
+                </div>
+            </div>
+        </article>
+    </section>
+
+    {% if proyecto.empresa_externa %}
+        <section class="external-company-summary" aria-label="Empresa externa vinculada">
+            <div class="overview-section-title compact">
+                <div>
+                    <span class="eyebrow">Vinculación externa</span>
+                    <h2>Empresa externa</h2>
+                </div>
+            </div>
+            <div class="external-company-summary-grid">
+                <article>
+                    <span>Empresa o institución</span>
+                    <strong>{{ proyecto.empresa_externa_nombre|default:"No definido" }}</strong>
+                </article>
+                <article>
+                    <span>RUT</span>
+                    <strong>{{ proyecto.empresa_externa_rut|default:"No definido" }}</strong>
+                </article>
+                <article>
+                    <span>Rubro o área</span>
+                    <strong>{{ proyecto.empresa_externa_rubro|default:"No definido" }}</strong>
+                </article>
+                <article>
+                    <span>Rol en el proyecto</span>
+                    <strong>{{ proyecto.empresa_externa_rol|default:"No definido" }}</strong>
+                </article>
+                <article>
+                    <span>Contacto principal</span>
+                    <strong>{{ proyecto.empresa_externa_contacto|default:"No definido" }}</strong>
+                </article>
+                <article>
+                    <span>Correo</span>
+                    <strong>{{ proyecto.empresa_externa_correo|default:"No definido" }}</strong>
+                </article>
+                <article>
+                    <span>Teléfono</span>
+                    <strong>{{ proyecto.empresa_externa_telefono|default:"No definido" }}</strong>
+                </article>
+                <article class="external-company-summary-wide">
+                    <span>Observaciones</span>
+                    <p>{{ proyecto.empresa_externa_observaciones|default:"Sin observaciones."|linebreaksbr }}</p>
+                </article>
             </div>
         </section>
+    {% endif %}
 
-        <section class="content-panel mb-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2 class="h5 mb-0">Evidencias</h2>
-                <a class="btn btn-sm btn-outline-primary" href="{% url 'evidencia_crear' proyecto.pk %}">Subir evidencia</a>
+
+    <section class="project-goals-panel" aria-label="Objetivos y medición del proyecto">
+        <div class="overview-section-title compact">
+            <div>
+                <span class="eyebrow">Plan del proyecto</span>
+                <h2>Objetivos, resultados e indicadores</h2>
             </div>
-            <div class="list-group">
-                {% for evidencia in proyecto.evidencias.all %}
-                    <div class="list-group-item evidence-item">
-                        <div class="d-flex flex-wrap justify-content-between gap-2">
-                            <strong>{{ evidencia.nombre }}</strong>
-                            <span class="text-muted small">{{ evidencia.fecha_subida }} · {{ evidencia.usuario }}</span>
+        </div>
+        <div class="project-goals-grid">
+            <article>
+                <span>Objetivo principal</span>
+                <p>{{ proyecto.objetivo_principal|default:"No definido."|linebreaksbr }}</p>
+            </article>
+            <article>
+                <span>Objetivo específico</span>
+                <p>{{ proyecto.objetivo_especifico|default:"No definido."|linebreaksbr }}</p>
+            </article>
+            <article>
+                <span>Resultados esperados</span>
+                <p>{{ proyecto.resultados_esperados|default:"No definido."|linebreaksbr }}</p>
+            </article>
+            <article>
+                <span>Indicadores</span>
+                <p>{{ proyecto.indicadores|default:"No definido."|linebreaksbr }}</p>
+            </article>
+        </div>
+    </section>
+
+    <section class="overview-stage-panel overview-stage-tabs" aria-label="Etapas del proyecto">
+        <div class="overview-section-title">
+            <div>
+                <span class="eyebrow">Etapas del proyecto</span>
+                <h2>Inicio, validación, pruebas y finalización</h2>
+            </div>
+            <span class="status-pill status-{{ proyecto.estado }}">{{ proyecto.get_estado_display }}</span>
+        </div>
+
+        <div class="overview-stage-grid overview-stage-selector" data-stage-accordion>
+            {% for etapa in detalle_etapas %}
+                {% if etapa.estado == "bloqueada" %}
+                    <article class="overview-stage-card stage-{{ etapa.estado }} is-disabled" aria-disabled="true">
+                        <div class="overview-stage-topline">
+                            <span>{{ etapa.texto_estado }}</span>
                         </div>
-                        {% if evidencia.descripcion %}
-                            <p class="mb-0 mt-2">{{ evidencia.descripcion }}</p>
+                        <span class="stage-trl-label">{% if proyecto.usa_trl %}TRL {{ etapa.inicio }}-{{ etapa.fin }}{% else %}Fase {{ etapa.inicio }}{% endif %}</span>
+                        <h3>{{ etapa.nombre }}</h3>
+                        <p>{{ etapa.descripcion }}</p>
+                        <div class="overview-stage-count">
+                            <span>Criterios completados</span>
+                            <strong>{{ etapa.completadas }}/{{ etapa.total }}</strong>
+                        </div>
+                        <div class="overview-stage-message muted">{{ etapa.mensaje }}</div>
+                    </article>
+                {% else %}
+                    <button class="overview-stage-card stage-{{ etapa.estado }}" type="button" data-stage-toggle="{{ etapa.slug }}" aria-expanded="false" aria-controls="stage-panel-{{ etapa.slug }}">
+                        <div class="overview-stage-topline">
+                            <span>{{ etapa.texto_estado }}</span>
+                        </div>
+                        <span class="stage-trl-label">{% if proyecto.usa_trl %}TRL {{ etapa.inicio }}-{{ etapa.fin }}{% else %}Fase {{ etapa.inicio }}{% endif %}</span>
+                        <h3>{{ etapa.nombre }}</h3>
+                        <p>{{ etapa.descripcion }}</p>
+                        <div class="overview-stage-count">
+                            <span>Criterios completados</span>
+                            <strong>{{ etapa.completadas }}/{{ etapa.total }}</strong>
+                        </div>
+                        {% if etapa.estado == "completada" %}
+                            <div class="overview-stage-message success">{{ etapa.mensaje }}</div>
+                        {% else %}
+                            <div class="overview-stage-message">{{ etapa.mensaje }}</div>
                         {% endif %}
-                        <a class="btn btn-sm btn-outline-primary mt-3" href="{{ evidencia.archivo.url }}" download>Descargar evidencia</a>
-                    </div>
-                {% empty %}
-                    <div class="list-group-item text-muted">No hay evidencias subidas.</div>
-                {% endfor %}
-            </div>
-        </section>
+                    </button>
+                {% endif %}
+            {% endfor %}
+        </div>
 
-        <section class="content-panel mb-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2 class="h5 mb-0">Tareas pendientes</h2>
-                <span class="badge status-badge">{{ tareas_pendientes|length }}</span>
-            </div>
-            <div class="list-group">
-                {% for tarea in tareas_pendientes %}
-                    <div class="list-group-item">
-                        <div class="d-flex flex-wrap justify-content-between gap-2">
-                            <div>
-                                <strong>{{ tarea.nombre }}</strong>
-                                <div class="small task-meta">
-                                    <span class="status-pill status-{{ tarea.estado }}">{{ tarea.get_estado_display }}</span>
-                                    {% if tarea.responsable %} · {{ tarea.responsable }}{% endif %}
-                                </div>
-                            </div>
-                            {% if not tarea.completada %}
-                                <form method="post" action="{% url 'tarea_completar' tarea.pk %}" data-confirm="¿Marcar esta tarea como completada?">
-                                    {% csrf_token %}
-                                    <button class="btn btn-sm btn-success" type="submit">Completar</button>
-                                </form>
-                            {% endif %}
-                        </div>
-                        {% if tarea.descripcion %}
-                            <p class="mb-0 mt-2">{{ tarea.descripcion }}</p>
-                        {% endif %}
-                    </div>
-                {% empty %}
-                    <div class="list-group-item text-muted">No hay tareas pendientes.</div>
-                {% endfor %}
-            </div>
-        </section>
-
-        <section class="content-panel mb-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2 class="h5 mb-0">Tareas completadas</h2>
-                <span class="badge status-badge">{{ tareas_completadas|length }}</span>
-            </div>
-            <div class="list-group">
-                {% for tarea in tareas_completadas %}
-                    <div class="list-group-item completed-task">
+        <div class="stage-detail-panels" data-stage-panels>
+            <article class="stage-detail-panel stage-detail-empty is-open" data-stage-empty>
+                <div class="overview-empty stage-empty-callout">Selecciona una fase disponible para ver criterios, avances, tareas, evidencias y observaciones.</div>
+            </article>
+            {% for etapa in detalle_etapas %}
+                <article class="stage-detail-panel stage-detail-{{ etapa.slug }}" id="stage-panel-{{ etapa.slug }}" data-stage-panel="{{ etapa.slug }}">
+                    <div class="overview-section-title compact">
                         <div>
-                            <strong>{{ tarea.nombre }}</strong>
-                            <div class="small task-meta">
-                                <span class="status-pill status-{{ tarea.estado }}">{{ tarea.get_estado_display }}</span>
-                                {% if tarea.responsable %} · {{ tarea.responsable }}{% endif %}
+                            <span class="eyebrow">Detalle de fase</span>
+                            <h2>{{ etapa.nombre }}</h2>
+                        </div>
+                        <div class="stage-panel-actions">
+                            <strong class="stage-count">{{ etapa.completadas }}/{{ etapa.total }}</strong>
+                            <button class="stage-close-button" type="button" data-stage-close aria-label="Cerrar detalle">X</button>
+                        </div>
+                    </div>
+
+                    <div class="stage-read-grid">
+                        <section class="stage-read-card stage-read-wide">
+                            <span class="eyebrow">{% if proyecto.usa_trl %}Criterios TRL{% else %}Criterios de la fase{% endif %}</span>
+                            <div class="stage-criteria-table readonly">
+                                {% for paso in etapa.pasos %}
+                                    <div class="stage-criteria-row stage-criteria-{{ paso.fase.estado }}">
+                                        <div>
+                                            <span>{{ paso.fase.etiqueta }}</span>
+                                            <strong>{{ paso.fase.nombre }}</strong>
+                                            <p>{{ paso.fase.objetivo }}</p>
+                                            {% if paso.fase.realizado %}<p class="stage-done-note">{{ paso.fase.realizado }}</p>{% endif %}
+                                        </div>
+                                        <span class="status-pill status-{{ paso.fase.estado }}">{{ paso.fase.get_estado_display }}</span>
+                                    </div>
+                                {% endfor %}
                             </div>
-                        </div>
-                        {% if tarea.descripcion %}
-                            <p class="mb-0 mt-2">{{ tarea.descripcion }}</p>
-                        {% endif %}
+                        </section>
+
+                        <section class="stage-read-card">
+                            <span class="eyebrow">Tareas</span>
+                            <h3>{{ etapa.tareas_completadas|length }}/{{ etapa.tareas|length }}</h3>
+                            <div class="workspace-list compact-list">
+                                {% for tarea in etapa.tareas %}
+                                    <div class="workspace-list-item {% if tarea.completada %}completed{% endif %}">
+                                        <strong>{{ tarea.nombre }}</strong>
+                                        <span>{{ tarea.get_estado_display }}{% if tarea.responsable %} - {{ tarea.responsable }}{% endif %}</span>
+                                        {% if tarea.descripcion %}<p>{{ tarea.descripcion }}</p>{% endif %}
+                                    </div>
+                                {% empty %}
+                                    <div class="workspace-empty">Sin tareas asociadas.</div>
+                                {% endfor %}
+                            </div>
+                        </section>
                     </div>
-                {% empty %}
-                    <div class="list-group-item text-muted">Todavía no hay tareas completadas.</div>
-                {% endfor %}
-            </div>
-        </section>
 
-        <section class="content-panel">
-            <h2 class="h5 mb-3">Observaciones</h2>
-            <div class="list-group">
-                {% for observacion in proyecto.observaciones.all %}
-                    <div class="list-group-item">
-                        <div class="d-flex justify-content-between">
-                            <strong>{{ observacion.usuario }}</strong>
-                            <span class="text-muted small">{{ observacion.fecha }}</span>
-                        </div>
-                        <p class="mb-0 mt-2">{{ observacion.comentario }}</p>
+                    <div class="stage-read-grid lower">
+                        <section class="stage-read-card">
+                            <span class="eyebrow">Avances</span>
+                            <div class="workspace-list compact-list">
+                                {% for avance in etapa.avances %}
+                                    <div class="workspace-list-item">
+                                        <strong>{{ avance.fecha }} - {{ avance.responsable }}</strong>
+                                        <p>{{ avance.descripcion }}</p>
+                                    </div>
+                                {% empty %}
+                                    <div class="workspace-empty">Sin avances asociados.</div>
+                                {% endfor %}
+                            </div>
+                        </section>
+
+                        <section class="stage-read-card stage-read-wide">
+                            <span class="eyebrow">Evidencias y fotos</span>
+                            <div class="overview-evidence-grid">
+                                {% for evidencia in etapa.evidencias %}
+                                    <div class="overview-evidence-card">
+                                        <div class="overview-file-preview compact-preview">{% if evidencia.es_imagen %}Foto{% else %}Archivo{% endif %}</div>
+                                        <strong>{{ evidencia.obj.nombre }}</strong>
+                                        <span>{{ evidencia.obj.fecha_subida }} - {{ evidencia.obj.usuario }}</span>
+                                        {% if evidencia.obj.descripcion %}<p>{{ evidencia.obj.descripcion }}</p>{% endif %}
+                                        <div class="evidence-actions">
+                                            {% if evidencia.es_imagen %}
+                                                <a class="btn btn-sm btn-primary" href="#evidencia-{{ evidencia.obj.pk }}">Ver</a>
+                                            {% else %}
+                                                <a class="btn btn-sm btn-primary" href="{{ evidencia.obj.archivo.url }}" target="_blank" rel="noopener">Abrir</a>
+                                            {% endif %}
+                                            <a class="btn btn-sm btn-outline-primary" href="{{ evidencia.obj.archivo.url }}" download>Descargar</a>
+                                        </div>
+                                        {% if evidencia.es_imagen %}
+                                            <div class="image-lightbox" id="evidencia-{{ evidencia.obj.pk }}">
+                                                <a class="image-lightbox-close" href="#" aria-label="Cerrar foto">X</a>
+                                                <img src="{{ evidencia.obj.archivo.url }}" alt="{{ evidencia.obj.nombre }}">
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                {% empty %}
+                                    <div class="overview-empty">Sin evidencias asociadas.</div>
+                                {% endfor %}
+                            </div>
+                        </section>
+
+                        <section class="stage-read-card">
+                            <span class="eyebrow">Observaciones</span>
+                            <div class="workspace-list compact-list">
+                                {% for observacion in etapa.observaciones %}
+                                    <div class="workspace-list-item">
+                                        <strong>{{ observacion.usuario }}</strong>
+                                        <span>{{ observacion.fecha }}</span>
+                                        <p>{{ observacion.comentario }}</p>
+                                    </div>
+                                {% empty %}
+                                    <div class="workspace-empty">Sin observaciones asociadas.</div>
+                                {% endfor %}
+                            </div>
+                        </section>
                     </div>
-                {% empty %}
-                    <div class="list-group-item text-muted">No hay observaciones registradas.</div>
-                {% endfor %}
-            </div>
-        </section>
-    </div>
+                </article>
+            {% endfor %}
+        </div>
 
-    <div class="col-lg-4">
-        <aside class="side-panel">
-            <h2 class="h5">Datos principales</h2>
-            <dl class="mb-3">
-                <dt>Inicio</dt>
-                <dd>{{ proyecto.fecha_inicio }}</dd>
-                <dt>Fin</dt>
-                <dd>{{ proyecto.fecha_fin|default:"Sin definir" }}</dd>
-                <dt>Responsables</dt>
-                <dd>
-                    {% for responsable in proyecto.responsables.all %}
-                        <span class="person-chip">{{ responsable }}</span>
-                    {% empty %}
-                        <span class="text-muted">Sin asignar</span>
-                    {% endfor %}
-                </dd>
-            </dl>
+        <script>
+            (() => {
+                const root = document.currentScript.closest(".overview-stage-tabs");
+                if (!root) return;
+                const toggles = root.querySelectorAll("[data-stage-toggle]");
+                const panels = root.querySelectorAll("[data-stage-panel]");
+                const empty = root.querySelector("[data-stage-empty]");
 
-            <hr>
-            <h3 class="h6">Acciones del proyecto</h3>
-            <div class="detail-actions">
-                <a class="btn btn-primary" href="{% url 'proyecto_estado' proyecto.pk %}">Actualizar estado</a>
-                <a class="btn btn-outline-primary" href="{% url 'avance_crear' proyecto.pk %}">Registrar avance</a>
-                <a class="btn btn-outline-primary" href="{% url 'tarea_crear' proyecto.pk %}">Crear tarea</a>
-                <a class="btn btn-outline-primary" href="{% url 'evidencia_crear' proyecto.pk %}">Subir evidencia</a>
-                <a class="btn btn-outline-primary" href="{% url 'observacion_crear' proyecto.pk %}">Agregar observación</a>
-                <a class="btn btn-outline-secondary" href="{% url 'proyecto_editar' proyecto.pk %}">Editar información</a>
-            </div>
-        </aside>
-    </div>
+                const closeAll = () => {
+                    toggles.forEach((toggle) => {
+                        toggle.classList.remove("is-selected");
+                        toggle.setAttribute("aria-expanded", "false");
+                    });
+                    panels.forEach((panel) => panel.classList.remove("is-open"));
+                    if (empty) empty.classList.add("is-open");
+                };
+
+                toggles.forEach((toggle) => {
+                    toggle.addEventListener("click", () => {
+                        const slug = toggle.dataset.stageToggle;
+                        const panel = root.querySelector(`[data-stage-panel="${slug}"]`);
+                        const isOpen = panel && panel.classList.contains("is-open");
+                        closeAll();
+                        if (!isOpen && panel) {
+                            toggle.classList.add("is-selected");
+                            toggle.setAttribute("aria-expanded", "true");
+                            panel.classList.add("is-open");
+                            if (empty) empty.classList.remove("is-open");
+                        }
+                    });
+                });
+
+                root.querySelectorAll("[data-stage-close]").forEach((button) => {
+                    button.addEventListener("click", closeAll);
+                });
+            })();
+        </script>
+    </section>
+
+    <section class="overview-kpi-grid" aria-label="Indicadores de seguimiento">
+        <article><span>Avances</span><strong>{{ proyecto.avances.all|length }}</strong><p>Registros del proyecto</p></article>
+        <article><span>Evidencias</span><strong>{{ proyecto.evidencias.all|length }}</strong><p>Archivos de respaldo</p></article>
+        <article><span>Tareas</span><strong>{{ tareas_completadas|length }}/{{ proyecto.tareas.all|length }}</strong><p>Completadas sobre total</p></article>
+        <article><span>Observaciones</span><strong>{{ proyecto.observaciones.all|length }}</strong><p>Comentarios de seguimiento</p></article>
+    </section>
 </div>
 {% endblock %}

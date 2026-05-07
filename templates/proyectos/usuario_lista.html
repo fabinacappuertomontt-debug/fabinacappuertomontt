@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}Usuarios{% endblock %}
 
@@ -10,7 +10,7 @@
         <p>Consulta roles, proyectos asignados y tareas pendientes por integrante.</p>
     </div>
     {% if user.is_staff %}
-        <a class="btn btn-outline-primary" href="/admin/proyectos/usuario/add/">Crear usuario</a>
+        <a class="btn btn-primary" href="{% url 'usuario_crear' %}">Crear usuario</a>
     {% endif %}
 </div>
 
@@ -22,8 +22,10 @@
                 <th>Usuario</th>
                 <th>Email</th>
                 <th>Rol</th>
+                <th>Sede</th>
                 <th>Proyectos</th>
                 <th>Tareas pendientes</th>
+                <th class="text-end">Acciones</th>
             </tr>
         </thead>
         <tbody>
@@ -33,15 +35,28 @@
                     <td>{{ usuario.username }}</td>
                     <td>{{ usuario.email }}</td>
                     <td><span class="status-pill">{{ usuario.get_rol_display }}</span></td>
+                    <td>{{ usuario.get_sede_display }}</td>
                     <td>{{ usuario.total_proyectos }}</td>
                     <td>{{ usuario.tareas_pendientes }}</td>
+                    <td class="text-end">
+                        <div class="table-actions">
+                            <a class="btn btn-sm btn-outline-secondary" href="{% url 'usuario_detalle' usuario.pk %}">Ver detalle</a>
+                            {% if user.is_staff %}
+                                <a class="btn btn-sm btn-outline-primary" href="{% url 'usuario_editar' usuario.pk %}">Editar</a>
+                                {% if usuario.pk != user.pk %}
+                                    <a class="btn btn-sm btn-outline-danger" href="{% url 'usuario_eliminar' usuario.pk %}">Eliminar</a>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="6" class="text-center text-muted py-4">No hay usuarios registrados.</td>
+                    <td colspan="8" class="text-center text-muted py-4">No hay usuarios registrados.</td>
                 </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
 {% endblock %}
+

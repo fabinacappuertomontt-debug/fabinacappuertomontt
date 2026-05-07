@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Registro{% endblock %}
+{% block body_class %}login-page{% endblock %}
+
+{% block content %}
+<div class="login-layout">
+    <section class="login-intro">
+        <div class="login-brand-row">
+            <span class="login-logo-mark">F</span>
+            <span>FAB INACAP</span>
+        </div>
+        <span class="eyebrow">Registro institucional</span>
+        <h1>Crear acceso por sede</h1>
+        <p>Los correos INACAP se verifican con código. Los correos externos quedan sujetos a aprobación del equipo FAB.</p>
+        <figure class="login-campus">
+            <img src="https://portal.inacap.cl/documents/47032/512274/Semana-de-Bienvenida-1200x400.jpg/727a5c67-2371-977d-d43c-70481dbd019c?t=1716405736841&version=1.0" alt="Estudiantes de INACAP">
+            <figcaption>
+                <strong>Correo verificado</strong>
+                <span>Código de activación por email</span>
+            </figcaption>
+        </figure>
+        <div class="login-feature-grid">
+            <article><strong>@</strong><span>Correo laboral</span></article>
+            <article><strong>FAB</strong><span>Aprobacion externa</span></article>
+            <article><strong>SED</strong><span>Sede asignada</span></article>
+        </div>
+    </section>
+    <section class="login-card">
+        <div class="card login-access-card">
+            <div class="card-body">
+                <span class="eyebrow">Nuevo usuario</span>
+                <h2>Registrarse</h2>
+                <p>Si tu correo no es INACAP, el equipo FAB revisara la solicitud antes de activar tu cuenta.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form.non_field_errors }}
+                    {% for field in form %}
+                        <div class="mb-3">
+                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                            {% for error in field.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                    <button class="btn btn-primary w-100" type="submit">
+                        <i class="bi bi-shield-check" aria-hidden="true"></i>
+                        Crear cuenta
+                    </button>
+                    <a class="btn btn-outline-secondary w-100 mt-2" href="{% url 'login' %}">
+                        <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                        Ya tengo cuenta
+                    </a>
+                </form>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
