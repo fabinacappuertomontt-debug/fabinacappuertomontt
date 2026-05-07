@@ -1,0 +1,115 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Inventario{% endblock %}
+
+{% block content %}
+<div class="inventory-page">
+    <header class="projects-hero-modern">
+        <div>
+            <span class="eyebrow">Inventario laboratorio</span>
+            <h1>Control de materiales y equipos</h1>
+            <p>Revisa stock, recursos usados por proyectos y alertas para reponer insumos.</p>
+        </div>
+        {% if es_admin_laboratorio %}
+            <div class="inventory-admin-actions">
+                <a class="btn btn-primary" href="{% url 'inventario_lector' %}">Agregar con lector</a>
+                <a class="btn btn-outline-primary" href="{% url 'inventario_crear' %}">Agregar item</a>
+            </div>
+        {% endif %}
+    </header>
+
+    <section class="workspace-summary-strip inventory-summary" aria-label="Resumen de inventario">
+        <article><span>Items registrados</span><strong>{{ total_items }}</strong><p>Activos en laboratorio</p></article>
+        <article><span>Alertas de stock</span><strong>{{ total_alertas }}</strong><p>Insumos bajo mínimo</p></article>
+        <article><span>Uso reciente</span><strong>{{ usos_recientes|length }}</strong><p>Movimientos de proyectos</p></article>
+    </section>
+
+    <form class="project-filter-bar" method="get">
+        <div class="filter-search">
+            <label for="inventory-search">Buscar</label>
+            <input id="inventory-search" class="form-control" type="search" name="q" value="{{ busqueda }}" placeholder="Material, código, estado o ubicación">
+        </div>
+        <div>
+            <label for="inventory-area">Área</label>
+            <select id="inventory-area" class="form-select" name="area">
+                <option value="">Todas</option>
+                {% for value, label in areas %}
+                    <option value="{{ value }}" {% if value == area_actual %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="inventory-type">Tipo</label>
+            <select id="inventory-type" class="form-select" name="tipo">
+                <option value="">Todos</option>
+                {% for value, label in tipos %}
+                    <option value="{{ value }}" {% if value == tipo_actual %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-actions">
+            <button class="btn btn-primary" type="submit">Filtrar</button>
+            <a class="btn btn-outline-secondary" href="{% url 'inventario_lista' %}">Limpiar</a>
+        </div>
+        <label class="inventory-alert-check">
+            <input type="checkbox" name="alerta" value="1" {% if alerta_actual %}checked{% endif %}>
+            Ver solo bajo stock
+        </label>
+    </form>
+
+    <section class="inventory-layout">
+        <div class="inventory-list">
+            {% for item in items %}
+                <article class="inventory-card {% if item.bajo_stock %}inventory-card-warning{% endif %}">
+                    <div class="inventory-card-main">
+                        <span class="eyebrow">{{ item.get_area_display }} - {{ item.categoria }}</span>
+                        <h2>{{ item.nombre }}</h2>
+                        <div class="inventory-meta">
+                            <span>{{ item.get_tipo_display }}</span>
+                            <span>{{ item.estado }}</span>
+                            {% if item.codigo_barra %}<span>Código: {{ item.codigo_barra }}</span>{% endif %}
+                            {% if item.ubicacion %}<span>{{ item.ubicacion }}</span>{% endif %}
+                        </div>
+                        {% if item.observacion %}<p>{{ item.observacion|linebreaksbr }}</p>{% endif %}
+                    </div>
+                    <div class="inventory-stock-box">
+                        <span>Stock</span>
+                        <strong>{{ item.cantidad_texto }}</strong>
+                        {% if item.descuenta_stock %}
+                            <small>Minimo: {{ item.stock_minimo|floatformat:-2 }} {{ item.unidad }}</small>
+                        {% else %}
+                            <small>Uso registrado sin descuento</small>
+                        {% endif %}
+                        {% if item.bajo_stock %}<em>Bajo stock</em>{% endif %}
+                        {% if es_admin_laboratorio %}
+                            <a class="btn btn-sm btn-outline-primary" href="{% url 'inventario_agregar_stock' item.pk %}">Agregar stock</a>
+                        {% endif %}
+                    </div>
+                </article>
+            {% empty %}
+                <div class="empty-projects-card">
+                    <h2>No hay items para mostrar</h2>
+                    <p>Agrega materiales, equipos o ajusta los filtros.</p>
+                </div>
+            {% endfor %}
+        </div>
+
+        <aside class="inventory-side-panel">
+            <div class="workspace-section-title compact">
+                <div><span class="eyebrow">Movimientos</span><h2>Uso reciente</h2></div>
+            </div>
+            <div class="workspace-list compact-list">
+                {% for uso in usos_recientes %}
+                    <div class="workspace-list-item">
+                        <strong>{{ uso.item.nombre }}</strong>
+                        <span>{{ uso.proyecto.nombre }} - {{ uso.cantidad|floatformat:-2 }} {{ uso.item.unidad }}</span>
+                        <p>{{ uso.fecha }} - {{ uso.usuario }}</p>
+                    </div>
+                {% empty %}
+                    <div class="workspace-empty">Todavia no hay movimientos registrados.</div>
+                {% endfor %}
+            </div>
+        </aside>
+    </section>
+</div>
+{% endblock %}

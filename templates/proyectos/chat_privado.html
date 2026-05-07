@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Chat{% endblock %}
+
+{% block content %}
+<div class="chat-page">
+    <header class="projects-hero-modern">
+        <div>
+            <span class="eyebrow">Perfil del lab</span>
+            <h1>Chat</h1>
+            <p>Envía mensajes internos a usuarios registrados de tu sede, con archivos y emojis.</p>
+        </div>
+    </header>
+
+    <section class="chat-layout">
+        <aside class="chat-users-panel">
+            <div class="workspace-section-title compact">
+                <div>
+                    <span class="eyebrow">Usuarios</span>
+                    <h2>Contactos</h2>
+                </div>
+            </div>
+
+            <div class="chat-user-list">
+                {% for item in conversaciones %}
+                    <a class="chat-user-item {% if destinatario and destinatario.pk == item.usuario.pk %}is-active{% endif %}" href="{% url 'chat_privado' item.usuario.pk %}">
+                        <span class="chat-avatar">{{ item.usuario.nombre|default:item.usuario.username|slice:":1"|upper }}</span>
+                        <span class="chat-user-copy">
+                            <strong>{{ item.usuario.nombre|default:item.usuario.username }}</strong>
+                            <small>
+                                <i class="presence-dot {% if item.presencia.en_linea %}is-online{% endif %}" aria-hidden="true"></i>
+                                {{ item.presencia.texto }}
+                            </small>
+                            <small>{{ item.usuario.email }}</small>
+                            {% if item.ultimo %}
+                                <em>{{ item.ultimo.texto|default:"Archivo adjunto"|truncatechars:42 }}</em>
+                            {% else %}
+                                <em>Sin mensajes todavía</em>
+                            {% endif %}
+                        </span>
+                        {% if item.no_leidos %}
+                            <span class="chat-unread">{{ item.no_leidos }}</span>
+                        {% endif %}
+                    </a>
+                {% empty %}
+                    <div class="workspace-empty">No hay otros usuarios activos en tu sede.</div>
+                {% endfor %}
+            </div>
+        </aside>
+
+        <section class="chat-thread-panel">
+            {% if destinatario %}
+                <div class="chat-thread-header">
+                    <div class="chat-avatar large">{{ destinatario.nombre|default:destinatario.username|slice:":1"|upper }}</div>
+                    <div>
+                        <span class="eyebrow">Conversación</span>
+                        <h2>{{ destinatario.nombre|default:destinatario.username }}</h2>
+                        <p>
+                            <i class="presence-dot {% if destinatario_presencia.en_linea %}is-online{% endif %}" aria-hidden="true"></i>
+                            {{ destinatario_presencia.texto }} · {{ destinatario.email }}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="chat-messages" id="chatMessages">
+                    {% for mensaje in mensajes_chat %}
+                        <article class="chat-message {% if mensaje.remitente_id == request.user.pk %}is-own{% endif %}">
+                            <div class="chat-bubble">
+                                {% if mensaje.texto %}
+                                    <p>{{ mensaje.texto|linebreaksbr }}</p>
+                                {% endif %}
+                                {% if mensaje.archivo %}
+                                    <a class="chat-attachment" href="{{ mensaje.archivo.url }}" target="_blank" rel="noopener">
+                                        <i class="bi bi-paperclip"></i>
+                                        <span>{{ mensaje.archivo.name|cut:"chat/" }}</span>
+                                    </a>
+                                {% endif %}
+                                <small>{{ mensaje.remitente.nombre|default:mensaje.remitente.username }} · {{ mensaje.creado_en|date:"d/m/Y H:i" }}</small>
+                            </div>
+                        </article>
+                    {% empty %}
+                        <div class="chat-empty">
+                            <strong>Empieza la conversación</strong>
+                            <span>Escribe un mensaje o adjunta un archivo para {{ destinatario.nombre|default:destinatario.username }}.</span>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <form class="chat-compose" method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    {{ form.non_field_errors }}
+                    <div class="chat-emoji-row" aria-label="Emojis rápidos">
+                        <button type="button" data-emoji="😀">😀</button>
+                        <button type="button" data-emoji="👍">👍</button>
+                        <button type="button" data-emoji="✅">✅</button>
+                        <button type="button" data-emoji="🔥">🔥</button>
+                        <button type="button" data-emoji="🙌">🙌</button>
+                        <button type="button" data-emoji="💡">💡</button>
+                    </div>
+                    <div class="chat-compose-grid">
+                        <div>
+                            {{ form.texto }}
+                            {% for error in form.texto.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <label class="chat-file-button" title="Adjuntar archivo">
+                            <i class="bi bi-paperclip"></i>
+                            {{ form.archivo }}
+                        </label>
+                        <button class="btn btn-primary" type="submit">
+                            <i class="bi bi-send-fill"></i>
+                            Enviar
+                        </button>
+                    </div>
+                    {% for error in form.archivo.errors %}
+                        <div class="text-danger small">{{ error }}</div>
+                    {% endfor %}
+                </form>
+            {% else %}
+                <div class="chat-select-empty">
+                    <i class="bi bi-chat-dots-fill"></i>
+                    <strong>Selecciona un usuario</strong>
+                    <span>Elige un contacto de la lista para abrir un chat privado.</span>
+                </div>
+            {% endif %}
+        </section>
+    </section>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const messages = document.getElementById("chatMessages");
+        if (messages) {
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        const textarea = document.querySelector(".chat-compose textarea[name='texto']");
+        document.querySelectorAll("[data-emoji]").forEach((button) => {
+            button.addEventListener("click", () => {
+                if (!textarea) {
+                    return;
+                }
+                const start = textarea.selectionStart || textarea.value.length;
+                const end = textarea.selectionEnd || textarea.value.length;
+                const emoji = button.dataset.emoji;
+                textarea.value = `${textarea.value.slice(0, start)}${emoji}${textarea.value.slice(end)}`;
+                textarea.focus();
+                textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+            });
+        });
+    });
+</script>
+{% endblock %}

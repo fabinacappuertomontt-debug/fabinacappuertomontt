@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}{{ fase.etiqueta }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">{{ proyecto.nombre }}</span>
+        <h1>{{ fase.etiqueta }}: {{ fase.nombre }}</h1>
+        <p>{{ fase.objetivo }}</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'proyecto_trabajo' proyecto.pk %}">Volver a la mesa</a>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <section class="content-panel h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h5 mb-0">Estado de la fase</h2>
+                <span class="status-pill status-{{ fase.estado }}">{{ fase.get_estado_display }}</span>
+            </div>
+            <h3 class="h6">Qué se hizo</h3>
+            {% if fase.realizado %}
+                <p>{{ fase.realizado }}</p>
+            {% else %}
+                <p class="text-muted">Aún no se registra evidencia o trabajo realizado para justificar esta fase.</p>
+            {% endif %}
+            <p class="text-muted mb-0">Última actualización: {{ fase.fecha_actualizacion }}</p>
+        </section>
+    </div>
+    <div class="col-lg-5">
+        <form method="post" class="form-panel">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            {% for field in form %}
+                <div class="mb-3">
+                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                    {% for error in field.errors %}
+                        <div class="text-danger small">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+            <button class="btn btn-primary w-100" type="submit">Guardar fase</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+

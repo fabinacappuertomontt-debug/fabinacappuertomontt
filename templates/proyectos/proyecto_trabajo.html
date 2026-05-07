@@ -1,0 +1,174 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Mesa de trabajo - {{ proyecto.nombre }}{% endblock %}
+
+{% block content %}
+<div class="project-workspace-page">
+    <header class="workspace-hero workspace-hero-compact">
+        <div>
+            <span class="eyebrow">Mesa de trabajo</span>
+            <h1>{{ proyecto.nombre }}</h1>
+            <p>El trabajo se organiza por etapa. Entra a una etapa para registrar tareas, avances, evidencias y observaciones.</p>
+        </div>
+        <div class="project-hero-actions">
+            <a class="btn btn-outline-secondary" href="{% url 'proyecto_detalle' proyecto.pk %}">Ver detalle</a>
+            {% if puede_editar_proyecto %}
+                <a class="btn btn-primary" href="{% url 'proyecto_estado' proyecto.pk %}?next={% url 'proyecto_trabajo' proyecto.pk %}">Cambiar estado</a>
+                <a class="btn btn-outline-primary" href="{% url 'proyecto_editar' proyecto.pk %}">Editar proyecto</a>
+            {% endif %}
+        </div>
+    </header>
+
+    <section class="workspace-summary-strip" aria-label="Resumen de trabajo">
+        <article><span>{% if proyecto.usa_trl %}Nivel actual{% else %}Fase actual{% endif %}</span><strong>{{ proyecto.nivel_actual|default:"0" }}</strong><p>{{ proyecto.nivel_actual_texto }}</p></article>
+        <article><span>Madurez por fases</span><strong>{{ avance_madurez }}%</strong><p>Criterios completados</p></article>
+        <article><span>Tareas</span><strong>{{ tareas_completadas|length }}/{{ proyecto.tareas.all|length }}</strong><p>Completadas sobre total</p></article>
+        <article><span>Inventario usado</span><strong>{{ usos_inventario|length }}</strong><p>Materiales y equipos</p></article>
+        <article><span>Estado</span><strong>{{ proyecto.get_estado_display }}</strong><p>{{ proyecto.texto_alerta }}</p></article>
+    </section>
+
+
+    <section class="workspace-activity-panel project-goals-panel">
+        <div class="workspace-section-title compact">
+            <div>
+                <span class="eyebrow">Plan de trabajo</span>
+                <h2>Objetivo y medición</h2>
+            </div>
+        </div>
+        <div class="project-goals-grid compact-goals">
+            <article><span>Objetivo principal</span><p>{{ proyecto.objetivo_principal|default:"No definido."|linebreaksbr }}</p></article>
+            <article><span>Resultados esperados</span><p>{{ proyecto.resultados_esperados|default:"No definido."|linebreaksbr }}</p></article>
+        </div>
+    </section>
+
+    <section class="workspace-board" aria-label="Etapas de trabajo">
+        <div class="workspace-section-title">
+            <div>
+                <span class="eyebrow">Etapas del proyecto</span>
+                <h2>{% if proyecto.usa_trl %}Inicio, validación, pruebas y finalización{% else %}Fases reales de trabajo del proyecto{% endif %}</h2>
+            </div>
+            <span class="status-pill status-{{ proyecto.estado }}">{{ proyecto.get_estado_display }}</span>
+        </div>
+
+        <div class="workspace-stage-row workspace-stage-row-clean">
+            {% for etapa in tablero_trl %}
+                <article class="workspace-stage-card workspace-stage-card-clean workspace-{{ etapa.estado_visual }}">
+                    <div class="workspace-stage-header">
+                        <div>
+                            <span class="stage-trl-label">{% if proyecto.usa_trl %}TRL {{ etapa.inicio }}-{{ etapa.fin }}{% else %}Fase {{ etapa.inicio }}{% endif %}</span>
+                            <h3>{{ etapa.nombre }}</h3>
+                        </div>
+                        {% if etapa.bloqueada %}
+                            <strong>Bloqueada</strong>
+                        {% elif etapa.completa %}
+                            <strong>Completa</strong>
+                        {% elif etapa.actual %}
+                            <strong>Actual</strong>
+                        {% else %}
+                            <strong>Disponible</strong>
+                        {% endif %}
+                    </div>
+                    <p>{{ etapa.resumen }}</p>
+
+                    <div class="workspace-progress-box">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>Criterios asociados</span>
+                            <strong>{{ etapa.completadas }}/{{ etapa.total }}</strong>
+                        </div>
+                        <div class="progress" role="progressbar" aria-valuenow="{{ etapa.completadas }}" aria-valuemin="0" aria-valuemax="{{ etapa.total }}">
+                            {% if etapa.total %}
+                                <div class="progress-bar" style="width: {% widthratio etapa.completadas etapa.total 100 %}%"></div>
+                            {% else %}
+                                <div class="progress-bar" style="width: 0%"></div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="workspace-stage-preview">
+                        {% for paso in etapa.pasos %}
+                            <span class="criterion-dot criterion-dot-{{ paso.fase.estado }}">{{ paso.fase.etiqueta }}</span>
+                        {% endfor %}
+                    </div>
+
+                    {% if etapa.bloqueada %}
+                        <button class="btn btn-outline-secondary w-100" type="button" disabled>Completa la etapa anterior</button>
+                    {% else %}
+                        <a class="btn btn-primary w-100" href="{% url 'etapa_trabajo' proyecto.pk etapa.slug %}">{% if puede_editar_proyecto %}Trabajar etapa{% else %}Ver etapa{% endif %}</a>
+                    {% endif %}
+                </article>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="workspace-activity-panel">
+        <div class="workspace-section-title compact">
+            <div>
+                <span class="eyebrow">Actividad reciente</span>
+                <h2>Últimos movimientos del proyecto</h2>
+            </div>
+        </div>
+        <div class="workspace-activity-grid">
+            <div>
+                <h3>Avances</h3>
+                {% for avance in proyecto.avances.all|slice:":2" %}
+                    <p><strong>{{ avance.fecha }}</strong> - {{ avance.descripcion|truncatechars:90 }}</p>
+                {% empty %}
+                    <p class="text-muted">Sin avances registrados.</p>
+                {% endfor %}
+            </div>
+            <div>
+                <h3>Evidencias</h3>
+                {% for evidencia in proyecto.evidencias.all|slice:":2" %}
+                    <p><strong>{{ evidencia.nombre }}</strong> - {{ evidencia.usuario }}</p>
+                {% empty %}
+                    <p class="text-muted">Sin evidencias subidas.</p>
+                {% endfor %}
+            </div>
+            <div>
+                <h3>Tareas</h3>
+                {% for tarea in tareas_pendientes|slice:":2" %}
+                    <p><strong>{{ tarea.nombre }}</strong> - {{ tarea.get_estado_display }}</p>
+                {% empty %}
+                    <p class="text-muted">Sin tareas pendientes.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <section class="workspace-activity-panel inventory-project-panel">
+        <div class="workspace-section-title compact">
+            <div>
+                <span class="eyebrow">Inventario del proyecto</span>
+                <h2>Materiales, insumos y equipos usados</h2>
+            </div>
+            {% if puede_editar_proyecto %}
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'inventario_usar' proyecto.pk %}?next={% url 'proyecto_trabajo' proyecto.pk %}">Registrar uso</a>
+            {% endif %}
+        </div>
+        <div class="workspace-activity-grid">
+            <div>
+                <h3>Usos registrados</h3>
+                {% for uso in usos_inventario %}
+                    <p><strong>{{ uso.item.nombre }}</strong> - {{ uso.cantidad|floatformat:-2 }} {{ uso.item.unidad }}<br><span>{{ uso.fecha }} - {{ uso.usuario }}</span></p>
+                {% empty %}
+                    <p class="text-muted">Este proyecto aún no tiene materiales registrados.</p>
+                {% endfor %}
+            </div>
+            <div>
+                <h3>Alertas de laboratorio</h3>
+                {% for item in alertas_inventario %}
+                    <p><strong>{{ item.nombre }}</strong> - queda {{ item.cantidad_texto }}</p>
+                {% empty %}
+                    <p class="text-muted">No hay alertas de stock por ahora.</p>
+                {% endfor %}
+            </div>
+            <div>
+                <h3>Control</h3>
+                <p>Los insumos fungibles descuentan stock automáticamente. Equipos como impresoras o computadores quedan registrados sin descontar cantidad.</p>
+                <a class="btn btn-sm btn-primary" href="{% url 'inventario_lista' %}">Ver inventario completo</a>
+            </div>
+        </div>
+    </section>
+
+</div>
+{% endblock %}

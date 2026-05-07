@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle de usuario{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Usuarios</span>
+        <h1>{{ usuario_obj.nombre|default:usuario_obj.username }}</h1>
+        <p>Ficha de contacto y datos personales registrados en el sistema.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-primary" href="{% url 'chat_privado' usuario_obj.pk %}">Enviar mensaje</a>
+        <a class="btn btn-outline-secondary" href="{% url 'usuario_lista' %}">Volver</a>
+    </div>
+</div>
+
+<section class="user-detail-layout">
+    <aside class="user-detail-card">
+        {% if usuario_obj.foto %}
+            <img src="{{ usuario_obj.foto.url }}" alt="{{ usuario_obj.nombre|default:usuario_obj.username }}">
+        {% else %}
+            <div class="profile-preview-avatar">{{ usuario_obj.nombre|default:usuario_obj.username|slice:":1"|upper }}</div>
+        {% endif %}
+        <strong>{{ usuario_obj.nombre|default:usuario_obj.username }}</strong>
+        <span>{{ usuario_obj.get_rol_display }}</span>
+        <p>{{ usuario_obj.get_sede_display }}</p>
+    </aside>
+
+    <div class="user-detail-main">
+        <section class="content-panel user-detail-grid">
+            <article><span>Correo</span><strong>{{ usuario_obj.email }}</strong></article>
+            <article><span>Teléfono</span><strong>{{ usuario_obj.telefono|default:"No registrado" }}</strong></article>
+            <article><span>Usuario</span><strong>{{ usuario_obj.username }}</strong></article>
+            <article><span>Institución</span><strong>{{ usuario_obj.institucion|default:"No registrada" }}</strong></article>
+            <article><span>Cargo o área</span><strong>{{ usuario_obj.cargo|default:"No registrado" }}</strong></article>
+            <article><span>Dirección o referencia</span><strong>{{ usuario_obj.direccion|default:"No registrada" }}</strong></article>
+        </section>
+
+        <section class="content-panel">
+            <div class="workspace-section-title compact">
+                <div><span class="eyebrow">Datos personales</span><h2>Información importante</h2></div>
+            </div>
+            <p class="user-detail-bio">{{ usuario_obj.biografia|default:"Sin información adicional registrada."|linebreaksbr }}</p>
+        </section>
+
+        <section class="user-detail-columns">
+            <div class="content-panel">
+                <div class="workspace-section-title compact">
+                    <div><span class="eyebrow">Proyectos</span><h2>Asignados</h2></div>
+                </div>
+                <div class="workspace-list compact-list">
+                    {% for proyecto in proyectos_usuario %}
+                        <a class="workspace-list-item" href="{% url 'proyecto_trabajo' proyecto.pk %}">
+                            <strong>{{ proyecto.nombre }}</strong>
+                            <span>{{ proyecto.get_estado_display }}</span>
+                        </a>
+                    {% empty %}
+                        <div class="workspace-empty">No tiene proyectos asignados.</div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="content-panel">
+                <div class="workspace-section-title compact">
+                    <div><span class="eyebrow">Tareas</span><h2>Pendientes</h2></div>
+                </div>
+                <div class="workspace-list compact-list">
+                    {% for tarea in tareas_usuario %}
+                        <div class="workspace-list-item">
+                            <strong>{{ tarea.nombre }}</strong>
+                            <span>{{ tarea.proyecto.nombre }}</span>
+                        </div>
+                    {% empty %}
+                        <div class="workspace-empty">No tiene tareas pendientes.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+    </div>
+</section>
+{% endblock %}

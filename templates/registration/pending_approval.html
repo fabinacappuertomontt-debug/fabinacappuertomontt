@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Solicitud enviada{% endblock %}
+{% block body_class %}login-page{% endblock %}
+
+{% block content %}
+<div class="login-layout">
+    <section class="login-intro">
+        <div class="login-brand-row">
+            <span class="login-logo-mark">F</span>
+            <span>FAB INACAP</span>
+        </div>
+        <span class="eyebrow">Solicitud recibida</span>
+        <h1>Tu cuenta quedó pendiente</h1>
+        <p>El equipo FAB revisará tu solicitud. Cuando aprueben o rechacen la cuenta, recibirás un correo.</p>
+        <figure class="login-campus">
+            <img src="https://portal.inacap.cl/documents/47032/512274/Semana-de-Bienvenida-1200x400.jpg/727a5c67-2371-977d-d43c-70481dbd019c?t=1716405736841&version=1.0" alt="Estudiantes de INACAP">
+            <figcaption>
+                <strong>{{ usuario.get_sede_display }}</strong>
+                <span>{{ usuario.institucion|default:"Solicitud externa" }}</span>
+            </figcaption>
+        </figure>
+        <div class="login-feature-grid">
+            <article><strong>1</strong><span>Solicitud enviada</span></article>
+            <article><strong>FAB</strong><span>Revision admin</span></article>
+            <article><strong>@</strong><span>Aviso por correo</span></article>
+        </div>
+    </section>
+    <section class="login-card">
+        <div class="card login-access-card">
+            <div class="card-body">
+                <span class="eyebrow">Pendiente</span>
+                <h2>Revisión del FAB</h2>
+                <p>Tu solicitud fue enviada correctamente. No podrás iniciar sesión hasta que el administrador apruebe la cuenta.</p>
+                <div class="external-request-summary">
+                    <span>{{ usuario.nombre }}</span>
+                    <strong>{{ usuario.email }}</strong>
+                    <small>{{ usuario.institucion|default:"Sin institución indicada" }}</small>
+                </div>
+                <a class="btn btn-primary w-100 mt-3" href="{% url 'login' %}">
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                    Volver al login
+                </a>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}

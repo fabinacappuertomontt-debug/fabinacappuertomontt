@@ -1,0 +1,160 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ etapa.nombre }} - {{ proyecto.nombre }}{% endblock %}
+
+{% block content %}
+<div class="stage-work-page">
+    <header class="workspace-hero stage-hero">
+        <div>
+            <span class="eyebrow">Etapa de trabajo</span>
+            <h1>{{ etapa.nombre }}</h1>
+            <p>{{ etapa.resumen }}</p>
+        </div>
+        <div class="project-hero-actions">
+            <a class="btn btn-outline-secondary" href="{% url 'proyecto_trabajo' proyecto.pk %}">Volver a etapas</a>
+            <a class="btn btn-primary" href="{% url 'proyecto_detalle' proyecto.pk %}">Ver detalle</a>
+        </div>
+    </header>
+
+    {% if puede_editar_proyecto %}
+        <section class="stage-action-bar" aria-label="Acciones de etapa">
+            <a href="{% url 'observacion_crear' proyecto.pk %}?next={{ next_url|urlencode }}{% if fase_activa %}&fase={{ fase_activa.pk }}{% endif %}"><span>Observación del profesor</span><strong>Agregar comentario de seguimiento</strong></a>
+        </section>
+    {% endif %}
+
+    <section class="stage-main-grid">
+        <article class="stage-panel stage-panel-wide">
+            <div class="workspace-section-title compact">
+                <div>
+                    <span class="eyebrow">Criterios de la etapa</span>
+                    <h2>Completa los criterios para avanzar</h2>
+                </div>
+                <strong class="stage-count">{{ etapa.completadas }}/{{ etapa.total }}</strong>
+            </div>
+            <div class="stage-criteria-table">
+                {% for paso in etapa.pasos %}
+                    <div class="stage-criteria-row stage-criteria-{{ paso.fase.estado }}">
+                        <div>
+                            <span>{{ paso.fase.etiqueta }}</span>
+                            <strong>{{ paso.fase.nombre }}</strong>
+                            <p>{{ paso.fase.objetivo }}</p>
+                            {% if paso.fase.realizado %}<p class="stage-done-note">{{ paso.fase.realizado }}</p>{% endif %}
+                        </div>
+                        {% if paso.desbloqueada and puede_editar_proyecto %}
+                            <a class="btn btn-sm btn-outline-primary" href="{% url 'fase_detalle' paso.fase.pk %}?next={{ next_url|urlencode }}{% if fase_activa %}&fase={{ fase_activa.pk }}{% endif %}">Actualizar</a>
+                        {% elif paso.desbloqueada %}
+                            <span class="status-pill status-{{ paso.fase.estado }}">{{ paso.fase.get_estado_display }}</span>
+                        {% else %}
+                            <span class="status-pill">Bloqueado</span>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="stage-panel">
+            <div class="workspace-section-title compact">
+                <div><span class="eyebrow">Preparación</span><h2>Qué debe tener</h2></div>
+            </div>
+            <ul class="stage-checklist">
+                {% for item in etapa.evidencias %}
+                    <li>{{ item }}</li>
+                {% endfor %}
+            </ul>
+        </article>
+    </section>
+
+    <section class="stage-record-grid">
+        <article class="stage-panel">
+            <div class="workspace-section-title compact">
+                <div><span class="eyebrow">Tareas</span><h2>Trabajo del equipo</h2></div>
+                {% if puede_editar_proyecto %}
+                    <a class="btn btn-sm btn-outline-primary" href="{% url 'tarea_crear' proyecto.pk %}?next={{ next_url|urlencode }}{% if fase_activa %}&fase={{ fase_activa.pk }}{% endif %}">Crear</a>
+                {% endif %}
+            </div>
+            <div class="workspace-list">
+                {% for tarea in tareas_pendientes %}
+                    <div class="workspace-list-item">
+                        <strong>{{ tarea.nombre }}</strong>
+                        <span>{{ tarea.get_estado_display }}{% if tarea.responsable %} - {{ tarea.responsable }}{% endif %}</span>
+                        {% if tarea.descripcion %}<p>{{ tarea.descripcion }}</p>{% endif %}
+                        {% if puede_editar_proyecto %}
+                            <form method="post" action="{% url 'tarea_completar' tarea.pk %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ next_url }}">
+                                {% if fase_activa %}<input type="hidden" name="fase" value="{{ fase_activa.pk }}">{% endif %}
+                                <button class="btn btn-sm btn-success" type="submit">Completar</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                {% empty %}
+                    <div class="workspace-empty">No hay tareas pendientes.</div>
+                {% endfor %}
+                {% for tarea in tareas_completadas|slice:":3" %}
+                    <div class="workspace-list-item completed"><strong>{{ tarea.nombre }}</strong><span>Completada{% if tarea.responsable %} - {{ tarea.responsable }}{% endif %}</span></div>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="stage-panel">
+            <div class="workspace-section-title compact">
+                <div><span class="eyebrow">Evidencias</span><h2>Fotos y archivos</h2></div>
+                {% if puede_editar_proyecto %}
+                    <a class="btn btn-sm btn-outline-primary" href="{% url 'evidencia_crear' proyecto.pk %}?next={{ next_url|urlencode }}{% if fase_activa %}&fase={{ fase_activa.pk }}{% endif %}">Subir</a>
+                {% endif %}
+            </div>
+            <div class="stage-evidence-list">
+                {% for evidencia in evidencias_detalle %}
+                    <div class="stage-evidence-item">
+                        {% if evidencia.es_imagen %}<img src="{{ evidencia.obj.archivo.url }}" alt="{{ evidencia.obj.nombre }}">{% endif %}
+                        <strong>{{ evidencia.obj.nombre }}</strong>
+                        <span>{{ evidencia.obj.fecha_subida }} - {{ evidencia.obj.usuario }}</span>
+                        <a class="btn btn-sm btn-outline-primary" href="{{ evidencia.obj.archivo.url }}" download>Descargar</a>
+                    </div>
+                {% empty %}
+                    <div class="workspace-empty">Todavia no hay evidencias subidas.</div>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="stage-panel">
+            <div class="workspace-section-title compact">
+                <div><span class="eyebrow">Avances</span><h2>Registro escrito</h2></div>
+                {% if puede_editar_proyecto %}
+                    <a class="btn btn-sm btn-outline-primary" href="{% url 'avance_crear' proyecto.pk %}?next={{ next_url|urlencode }}{% if fase_activa %}&fase={{ fase_activa.pk }}{% endif %}">Registrar</a>
+                {% endif %}
+            </div>
+            <div class="workspace-list">
+                {% for avance in proyecto.avances.all %}
+                    <div class="workspace-list-item"><strong>{{ avance.fecha }} - {{ avance.responsable }}</strong><p>{{ avance.descripcion }}</p></div>
+                {% empty %}
+                    <div class="workspace-empty">Todavia no hay avances registrados.</div>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="stage-panel">
+            <div class="workspace-section-title compact">
+                <div><span class="eyebrow">Inventario</span><h2>Recursos usados</h2></div>
+                {% if puede_editar_proyecto %}
+                    <a class="btn btn-sm btn-outline-primary" href="{% url 'inventario_usar' proyecto.pk %}?next={{ next_url|urlencode }}{% if fase_activa %}&fase={{ fase_activa.pk }}{% endif %}">Registrar</a>
+                {% endif %}
+            </div>
+            <div class="workspace-list">
+                {% for uso in usos_etapa %}
+                    <div class="workspace-list-item">
+                        <strong>{{ uso.item.nombre }}</strong>
+                        <span>{{ uso.cantidad|floatformat:-2 }} {{ uso.item.unidad }} - {{ uso.usuario }}</span>
+                        {% if uso.observacion %}<p>{{ uso.observacion }}</p>{% endif %}
+                    </div>
+                {% empty %}
+                    <div class="workspace-empty">No hay recursos registrados en esta etapa.</div>
+                {% endfor %}
+            </div>
+        </article>
+
+    </section>
+</div>
+{% endblock %}
+
+

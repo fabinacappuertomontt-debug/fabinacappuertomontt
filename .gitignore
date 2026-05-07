@@ -4,4 +4,5 @@ __pycache__/
 *.py[cod]
 db.sqlite3
 staticfiles/
+media/
 .DS_Store

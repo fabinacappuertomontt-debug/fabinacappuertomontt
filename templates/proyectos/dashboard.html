@@ -3,142 +3,168 @@
 {% block title %}Panel general{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <div>
-        <span class="eyebrow">Panel general</span>
-        <h1>Estado global de proyectos</h1>
-        <p>Revisa el avance del año, tareas pendientes y proyectos que necesitan atención.</p>
-    </div>
-    <a class="btn btn-primary" href="{% url 'proyecto_crear' %}">Crear proyecto</a>
-</div>
+<div class="control-board">
 
-<div class="row g-3 mb-4">
-    <div class="col-md-4">
-        <div class="stat-box">
-            <span>Proyectos registrados</span>
-            <strong>{{ total_proyectos }}</strong>
+    {# ── Encabezado ── #}
+    <section class="control-board-hero">
+        <div>
+            <span class="eyebrow">Panel general</span>
+            <h1>Salud del portafolio</h1>
+            <p>Ordenado por fecha crítica: verde va bien, amarillo requiere atención y rojo indica atraso o riesgo.</p>
         </div>
-    </div>
-    <div class="col-md-4">
-        <div class="stat-box">
-            <span>Avance promedio</span>
-            <strong>{{ promedio_avance|floatformat:0 }}%</strong>
+        <div class="control-board-actions">
+            <a class="btn btn-primary" href="{% url 'proyecto_lista' %}">Abrir proyectos</a>
+            <a class="btn btn-outline-primary" href="{% url 'inventario_lista' %}">Inventario</a>
         </div>
-    </div>
-    <div class="col-md-4">
-        <div class="stat-box">
+    </section>
+
+    {# ── Tarjetas de resumen ── #}
+    <section class="health-summary" aria-label="Resumen por color">
+        <article class="health-card health-green">
+            <span>Bien</span>
+            <strong>{{ proyectos_ok }}</strong>
+            <p>Avance normal</p>
+        </article>
+        <article class="health-card health-yellow">
+            <span>Atención</span>
+            <strong>{{ proyectos_advertencia }}</strong>
+            <p>Próximo a vencer o en pausa</p>
+        </article>
+        <article class="health-card health-red">
+            <span>Crítico</span>
+            <strong>{{ proyectos_rojo }}</strong>
+            <p>Atrasado o bajo avance</p>
+        </article>
+        <article class="health-card health-dark">
             <span>Tareas pendientes</span>
             <strong>{{ tareas_pendientes }}</strong>
+            <p>Trabajo operativo abierto</p>
+        </article>
+        <article class="health-card health-blue">
+            <span>Inventario bajo</span>
+            <strong>{{ alertas_inventario }}</strong>
+            <p>Alertas de stock</p>
+        </article>
+    </section>
+
+    {# ── Gráfico lineal ── #}
+    <section class="linear-health-panel">
+        <div class="control-section-title">
+            <div>
+                <span class="eyebrow">Gráfico lineal</span>
+                <h2>Línea de salud por proyecto</h2>
+            </div>
+            <strong>{{ total_proyectos }} proyecto{{ total_proyectos|pluralize:"s" }} · {{ promedio_avance|floatformat:0 }}% promedio</strong>
         </div>
-    </div>
-</div>
 
-<div class="row g-4">
-    <div class="col-lg-5">
-        <section class="content-panel mb-4">
-            <h2 class="h5 mb-3">Proyectos atrasados</h2>
-            <div class="list-group">
-                {% for proyecto in proyectos_atrasados %}
-                    <a class="list-group-item list-group-item-action" href="{{ proyecto.get_absolute_url }}">
-                        <div class="d-flex justify-content-between gap-3">
-                            <strong>{{ proyecto.nombre }}</strong>
-                            <span class="alert-dot alert-riesgo">Atrasado</span>
-                        </div>
-                        <div class="small text-muted mt-2">
-                            Venció el {{ proyecto.fecha_fin }} · {{ proyecto.porcentaje_avance }}% avance
-                        </div>
-                    </a>
-                {% empty %}
-                    <div class="list-group-item text-muted">No hay proyectos atrasados.</div>
-                {% endfor %}
-            </div>
-        </section>
-
-        <section class="content-panel mb-4">
-            <h2 class="h5 mb-3">Proyectos con alertas</h2>
-            <div class="list-group">
-                {% for proyecto in proyectos_riesgo %}
-                    <a class="list-group-item list-group-item-action" href="{{ proyecto.get_absolute_url }}">
-                        <div class="d-flex justify-content-between gap-3">
-                            <strong>{{ proyecto.nombre }}</strong>
-                            <span class="alert-dot alert-{{ proyecto.nivel_alerta }}">{{ proyecto.texto_alerta }}</span>
-                        </div>
-                        <div class="small text-muted mt-2">
-                            {{ proyecto.porcentaje_avance }}% avance
-                            {% if proyecto.fecha_fin %} · vence {{ proyecto.fecha_fin }}{% endif %}
-                        </div>
-                    </a>
-                {% empty %}
-                    <div class="list-group-item text-muted">No hay proyectos con alertas por ahora.</div>
-                {% endfor %}
-            </div>
-        </section>
-
-        <section class="content-panel">
-            <h2 class="h5 mb-3">Resumen por estado</h2>
-            <div class="list-group">
-                {% for item in resumen_estados %}
-                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>{{ item.label }}</span>
-                        <span class="badge status-badge">{{ item.total }}</span>
-                    </div>
-                {% endfor %}
-            </div>
-        </section>
-    </div>
-    <div class="col-lg-7">
-        <section class="content-panel mb-4">
-            <h2 class="h5 mb-3">Proyectos recientes</h2>
-            <div class="list-group">
-                {% for proyecto in proyectos_recientes %}
-                    <a class="list-group-item list-group-item-action" href="{{ proyecto.get_absolute_url }}">
-                        <div class="d-flex justify-content-between">
-                            <strong>{{ proyecto.nombre }}</strong>
-                            <span class="status-pill status-{{ proyecto.estado }}">{{ proyecto.get_estado_display }}</span>
-                        </div>
-                        <div class="progress mt-2" role="progressbar" aria-valuenow="{{ proyecto.porcentaje_avance }}" aria-valuemin="0" aria-valuemax="100">
-                            <div class="progress-bar" style="width: {{ proyecto.porcentaje_avance }}%">{{ proyecto.porcentaje_avance }}%</div>
-                        </div>
-                    </a>
-                {% empty %}
-                    <div class="list-group-item">Todavía no hay proyectos registrados.</div>
-                {% endfor %}
-            </div>
-        </section>
-
-        <div class="row g-4">
-            <div class="col-md-7">
-                <section class="content-panel h-100">
-                    <h2 class="h5 mb-3">Últimos avances</h2>
-                    <div class="timeline-list">
-                        {% for avance in ultimos_avances %}
-                            <a class="timeline-item" href="{{ avance.proyecto.get_absolute_url }}">
-                                <strong>{{ avance.proyecto.nombre }}</strong>
-                                <span>{{ avance.fecha }} · {{ avance.responsable }}</span>
-                                <p>{{ avance.descripcion|truncatechars:90 }}</p>
-                            </a>
-                        {% empty %}
-                            <p class="text-muted mb-0">Todavía no hay avances registrados.</p>
-                        {% endfor %}
-                    </div>
-                </section>
-            </div>
-            <div class="col-md-5">
-                <section class="content-panel h-100">
-                    <h2 class="h5 mb-3">Tareas por responsable</h2>
-                    <div class="list-group">
-                        {% for usuario in tareas_por_responsable %}
-                            <div class="list-group-item d-flex justify-content-between align-items-center">
-                                <span>{{ usuario }}</span>
-                                <span class="badge status-badge">{{ usuario.pendientes }}</span>
-                            </div>
-                        {% empty %}
-                            <div class="list-group-item text-muted">Sin tareas pendientes asignadas.</div>
-                        {% endfor %}
-                    </div>
-                </section>
-            </div>
+        <div class="portfolio-line-legend" aria-label="Leyenda del gráfico">
+            <span><i class="legend-dot legend-green"></i> Bien (≥67%)</span>
+            <span><i class="legend-dot legend-yellow"></i> Atención (34–66%)</span>
+            <span><i class="legend-dot legend-red"></i> Crítico (≤33%)</span>
         </div>
-    </div>
+
+        {% if grafico_proyectos %}
+            <div class="portfolio-chart-scroll" role="region" aria-label="Gráfico lineal de salud del portafolio">
+                <svg class="portfolio-chart-svg"
+                     width="{{ chart_width }}"
+                     height="{{ chart_height }}"
+                     viewBox="0 0 {{ chart_width }} {{ chart_height }}"
+                     xmlns="http://www.w3.org/2000/svg"
+                     role="img"
+                     aria-label="Avance de proyectos ordenado por fecha de término">
+
+                    {# ── Zonas de fondo (bien / atención / crítico) ── #}
+                    <rect x="90" y="46"  width="{{ chart_width|add:'-160' }}" height="84" rx="4" fill="#e8f5ee" opacity="0.9"></rect>
+                    <rect x="90" y="130" width="{{ chart_width|add:'-160' }}" height="84" rx="4" fill="#fffbeb" opacity="0.9"></rect>
+                    <rect x="90" y="214" width="{{ chart_width|add:'-160' }}" height="86" rx="4" fill="#fff0f0" opacity="0.9"></rect>
+
+                    {# ── Líneas de referencia horizontales ── #}
+                    <line x1="90" y1="46"  x2="{{ chart_width|add:'-70' }}" y2="46"  stroke="#b0bfcc" stroke-dasharray="5 6" stroke-width="1"></line>
+                    <line x1="90" y1="173" x2="{{ chart_width|add:'-70' }}" y2="173" stroke="#b0bfcc" stroke-dasharray="5 6" stroke-width="1"></line>
+                    <line x1="90" y1="300" x2="{{ chart_width|add:'-70' }}" y2="300" stroke="#b0bfcc" stroke-dasharray="5 6" stroke-width="1"></line>
+
+                    {# ── Ejes X e Y ── #}
+                    <line x1="90" y1="44"  x2="90" y2="302" stroke="#64748b" stroke-width="2"></line>
+                    <line x1="88" y1="300" x2="{{ chart_width|add:'-68' }}" y2="300" stroke="#64748b" stroke-width="2"></line>
+
+                    {# ── Etiquetas eje Y ── #}
+                    <text x="82" y="51"  text-anchor="end" class="chart-axis-label">100%</text>
+                    <text x="82" y="178" text-anchor="end" class="chart-axis-label">50%</text>
+                    <text x="82" y="305" text-anchor="end" class="chart-axis-label">0%</text>
+
+                    {# ── Etiquetas de zona (esquina superior de cada banda) ── #}
+                    <text x="104" y="65"  class="chart-zone-label chart-zone-green">BIEN</text>
+                    <text x="104" y="149" class="chart-zone-label chart-zone-yellow">ATENCIÓN</text>
+                    <text x="104" y="233" class="chart-zone-label chart-zone-red">CRÍTICO</text>
+
+                    {# ── Polyline: línea continua que une todos los puntos ── #}
+                    {% if chart_segmentos %}
+                        {% for segmento in chart_segmentos %}
+                            <line
+                                x1="{{ segmento.x1 }}" y1="{{ segmento.y1 }}"
+                                x2="{{ segmento.x2 }}" y2="{{ segmento.y2 }}"
+                                stroke="{{ segmento.color }}"
+                                stroke-width="4"
+                                stroke-linecap="round"
+                                stroke-linejoin="round">
+                            </line>
+                        {% endfor %}
+                    {% endif %}
+
+                    {# ── Puntos del gráfico (dibujados después de las líneas para quedar encima) ── #}
+                    {% for item in grafico_proyectos %}
+                        <a href="{{ item.proyecto.get_absolute_url }}" aria-label="{{ item.proyecto.nombre }}: {{ item.avance }}%">
+
+                            {# Halo de color translúcido detrás del punto #}
+                            <circle cx="{{ item.x }}" cy="{{ item.y }}" r="16" fill="{{ item.color }}" opacity="0.12"></circle>
+
+                            {# Punto principal #}
+                            <circle cx="{{ item.x }}" cy="{{ item.y }}" r="9" fill="{{ item.color }}" stroke="#ffffff" stroke-width="3">
+                                <title>{{ item.proyecto.nombre }} — {{ item.avance }}% · {{ item.proyecto.texto_alerta }}</title>
+                            </circle>
+
+                            {# Porcentaje encima del punto (usa y_label precalculado) #}
+                            <text x="{{ item.x }}" y="{{ item.y_label }}"
+                                  text-anchor="middle"
+                                  class="chart-percent-label">{{ item.avance }}%</text>
+
+                            {# Fecha debajo del eje X #}
+                            <text x="{{ item.x }}" y="316"
+                                  text-anchor="middle"
+                                  class="chart-date-label">{{ item.label_fecha }}</text>
+
+                            {# Nombre del proyecto rotado — usa nombre_corto precalculado #}
+                            <text transform="rotate(-38, {{ item.x }}, 332)"
+                                  x="{{ item.x }}" y="332"
+                                  text-anchor="end"
+                                  class="chart-name-label">{{ item.nombre_corto }}</text>
+                        </a>
+                    {% endfor %}
+                </svg>
+            </div>
+
+            {# ── Watchlist de proyectos ── #}
+            <div class="portfolio-watchlist">
+                {% for item in grafico_proyectos %}
+                    <a class="watchlist-item watchlist-{{ item.nivel }}" href="{{ item.proyecto.get_absolute_url }}">
+                        <span>{{ item.proyecto.texto_alerta }}</span>
+                        <strong>{{ item.proyecto.nombre }}</strong>
+                        <small>
+                            {{ item.avance }}% avance
+                            {% if item.proyecto.fecha_fin %} · vence {{ item.proyecto.fecha_fin|date:"d/m/Y" }}{% endif %}
+                            {% if item.tareas_total %} · {{ item.tareas_pendientes }}/{{ item.tareas_total }} tareas{% endif %}
+                        </small>
+                    </a>
+                {% endfor %}
+            </div>
+
+        {% else %}
+            <div class="dashboard-v2-empty">
+                <strong>No hay proyectos aún</strong>
+                <span>Cuando se creen proyectos, aparecerán aquí en la línea de salud.</span>
+            </div>
+        {% endif %}
+    </section>
+
 </div>
 {% endblock %}
