@@ -9,7 +9,7 @@
         <h1>{% if object %}Editar proyecto{% else %}Nuevo proyecto{% endif %}</h1>
         <p>
             {% if object %}
-                Actualiza datos generales, responsables y fechas del proyecto. El cambio de estado para pausar, reactivar o finalizar se realiza en la opción de estado del proyecto.
+                Actualiza datos generales, responsables y fechas del proyecto. El cambio de estado para pausar, reactivar o finalizar se realiza en la opcion de estado del proyecto.
             {% else %}
                 Registra datos principales, objetivos, resultados esperados, indicadores, fechas y responsables.
             {% endif %}
@@ -45,6 +45,28 @@
                                 {% endfor %}
                             </div>
                         </details>
+                    {% elif field.name == "objetivo_especifico" %}
+                        <div class="specific-objectives-builder" data-specific-objectives>
+                            {{ field }}
+                            <div class="specific-objectives-list" data-specific-objectives-list></div>
+                            <button class="btn btn-sm btn-outline-primary" type="button" data-add-specific-objective>
+                                <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                                Agregar objetivo especifico
+                            </button>
+                        </div>
+                    {% elif field.name == "resultados_esperados" %}
+                        <div class="expected-results-builder" data-expected-results>
+                            {{ field }}
+                            <div class="expected-results-note" data-results-calendar-note>
+                                Define fecha de inicio y fin para validar los plazos.
+                            </div>
+                            <div class="expected-results-head" aria-hidden="true">
+                                <strong>Resultado</strong>
+                                <strong>Meses</strong>
+                                <strong>Dias</strong>
+                            </div>
+                            <div class="expected-results-list" data-expected-results-list></div>
+                        </div>
                     {% else %}
                         {{ field }}
                     {% endif %}
@@ -62,7 +84,7 @@
             {{ form.empresa_externa }}
             <span>
                 <strong>{{ form.empresa_externa.label }}</strong>
-                <small>Activa esto solo si el proyecto incluye una empresa o institución externa a INACAP.</small>
+                <small>Activa esto solo si el proyecto incluye una empresa o institucion externa a INACAP.</small>
             </span>
         </label>
         {% if form.empresa_externa.help_text %}<div class="form-text">{{ form.empresa_externa.help_text }}</div>{% endif %}
@@ -120,6 +142,228 @@
         if (methodology) {
             methodology.addEventListener("change", syncMethodology);
             syncMethodology();
+        }
+
+        const escapeHtml = (value) => String(value || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+
+        const objectiveBuilder = document.querySelector("[data-specific-objectives]");
+        if (objectiveBuilder) {
+            const textarea = objectiveBuilder.querySelector("textarea");
+            const list = objectiveBuilder.querySelector("[data-specific-objectives-list]");
+            const addButton = objectiveBuilder.querySelector("[data-add-specific-objective]");
+            let objectives = textarea.value
+                .split(/\r?\n/)
+                .map((item) => item.replace(/^\s*\d+[\.\)]\s*/, "").trim())
+                .filter(Boolean);
+
+            if (!objectives.length) {
+                objectives = [""];
+            }
+
+            const persist = () => {
+                textarea.value = objectives
+                    .map((objective, index) => objective.trim() ? `${index + 1}. ${objective.trim()}` : "")
+                    .filter(Boolean)
+                    .join("\n");
+            };
+
+            const render = () => {
+                list.innerHTML = "";
+                objectives.forEach((objective, index) => {
+                    const row = document.createElement("div");
+                    row.className = "specific-objective-row";
+                    row.innerHTML = `
+                        <span>${index + 1}</span>
+                        <input class="form-control" type="text" value="${escapeHtml(objective)}" data-specific-objective-input="${index}" placeholder="Escribe un objetivo especifico">
+                        <button class="btn btn-sm btn-outline-danger" type="button" data-remove-specific-objective="${index}">Quitar</button>
+                    `;
+                    list.appendChild(row);
+                });
+                persist();
+            };
+
+            objectiveBuilder.addEventListener("input", (event) => {
+                const input = event.target.closest("[data-specific-objective-input]");
+                if (!input) {
+                    return;
+                }
+                objectives[Number(input.dataset.specificObjectiveInput)] = input.value;
+                persist();
+            });
+
+            objectiveBuilder.addEventListener("click", (event) => {
+                const remove = event.target.closest("[data-remove-specific-objective]");
+                if (!remove) {
+                    return;
+                }
+                objectives.splice(Number(remove.dataset.removeSpecificObjective), 1);
+                if (!objectives.length) {
+                    objectives = [""];
+                }
+                render();
+            });
+
+            addButton.addEventListener("click", () => {
+                objectives.push("");
+                render();
+                const inputs = list.querySelectorAll("[data-specific-objective-input]");
+                inputs[inputs.length - 1].focus();
+            });
+
+            render();
+        }
+
+        const resultsBuilder = document.querySelector("[data-expected-results]");
+        if (resultsBuilder) {
+            const textarea = resultsBuilder.querySelector("textarea");
+            const list = resultsBuilder.querySelector("[data-expected-results-list]");
+            const note = resultsBuilder.querySelector("[data-results-calendar-note]");
+            const startInput = document.querySelector("[name='fecha_inicio']");
+            const endInput = document.querySelector("[name='fecha_fin']");
+            const submitButton = document.querySelector("button[type='submit']");
+
+            const parseResultLine = (line) => {
+                const clean = line.replace(/^\s*\d+[\.\)]\s*/, "").trim();
+                const match = clean.match(/^(.*?)\s*\(plazo:\s*(?:(\d+)\s*mes(?:es)?)?\s*(?:,?\s*(\d+)\s*d[ií]a(?:s)?)?\s*\)\s*$/i);
+                if (!match) {
+                    return { texto: clean, meses: "", dias: "" };
+                }
+                return { texto: match[1].trim(), meses: match[2] || "", dias: match[3] || "" };
+            };
+
+            let result = textarea.value
+                .split(/\r?\n/)
+                .map((item) => item.trim())
+                .filter(Boolean)
+                .map(parseResultLine)[0] || { texto: "", meses: "", dias: "" };
+
+            const formatDate = (date) => {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, "0");
+                const day = String(date.getDate()).padStart(2, "0");
+                return `${year}-${month}-${day}`;
+            };
+
+            const displayDate = (value) => {
+                if (!value) {
+                    return "";
+                }
+                const [year, month, day] = value.split("-");
+                return `${day}/${month}/${year}`;
+            };
+
+            const expectedEndDate = () => {
+                if (!startInput || !startInput.value || resultDays(result) <= 0) {
+                    return "";
+                }
+                const expected = new Date(`${startInput.value}T00:00:00`);
+                expected.setMonth(expected.getMonth() + Number(result.meses || 0));
+                expected.setDate(expected.getDate() + Number(result.dias || 0));
+                return formatDate(expected);
+            };
+
+            const resultDays = (result) => (Number(result.meses || 0) * 30) + Number(result.dias || 0);
+
+            const syncEndDateLock = () => {
+                if (!endInput) {
+                    return "";
+                }
+                const expected = expectedEndDate();
+                if (!expected) {
+                    endInput.removeAttribute("min");
+                    endInput.removeAttribute("max");
+                    return "";
+                }
+                endInput.value = expected;
+                endInput.min = expected;
+                endInput.max = expected;
+                return expected;
+            };
+
+            const persist = () => {
+                const text = result.texto.trim();
+                if (!text) {
+                    textarea.value = "";
+                    return;
+                }
+                const months = Number(result.meses || 0);
+                const days = Number(result.dias || 0);
+                const parts = [];
+                if (months) {
+                    parts.push(`${months} ${months === 1 ? "mes" : "meses"}`);
+                }
+                if (days) {
+                    parts.push(`${days} ${days === 1 ? "dia" : "dias"}`);
+                }
+                textarea.value = `${text}${parts.length ? ` (plazo: ${parts.join(", ")})` : ""}`;
+            };
+
+            const validateResults = () => {
+                const lockedEndDate = syncEndDateLock();
+                const hasEmptyTime = result.texto.trim() && resultDays(result) <= 0;
+
+                if (!startInput || !startInput.value) {
+                    note.textContent = "Define fecha de inicio para calcular la fecha de termino.";
+                    note.classList.remove("is-invalid");
+                } else if (hasEmptyTime) {
+                    note.textContent = "Cada resultado escrito debe tener meses o dias para alcanzarse.";
+                    note.classList.add("is-invalid");
+                } else if (lockedEndDate) {
+                    note.textContent = `Fecha de termino bloqueada segun el plazo: ${displayDate(lockedEndDate)}.`;
+                    note.classList.remove("is-invalid");
+                } else {
+                    note.textContent = "Agrega meses o dias para bloquear automaticamente la fecha de termino.";
+                    note.classList.remove("is-invalid");
+                }
+
+                if (submitButton) {
+                    submitButton.disabled = Boolean(hasEmptyTime);
+                }
+            };
+
+            const render = () => {
+                list.innerHTML = "";
+                const row = document.createElement("div");
+                row.className = "expected-result-row";
+                row.innerHTML = `
+                    <input class="form-control" type="text" value="${escapeHtml(result.texto)}" data-expected-result-text placeholder="Resultado esperado">
+                    <input class="form-control" type="number" min="0" value="${escapeHtml(result.meses)}" data-expected-result-months aria-label="Meses">
+                    <input class="form-control" type="number" min="0" value="${escapeHtml(result.dias)}" data-expected-result-days aria-label="Dias">
+                `;
+                list.appendChild(row);
+                persist();
+                validateResults();
+            };
+
+            resultsBuilder.addEventListener("input", (event) => {
+                const text = event.target.closest("[data-expected-result-text]");
+                const months = event.target.closest("[data-expected-result-months]");
+                const days = event.target.closest("[data-expected-result-days]");
+                if (text) {
+                    result.texto = text.value;
+                }
+                if (months) {
+                    result.meses = months.value;
+                }
+                if (days) {
+                    result.dias = days.value;
+                }
+                persist();
+                validateResults();
+            });
+
+            if (startInput) {
+                startInput.addEventListener("change", validateResults);
+            }
+            if (endInput) {
+                endInput.addEventListener("change", validateResults);
+            }
+            render();
         }
     })();
 </script>

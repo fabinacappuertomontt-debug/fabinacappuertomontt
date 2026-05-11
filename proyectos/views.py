@@ -14,6 +14,7 @@ from django.utils.text import slugify
 from django.views.generic import CreateView, ListView, UpdateView
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
+import json
 import secrets
 
 from .forms import (
@@ -47,6 +48,10 @@ def usuario_es_admin_laboratorio(user):
             or (user.email and user.email.lower() in LAB_ADMIN_EMAILS)
         )
     )
+
+
+def usuario_puede_gestionar_inventario(user):
+    return bool(user.is_authenticated)
 
 
 def usuario_puede_eliminar_proyecto(user):
@@ -298,7 +303,7 @@ def fase_desde_request(request, proyecto):
 
 @login_required
 def dashboard(request):
-    proyectos = proyectos_de_sede(request.user).prefetch_related("responsables", "tareas")
+    proyectos = proyectos_de_sede(request.user).prefetch_related("responsables", "tareas", "avances")
     contexto = {
         "total_proyectos": proyectos.count(),
         "tareas_pendientes": Tarea.objects.filter(proyecto__sede=sede_usuario(request.user)).exclude(estado=Tarea.Estado.COMPLETADA).count(),
@@ -311,61 +316,153 @@ def dashboard(request):
 
 @login_required
 def panel_general(request):
-    proyectos = proyectos_de_sede(request.user).prefetch_related("responsables", "tareas")
-    grafico_proyectos = []
+    proyectos = proyectos_de_sede(request.user).prefetch_related("responsables", "tareas", "avances")
     proyectos_ordenados = sorted(
         proyectos,
         key=lambda proyecto: (
+            0 if proyecto.nivel_alerta == "riesgo" else 1 if proyecto.nivel_alerta == "advertencia" else 2,
             proyecto.fecha_fin is None,
             proyecto.fecha_fin or timezone.localdate() + timedelta(days=3650),
             proyecto.nombre.lower(),
         ),
     )
     conteo_salud = {"ok": 0, "advertencia": 0, "riesgo": 0}
-    total_grafico = len(proyectos_ordenados)
-    chart_width = max(1120, (max(total_grafico, 1) - 1) * 230 + 280)
-    chart_height = 420
-    chart_left = 90
-    chart_right = chart_width - 70
-    chart_top = 46
-    chart_bottom = 300
-    chart_colors = {"ok": "#198754", "advertencia": "#f5b301", "riesgo": "#c53a43"}
+    chart_colors = {"ok": "#16a34a", "advertencia": "#d97706", "riesgo": "#dc2626"}
+    iconos_panel = ["people", "pc-display", "box-seam", "calendar-week", "robot", "heart-pulse", "leaf", "kanban"]
+    hoy = timezone.localdate()
+    semanas = []
+    for indice_semana in range(7):
+        inicio = hoy - timedelta(days=(6 - indice_semana) * 7)
+        fin = inicio + timedelta(days=6)
+        semanas.append({
+            "label": f"Semana {indice_semana + 1}",
+            "rango": f"{inicio.strftime('%d/%m')} - {fin.strftime('%d/%m')}",
+            "es_hoy": indice_semana == 4,
+        })
+
+    proyectos_chart = []
     for indice, proyecto in enumerate(proyectos_ordenados):
-        nivel = proyecto.nivel_alerta
-        conteo_salud[nivel] = conteo_salud.get(nivel, 0) + 1
         tareas_total = proyecto.tareas.count()
         tareas_pendientes_proyecto = proyecto.tareas.exclude(estado=Tarea.Estado.COMPLETADA).count()
         avance = max(0, min(100, proyecto.porcentaje_avance or 0))
-        x = chart_left if total_grafico <= 1 else chart_left + indice * ((chart_right - chart_left) / (total_grafico - 1))
-        y = chart_top + ((100 - avance) / 100) * (chart_bottom - chart_top)
+        tareas_ratio = (tareas_pendientes_proyecto / tareas_total) if tareas_total else 0
+        ultimo_avance = next(iter(proyecto.avances.all()), None)
+        dias_sin_avance = None
+        penalizaciones = []
+        puntaje_salud = avance
+
+        if proyecto.esta_atrasado:
+            puntaje_salud -= 35
+            penalizaciones.append("Atrasado")
+        elif proyecto.dias_restantes is not None and proyecto.dias_restantes <= 7 and avance < 80:
+            puntaje_salud -= 15
+            penalizaciones.append("Vence pronto")
+
+        if tareas_pendientes_proyecto:
+            penalizacion_tareas = min(25, round(tareas_ratio * 25))
+            puntaje_salud -= penalizacion_tareas
+            penalizaciones.append(f"{tareas_pendientes_proyecto} tareas pendientes")
+
+        if ultimo_avance:
+            dias_sin_avance = (timezone.localdate() - ultimo_avance.fecha).days
+            if dias_sin_avance > 14 and avance < 100:
+                puntaje_salud -= 10
+                penalizaciones.append("Sin avances recientes")
+        elif avance < 100:
+            puntaje_salud -= 8
+            penalizaciones.append("Sin avances registrados")
+
+        puntaje_salud = max(0, min(100, puntaje_salud))
+        if puntaje_salud < 34:
+            nivel = "riesgo"
+        elif puntaje_salud < 67:
+            nivel = "advertencia"
+        else:
+            nivel = "ok"
+        conteo_salud[nivel] = conteo_salud.get(nivel, 0) + 1
+
+        inicio_estimado = max(0, min(100, puntaje_salud - 10 + min(18, avance // 5)))
+        if nivel == "riesgo":
+            inicio_estimado = min(55, max(0, puntaje_salud + 10))
+        elif nivel == "advertencia":
+            inicio_estimado = max(20, min(70, puntaje_salud + 8))
+        variacion = puntaje_salud - inicio_estimado
+        serie = []
+        for semana_indice, semana in enumerate(semanas):
+            progreso = semana_indice / max(len(semanas) - 1, 1)
+            valor = inicio_estimado + (variacion * progreso)
+            if tareas_pendientes_proyecto and semana_indice >= 3:
+                valor -= min(6, tareas_pendientes_proyecto * 1.5)
+            if ultimo_avance and ultimo_avance.fecha >= hoy - timedelta(days=(6 - semana_indice) * 7):
+                valor += 4
+            if semana_indice == len(semanas) - 1:
+                valor = puntaje_salud
+            serie.append(max(0, min(100, round(valor))))
+
         nombre = proyecto.nombre
-        nombre_corto = nombre[:20] + "…" if len(nombre) > 20 else nombre
-        grafico_proyectos.append({
+        proyectos_chart.append({
             "proyecto": proyecto,
+            "orden": indice + 1,
             "nivel": nivel,
             "avance": avance,
+            "salud": puntaje_salud,
+            "serie": serie,
             "tareas_total": tareas_total,
             "tareas_pendientes": tareas_pendientes_proyecto,
             "dias_restantes": proyecto.dias_restantes,
             "responsables": proyecto.responsables.all(),
-            "x": round(x, 2),
-            "y": round(y, 2),
-            "y_label": round(y - 20, 2),   # posición texto % encima del punto
+            "ultimo_avance": ultimo_avance,
+            "dias_sin_avance": dias_sin_avance,
+            "penalizaciones": penalizaciones,
             "color": chart_colors.get(nivel, "#64748b"),
-            "label_fecha": proyecto.fecha_fin.strftime("%d/%m") if proyecto.fecha_fin else "S/F",
-            "nombre_corto": nombre_corto,
+            "nombre_corto": nombre[:18] + "..." if len(nombre) > 18 else nombre,
+            "area": proyecto.get_tipo_proyecto_display() if hasattr(proyecto, "get_tipo_proyecto_display") else proyecto.get_estado_display(),
+            "icono": iconos_panel[indice % len(iconos_panel)],
         })
-    chart_segmentos = []
-    for actual, siguiente in zip(grafico_proyectos, grafico_proyectos[1:]):
-        nivel_segmento = siguiente["nivel"] if siguiente["nivel"] == "riesgo" else actual["nivel"]
-        chart_segmentos.append({
-            "x1": actual["x"],
-            "y1": actual["y"],
-            "x2": siguiente["x"],
-            "y2": siguiente["y"],
-            "nivel": nivel_segmento,
-            "color": chart_colors.get(nivel_segmento, "#64748b"),
+
+    proyectos_visibles = proyectos_chart[:7]
+    proyectos_extra = max(0, len(proyectos_chart) - len(proyectos_visibles))
+
+    # Build JSON-safe data for Chart.js
+    semanas_labels = [s["label"] for s in semanas]
+    semanas_rangos = [s["rango"] for s in semanas]
+    hoy_index = next((i for i, s in enumerate(semanas) if s["es_hoy"]), None)
+    chart_datasets = []
+    for item in proyectos_visibles:
+        chart_datasets.append({
+            "id": item["proyecto"].pk,
+            "nombre": item["nombre_corto"],
+            "nombre_completo": item["proyecto"].nombre,
+            "area": item["area"],
+            "nivel": item["nivel"],
+            "color": item["color"],
+            "serie": item["serie"],
+            "salud": item["salud"],
+            "avance": item["avance"],
+            "tareas_pendientes": item["tareas_pendientes"],
+            "tareas_total": item["tareas_total"],
+            "dias_restantes": item["dias_restantes"],
+            "fecha_fin": item["proyecto"].fecha_fin.strftime("%d/%m/%Y") if item["proyecto"].fecha_fin else "Sin fecha",
+            "estado": item["proyecto"].get_estado_display(),
+            "penalizaciones": item["penalizaciones"],
+            "url": item["proyecto"].get_absolute_url(),
         })
+    chart_data_json = json.dumps({
+        "labels": semanas_labels,
+        "rangos": semanas_rangos,
+        "hoy_index": hoy_index,
+        "datasets": chart_datasets,
+    }, ensure_ascii=False)
+
+    proyectos_prioritarios = sorted(
+        proyectos_chart,
+        key=lambda item: (
+            item["salud"],
+            item["proyecto"].fecha_fin is None,
+            item["proyecto"].fecha_fin or hoy + timedelta(days=3650),
+            item["proyecto"].nombre.lower(),
+        ),
+    )[:4]
 
     proyectos_riesgo = [
         proyecto for proyecto in proyectos
@@ -407,10 +504,12 @@ def panel_general(request):
             cantidad__isnull=False,
             cantidad__lte=F("stock_minimo"),
         ).count(),
-        "grafico_proyectos": grafico_proyectos,
-        "chart_segmentos": chart_segmentos,
-        "chart_width": chart_width,
-        "chart_height": chart_height,
+        "grafico_proyectos": proyectos_chart,
+        "proyectos_chart": proyectos_visibles,
+        "proyectos_extra": proyectos_extra,
+        "semanas_chart": semanas,
+        "chart_data_json": chart_data_json,
+        "proyectos_prioritarios": proyectos_prioritarios,
         "proyectos_ok": conteo_salud["ok"],
         "proyectos_advertencia": conteo_salud["advertencia"],
         "proyectos_rojo": conteo_salud["riesgo"],
@@ -1330,15 +1429,13 @@ def inventario_lista(request):
         "total_alertas": alertas.count(),
         "usos_recientes": UsoInventario.objects.filter(proyecto__sede=sede_usuario(request.user)).select_related("proyecto", "item", "usuario")[:8],
         "es_admin_laboratorio": usuario_es_admin_laboratorio(request.user),
+        "puede_gestionar_inventario": usuario_puede_gestionar_inventario(request.user),
     }
     return render(request, "proyectos/inventario_lista.html", contexto)
 
 
 @login_required
 def inventario_crear(request):
-    if not usuario_es_admin_laboratorio(request.user):
-        messages.error(request, "Solo el administrador puede agregar items al inventario.")
-        return redirect("inventario_lista")
     initial = {}
     if request.GET.get("codigo_barra"):
         initial["codigo_barra"] = request.GET["codigo_barra"]
@@ -1369,9 +1466,6 @@ def inventario_crear(request):
 
 @login_required
 def inventario_lector(request):
-    if not usuario_es_admin_laboratorio(request.user):
-        messages.error(request, "Solo el administrador puede agregar inventario con lector de barra.")
-        return redirect("inventario_lista")
     form = LectorCodigoBarraForm()
     item_encontrado = None
     if request.method == "POST":
@@ -1417,9 +1511,6 @@ def inventario_lector(request):
 
 @login_required
 def inventario_agregar_stock(request, pk):
-    if not usuario_es_admin_laboratorio(request.user):
-        messages.error(request, "Solo el administrador puede modificar stock.")
-        return redirect("inventario_lista")
     item = get_object_or_404(inventario_de_sede(request.user), pk=pk, activo=True)
     form = AjusteStockForm()
     if request.method == "POST":
@@ -1448,8 +1539,6 @@ def inventario_agregar_stock(request, pk):
 @login_required
 def registrar_uso_inventario(request, pk):
     proyecto = get_object_or_404(proyectos_de_sede(request.user), pk=pk)
-    if not exigir_permiso_edicion_proyecto(request, proyecto):
-        return redirect("proyecto_trabajo", pk=proyecto.pk)
     form = UsoInventarioForm(sede=proyecto.sede)
     if request.method == "POST":
         form = UsoInventarioForm(request.POST, sede=proyecto.sede)

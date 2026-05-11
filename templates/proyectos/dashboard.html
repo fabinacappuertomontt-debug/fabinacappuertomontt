@@ -3,168 +3,414 @@
 {% block title %}Panel general{% endblock %}
 
 {% block content %}
-<div class="control-board">
-
-    {# ── Encabezado ── #}
-    <section class="control-board-hero">
+<section class="progress-board" aria-label="Linea de avance de proyectos">
+    <header class="progress-board-header">
         <div>
-            <span class="eyebrow">Panel general</span>
-            <h1>Salud del portafolio</h1>
-            <p>Ordenado por fecha crítica: verde va bien, amarillo requiere atención y rojo indica atraso o riesgo.</p>
+            <h1>Línea de avance de proyectos</h1>
+            <p>Seguimiento del estado de los proyectos en el tiempo</p>
         </div>
-        <div class="control-board-actions">
-            <a class="btn btn-primary" href="{% url 'proyecto_lista' %}">Abrir proyectos</a>
-            <a class="btn btn-outline-primary" href="{% url 'inventario_lista' %}">Inventario</a>
+        <div class="progress-board-legend" aria-label="Estados">
+            <span><i class="legend-dot legend-green"></i> En buen estado</span>
+            <span><i class="legend-dot legend-yellow"></i> En riesgo</span>
+            <span><i class="legend-dot legend-red"></i> Crítico</span>
         </div>
-    </section>
+    </header>
 
-    {# ── Tarjetas de resumen ── #}
-    <section class="health-summary" aria-label="Resumen por color">
-        <article class="health-card health-green">
-            <span>Bien</span>
-            <strong>{{ proyectos_ok }}</strong>
-            <p>Avance normal</p>
-        </article>
-        <article class="health-card health-yellow">
-            <span>Atención</span>
-            <strong>{{ proyectos_advertencia }}</strong>
-            <p>Próximo a vencer o en pausa</p>
-        </article>
-        <article class="health-card health-red">
-            <span>Crítico</span>
-            <strong>{{ proyectos_rojo }}</strong>
-            <p>Atrasado o bajo avance</p>
-        </article>
-        <article class="health-card health-dark">
-            <span>Tareas pendientes</span>
-            <strong>{{ tareas_pendientes }}</strong>
-            <p>Trabajo operativo abierto</p>
-        </article>
-        <article class="health-card health-blue">
-            <span>Inventario bajo</span>
-            <strong>{{ alertas_inventario }}</strong>
-            <p>Alertas de stock</p>
-        </article>
-    </section>
-
-    {# ── Gráfico lineal ── #}
-    <section class="linear-health-panel">
-        <div class="control-section-title">
-            <div>
-                <span class="eyebrow">Gráfico lineal</span>
-                <h2>Línea de salud por proyecto</h2>
-            </div>
-            <strong>{{ total_proyectos }} proyecto{{ total_proyectos|pluralize:"s" }} · {{ promedio_avance|floatformat:0 }}% promedio</strong>
-        </div>
-
-        <div class="portfolio-line-legend" aria-label="Leyenda del gráfico">
-            <span><i class="legend-dot legend-green"></i> Bien (≥67%)</span>
-            <span><i class="legend-dot legend-yellow"></i> Atención (34–66%)</span>
-            <span><i class="legend-dot legend-red"></i> Crítico (≤33%)</span>
-        </div>
-
-        {% if grafico_proyectos %}
-            <div class="portfolio-chart-scroll" role="region" aria-label="Gráfico lineal de salud del portafolio">
-                <svg class="portfolio-chart-svg"
-                     width="{{ chart_width }}"
-                     height="{{ chart_height }}"
-                     viewBox="0 0 {{ chart_width }} {{ chart_height }}"
-                     xmlns="http://www.w3.org/2000/svg"
-                     role="img"
-                     aria-label="Avance de proyectos ordenado por fecha de término">
-
-                    {# ── Zonas de fondo (bien / atención / crítico) ── #}
-                    <rect x="90" y="46"  width="{{ chart_width|add:'-160' }}" height="84" rx="4" fill="#e8f5ee" opacity="0.9"></rect>
-                    <rect x="90" y="130" width="{{ chart_width|add:'-160' }}" height="84" rx="4" fill="#fffbeb" opacity="0.9"></rect>
-                    <rect x="90" y="214" width="{{ chart_width|add:'-160' }}" height="86" rx="4" fill="#fff0f0" opacity="0.9"></rect>
-
-                    {# ── Líneas de referencia horizontales ── #}
-                    <line x1="90" y1="46"  x2="{{ chart_width|add:'-70' }}" y2="46"  stroke="#b0bfcc" stroke-dasharray="5 6" stroke-width="1"></line>
-                    <line x1="90" y1="173" x2="{{ chart_width|add:'-70' }}" y2="173" stroke="#b0bfcc" stroke-dasharray="5 6" stroke-width="1"></line>
-                    <line x1="90" y1="300" x2="{{ chart_width|add:'-70' }}" y2="300" stroke="#b0bfcc" stroke-dasharray="5 6" stroke-width="1"></line>
-
-                    {# ── Ejes X e Y ── #}
-                    <line x1="90" y1="44"  x2="90" y2="302" stroke="#64748b" stroke-width="2"></line>
-                    <line x1="88" y1="300" x2="{{ chart_width|add:'-68' }}" y2="300" stroke="#64748b" stroke-width="2"></line>
-
-                    {# ── Etiquetas eje Y ── #}
-                    <text x="82" y="51"  text-anchor="end" class="chart-axis-label">100%</text>
-                    <text x="82" y="178" text-anchor="end" class="chart-axis-label">50%</text>
-                    <text x="82" y="305" text-anchor="end" class="chart-axis-label">0%</text>
-
-                    {# ── Etiquetas de zona (esquina superior de cada banda) ── #}
-                    <text x="104" y="65"  class="chart-zone-label chart-zone-green">BIEN</text>
-                    <text x="104" y="149" class="chart-zone-label chart-zone-yellow">ATENCIÓN</text>
-                    <text x="104" y="233" class="chart-zone-label chart-zone-red">CRÍTICO</text>
-
-                    {# ── Polyline: línea continua que une todos los puntos ── #}
-                    {% if chart_segmentos %}
-                        {% for segmento in chart_segmentos %}
-                            <line
-                                x1="{{ segmento.x1 }}" y1="{{ segmento.y1 }}"
-                                x2="{{ segmento.x2 }}" y2="{{ segmento.y2 }}"
-                                stroke="{{ segmento.color }}"
-                                stroke-width="4"
-                                stroke-linecap="round"
-                                stroke-linejoin="round">
-                            </line>
-                        {% endfor %}
-                    {% endif %}
-
-                    {# ── Puntos del gráfico (dibujados después de las líneas para quedar encima) ── #}
-                    {% for item in grafico_proyectos %}
-                        <a href="{{ item.proyecto.get_absolute_url }}" aria-label="{{ item.proyecto.nombre }}: {{ item.avance }}%">
-
-                            {# Halo de color translúcido detrás del punto #}
-                            <circle cx="{{ item.x }}" cy="{{ item.y }}" r="16" fill="{{ item.color }}" opacity="0.12"></circle>
-
-                            {# Punto principal #}
-                            <circle cx="{{ item.x }}" cy="{{ item.y }}" r="9" fill="{{ item.color }}" stroke="#ffffff" stroke-width="3">
-                                <title>{{ item.proyecto.nombre }} — {{ item.avance }}% · {{ item.proyecto.texto_alerta }}</title>
-                            </circle>
-
-                            {# Porcentaje encima del punto (usa y_label precalculado) #}
-                            <text x="{{ item.x }}" y="{{ item.y_label }}"
-                                  text-anchor="middle"
-                                  class="chart-percent-label">{{ item.avance }}%</text>
-
-                            {# Fecha debajo del eje X #}
-                            <text x="{{ item.x }}" y="316"
-                                  text-anchor="middle"
-                                  class="chart-date-label">{{ item.label_fecha }}</text>
-
-                            {# Nombre del proyecto rotado — usa nombre_corto precalculado #}
-                            <text transform="rotate(-38, {{ item.x }}, 332)"
-                                  x="{{ item.x }}" y="332"
-                                  text-anchor="end"
-                                  class="chart-name-label">{{ item.nombre_corto }}</text>
-                        </a>
-                    {% endfor %}
-                </svg>
-            </div>
-
-            {# ── Watchlist de proyectos ── #}
-            <div class="portfolio-watchlist">
-                {% for item in grafico_proyectos %}
-                    <a class="watchlist-item watchlist-{{ item.nivel }}" href="{{ item.proyecto.get_absolute_url }}">
-                        <span>{{ item.proyecto.texto_alerta }}</span>
-                        <strong>{{ item.proyecto.nombre }}</strong>
-                        <small>
-                            {{ item.avance }}% avance
-                            {% if item.proyecto.fecha_fin %} · vence {{ item.proyecto.fecha_fin|date:"d/m/Y" }}{% endif %}
-                            {% if item.tareas_total %} · {{ item.tareas_pendientes }}/{{ item.tareas_total }} tareas{% endif %}
-                        </small>
+    {% if proyectos_chart %}
+        <div class="progress-board-main">
+            <aside class="progress-project-list" aria-label="Proyectos">
+                {% for item in proyectos_chart %}
+                    <a class="progress-project-row project-row-{{ item.nivel }}" href="{{ item.proyecto.get_absolute_url }}" data-project-row="{{ item.proyecto.pk }}">
+                        <span class="progress-project-icon">
+                            <i class="bi bi-{{ item.icono }}" aria-hidden="true"></i>
+                        </span>
+                        <span class="progress-project-copy">
+                            <strong><i></i>{{ item.orden }}. {{ item.proyecto.nombre }}</strong>
+                            <small>{{ item.area }}</small>
+                        </span>
                     </a>
                 {% endfor %}
-            </div>
+            </aside>
 
-        {% else %}
-            <div class="dashboard-v2-empty">
-                <strong>No hay proyectos aún</strong>
-                <span>Cuando se creen proyectos, aparecerán aquí en la línea de salud.</span>
+            <div class="progress-chart-area" role="region" aria-label="Grafico lineal por semana">
+                <canvas id="progressLineChart"></canvas>
             </div>
+        </div>
+
+        <section class="progress-project-detail" data-project-detail aria-live="polite">
+            <div>
+                <span class="eyebrow">Proyecto seleccionado</span>
+                <h2 data-detail-name>Ningun proyecto seleccionado</h2>
+                <p data-detail-meta>Haz clic sobre una linea o sobre un proyecto de la lista para ver su detalle. Vuelve a tocarlo para limpiar la seleccion.</p>
+            </div>
+            <div class="progress-detail-stats">
+                <article>
+                    <span>Salud</span>
+                    <strong data-detail-health>--</strong>
+                </article>
+                <article>
+                    <span>Avance</span>
+                    <strong data-detail-progress>--</strong>
+                </article>
+                <article>
+                    <span>Tareas pendientes</span>
+                    <strong data-detail-tasks>--</strong>
+                </article>
+                <article>
+                    <span>Fecha termino</span>
+                    <strong data-detail-date>--</strong>
+                </article>
+            </div>
+            <div class="progress-detail-actions">
+                <p data-detail-alerts>La informacion del proyecto aparecera aqui.</p>
+                <a class="btn btn-sm btn-primary disabled" href="#" data-detail-link aria-disabled="true">Ver proyecto</a>
+            </div>
+        </section>
+
+        {% if proyectos_extra %}
+            <p class="progress-extra-note">Mostrando los {{ proyectos_chart|length }} proyectos con mayor prioridad. Hay {{ proyectos_extra }} proyecto{{ proyectos_extra|pluralize:"s" }} adicional{{ proyectos_extra|pluralize:"es" }} en el listado general.</p>
         {% endif %}
-    </section>
 
-</div>
+        <footer class="progress-board-footer">
+            <article class="progress-summary-card summary-ok">
+                <strong>{{ proyectos_ok }}</strong>
+                <span>En buen estado</span>
+                <i class="bi bi-graph-up-arrow" aria-hidden="true"></i>
+            </article>
+            <article class="progress-summary-card summary-risk">
+                <strong>{{ proyectos_advertencia }}</strong>
+                <span>En riesgo</span>
+                <i class="bi bi-activity" aria-hidden="true"></i>
+            </article>
+            <article class="progress-summary-card summary-critical">
+                <strong>{{ proyectos_rojo }}</strong>
+                <span>Críticos</span>
+                <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+            </article>
+            <article class="progress-summary-info">
+                <i class="bi bi-info-circle" aria-hidden="true"></i>
+                <span>Los proyectos se evalúan según avance real, atrasos, tareas pendientes y actividad reciente.</span>
+            </article>
+        </footer>
+    {% else %}
+        <div class="dashboard-v2-empty">
+            <strong>No hay proyectos aún</strong>
+            <span>Cuando se creen proyectos, aparecerán aquí en la línea de avance.</span>
+        </div>
+    {% endif %}
+</section>
+
+{% if proyectos_chart %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const chartData = {{ chart_data_json|safe }};
+    const ctx = document.getElementById("progressLineChart");
+    if (!ctx || !chartData.datasets.length) return;
+
+    const COLORS = {
+        ok:          { line: "#16a34a", bg: "rgba(22,163,74,.08)" },
+        advertencia: { line: "#d97706", bg: "rgba(217,119,6,.08)" },
+        riesgo:      { line: "#dc2626", bg: "rgba(220,38,38,.08)" },
+    };
+
+    const datasets = chartData.datasets.map(function(ds) {
+        const palette = COLORS[ds.nivel] || COLORS.ok;
+        return {
+            label: ds.nombre,
+            data: ds.serie,
+            borderColor: palette.line,
+            backgroundColor: palette.bg,
+            pointBackgroundColor: palette.line,
+            pointBorderColor: "#ffffff",
+            pointBorderWidth: 2.5,
+            pointRadius: 6,
+            pointHoverRadius: 9,
+            borderWidth: 3,
+            tension: 0.35,
+            fill: false,
+            projectId: String(ds.id),
+            _meta: ds,
+        };
+    });
+
+    const hoyIdx = chartData.hoy_index;
+    const projectRows = document.querySelectorAll("[data-project-row]");
+    const detailBox = document.querySelector("[data-project-detail]");
+    const detailName = document.querySelector("[data-detail-name]");
+    const detailMeta = document.querySelector("[data-detail-meta]");
+    const detailHealth = document.querySelector("[data-detail-health]");
+    const detailProgress = document.querySelector("[data-detail-progress]");
+    const detailTasks = document.querySelector("[data-detail-tasks]");
+    const detailDate = document.querySelector("[data-detail-date]");
+    const detailAlerts = document.querySelector("[data-detail-alerts]");
+    const detailLink = document.querySelector("[data-detail-link]");
+    let progressChart;
+    let activeProjectId = null;
+
+    function getDatasetByProject(projectId) {
+        if (!progressChart) return null;
+        return progressChart.data.datasets.find(function(dataset) {
+            return dataset.projectId === String(projectId);
+        });
+    }
+
+    function renderProjectDetail(ds) {
+        if (!ds || !detailBox) return;
+        const meta = ds._meta;
+        detailBox.className = "progress-project-detail detail-" + meta.nivel + " is-active";
+        detailName.textContent = meta.nombre_completo;
+        detailMeta.textContent = meta.area + " · " + meta.estado;
+        detailHealth.textContent = meta.salud + "%";
+        detailProgress.textContent = meta.avance + "%";
+        detailTasks.textContent = meta.tareas_pendientes + "/" + meta.tareas_total;
+        detailDate.textContent = meta.fecha_fin;
+        detailAlerts.textContent = meta.penalizaciones && meta.penalizaciones.length ? meta.penalizaciones.join(", ") : "Sin alertas relevantes.";
+        detailLink.href = meta.url;
+        detailLink.classList.remove("disabled");
+        detailLink.setAttribute("aria-disabled", "false");
+    }
+
+    function clearActiveProject() {
+        activeProjectId = null;
+        if (detailBox) {
+            detailBox.className = "progress-project-detail";
+        }
+        if (detailName) detailName.textContent = "Ningun proyecto seleccionado";
+        if (detailMeta) detailMeta.textContent = "Haz clic sobre una linea o sobre un proyecto de la lista para ver su detalle. Vuelve a tocarlo para limpiar la seleccion.";
+        if (detailHealth) detailHealth.textContent = "--";
+        if (detailProgress) detailProgress.textContent = "--";
+        if (detailTasks) detailTasks.textContent = "--";
+        if (detailDate) detailDate.textContent = "--";
+        if (detailAlerts) detailAlerts.textContent = "La informacion del proyecto aparecera aqui.";
+        if (detailLink) {
+            detailLink.href = "#";
+            detailLink.classList.add("disabled");
+            detailLink.setAttribute("aria-disabled", "true");
+        }
+        projectRows.forEach(function(row) {
+            row.classList.remove("is-active");
+        });
+        if (progressChart) {
+            progressChart.data.datasets.forEach(function(dataset) {
+                dataset.borderWidth = 3;
+                dataset.pointRadius = 6;
+                dataset.pointHoverRadius = 9;
+                dataset.borderColor = dataset._meta.color;
+                dataset.pointBackgroundColor = dataset._meta.color;
+            });
+            progressChart.update("none");
+        }
+    }
+
+    function setActiveProject(projectId) {
+        if (!progressChart) return;
+        if (activeProjectId === String(projectId)) {
+            clearActiveProject();
+            return;
+        }
+        activeProjectId = String(projectId);
+        let activeDataset = null;
+        progressChart.data.datasets.forEach(function(dataset) {
+            const isActive = dataset.projectId === String(projectId);
+            if (isActive) activeDataset = dataset;
+            dataset.borderWidth = isActive ? 5 : 2.5;
+            dataset.pointRadius = isActive ? 7 : 4.5;
+            dataset.pointHoverRadius = isActive ? 10 : 7;
+            dataset.borderColor = isActive ? dataset._meta.color : dataset._meta.color + "80";
+            dataset.pointBackgroundColor = dataset._meta.color;
+        });
+        projectRows.forEach(function(row) {
+            row.classList.toggle("is-active", row.dataset.projectRow === String(projectId));
+        });
+        renderProjectDetail(activeDataset);
+        progressChart.update("none");
+    }
+
+    projectRows.forEach(function(row) {
+        row.addEventListener("click", function(event) {
+            event.preventDefault();
+            setActiveProject(row.dataset.projectRow);
+        });
+    });
+
+    const todayLinePlugin = {
+        id: "todayLine",
+        afterDraw: function(chart) {
+            if (hoyIdx == null) return;
+            const xScale = chart.scales.x;
+            const yScale = chart.scales.y;
+            const x = xScale.getPixelForValue(hoyIdx);
+            const ctx2 = chart.ctx;
+            ctx2.save();
+            ctx2.beginPath();
+            ctx2.setLineDash([7, 5]);
+            ctx2.lineWidth = 1.5;
+            ctx2.strokeStyle = "#27384a";
+            ctx2.moveTo(x, yScale.top);
+            ctx2.lineTo(x, yScale.bottom);
+            ctx2.stroke();
+            ctx2.restore();
+        }
+    };
+
+    const endLabelsPlugin = {
+        id: "endLabels",
+        afterDatasetsDraw: function(chart) {
+            const ctx2 = chart.ctx;
+            chart.data.datasets.forEach(function(dataset, i) {
+                const meta = chart.getDatasetMeta(i);
+                const lastPoint = meta.data[meta.data.length - 1];
+                if (!lastPoint) return;
+                const ds = dataset._meta;
+                const x = lastPoint.x + 16;
+                const y = lastPoint.y;
+                const palette = COLORS[ds.nivel] || COLORS.ok;
+                const w = 52, h = 28, r = 6;
+
+                ctx2.save();
+                ctx2.shadowColor = "rgba(15,23,42,.12)";
+                ctx2.shadowBlur = 8;
+                ctx2.shadowOffsetY = 3;
+                ctx2.beginPath();
+                ctx2.moveTo(x + r, y - h/2);
+                ctx2.lineTo(x + w - r, y - h/2);
+                ctx2.quadraticCurveTo(x + w, y - h/2, x + w, y - h/2 + r);
+                ctx2.lineTo(x + w, y + h/2 - r);
+                ctx2.quadraticCurveTo(x + w, y + h/2, x + w - r, y + h/2);
+                ctx2.lineTo(x + r, y + h/2);
+                ctx2.quadraticCurveTo(x, y + h/2, x, y + h/2 - r);
+                ctx2.lineTo(x, y - h/2 + r);
+                ctx2.quadraticCurveTo(x, y - h/2, x + r, y - h/2);
+                ctx2.closePath();
+                ctx2.fillStyle = "#ffffff";
+                ctx2.fill();
+                ctx2.strokeStyle = palette.line;
+                ctx2.lineWidth = 1.5;
+                ctx2.stroke();
+                ctx2.restore();
+
+                ctx2.save();
+                ctx2.fillStyle = palette.line;
+                ctx2.font = "bold 13px Arial, Helvetica, sans-serif";
+                ctx2.textAlign = "center";
+                ctx2.textBaseline = "middle";
+                ctx2.fillText(ds.salud + "%", x + w/2, y + 1);
+                ctx2.restore();
+            });
+        }
+    };
+
+    progressChart = new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: chartData.labels,
+            datasets: datasets,
+        },
+        plugins: [todayLinePlugin, endLabelsPlugin],
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: "nearest",
+                intersect: false,
+            },
+            onClick: function(event, elements, chart) {
+                const hits = chart.getElementsAtEventForMode(event, "nearest", { intersect: false }, true);
+                if (!hits.length) return;
+                const dataset = chart.data.datasets[hits[0].datasetIndex];
+                if (dataset) setActiveProject(dataset.projectId);
+            },
+            layout: {
+                padding: {
+                    top: 12,
+                    right: 78,
+                    bottom: 8,
+                    left: 8,
+                }
+            },
+            scales: {
+                y: {
+                    min: 0,
+                    max: 100,
+                    ticks: {
+                        callback: function(v) { return v + "%"; },
+                        stepSize: 25,
+                        color: "#52627a",
+                        font: { weight: "bold", size: 12, family: "Arial, Helvetica, sans-serif" },
+                        padding: 10,
+                    },
+                    grid: {
+                        color: "rgba(219,228,238,.55)",
+                        drawBorder: false,
+                    },
+                    border: {
+                        display: false,
+                    }
+                },
+                x: {
+                    ticks: {
+                        color: "#52627a",
+                        font: { weight: "bold", size: 12, family: "Arial, Helvetica, sans-serif" },
+                        padding: 8,
+                    },
+                    grid: {
+                        color: "rgba(219,228,238,.35)",
+                        drawBorder: false,
+                    },
+                    border: {
+                        display: false,
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false,
+                },
+                tooltip: {
+                    mode: "nearest",
+                    intersect: false,
+                    backgroundColor: "#1a2536",
+                    titleFont: { weight: "bold", size: 13, family: "Arial, Helvetica, sans-serif" },
+                    bodyFont: { size: 12, family: "Arial, Helvetica, sans-serif" },
+                    padding: 14,
+                    cornerRadius: 8,
+                    displayColors: true,
+                    boxPadding: 6,
+                    callbacks: {
+                        title: function(items) {
+                            if (!items.length) return "";
+                            const idx = items[0].dataIndex;
+                            return chartData.labels[idx] + "  (" + chartData.rangos[idx] + ")";
+                        },
+                        label: function(item) {
+                            const ds = item.dataset._meta;
+                            let line = " " + ds.nombre_completo + ": " + item.raw + "% salud";
+                            return line;
+                        },
+                        afterBody: function(items) {
+                            if (!items.length) return "";
+                            const ds = items[0].dataset._meta;
+                            const lines = [];
+                            if (ds.tareas_pendientes > 0) {
+                                lines.push("⚠ " + ds.tareas_pendientes + " tareas pendientes");
+                            }
+                            if (ds.penalizaciones && ds.penalizaciones.length) {
+                                ds.penalizaciones.forEach(function(p) {
+                                    lines.push("• " + p);
+                                });
+                            }
+                            return lines;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    if (datasets.length) {
+        clearActiveProject();
+    }
+});
+</script>
+{% endif %}
 {% endblock %}

@@ -10,7 +10,7 @@
             <h1>Control de materiales y equipos</h1>
             <p>Revisa stock, recursos usados por proyectos y alertas para reponer insumos.</p>
         </div>
-        {% if es_admin_laboratorio %}
+        {% if puede_gestionar_inventario %}
             <div class="inventory-admin-actions">
                 <a class="btn btn-primary" href="{% url 'inventario_lector' %}">Agregar con lector</a>
                 <a class="btn btn-outline-primary" href="{% url 'inventario_crear' %}">Agregar item</a>
@@ -81,7 +81,7 @@
                             <small>Uso registrado sin descuento</small>
                         {% endif %}
                         {% if item.bajo_stock %}<em>Bajo stock</em>{% endif %}
-                        {% if es_admin_laboratorio %}
+                        {% if puede_gestionar_inventario %}
                             <a class="btn btn-sm btn-outline-primary" href="{% url 'inventario_agregar_stock' item.pk %}">Agregar stock</a>
                         {% endif %}
                     </div>

@@ -2319,6 +2319,269 @@ a {
         padding-top: 1rem;
     }
 }
+
+/* --- Proyectos como tarjetas tipo curso --- */
+.projects-course-page {
+    gap: 1rem;
+}
+
+.projects-course-hero {
+    border-radius: 12px;
+    min-height: auto;
+}
+
+.projects-course-hero .btn {
+    align-items: center;
+    display: inline-flex;
+    gap: .45rem;
+}
+
+.project-course-filter {
+    grid-template-columns: minmax(260px, 1.1fr) minmax(150px, .45fr) minmax(210px, .6fr) auto;
+}
+
+.project-course-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+}
+
+.project-course-card {
+    background: #fff;
+    border: 1px solid #dce5ee;
+    border-radius: 8px;
+    box-shadow: 0 12px 26px rgba(15, 23, 42, .06);
+    display: flex;
+    flex-direction: column;
+    min-height: 440px;
+    overflow: hidden;
+    transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.project-course-card:hover {
+    border-color: rgba(215, 25, 32, .38);
+    box-shadow: 0 18px 34px rgba(15, 23, 42, .12);
+    transform: translateY(-2px);
+}
+
+.project-course-cover {
+    background:
+        linear-gradient(135deg, rgba(215, 25, 32, .92), rgba(215, 25, 32, .1) 42%, rgba(0, 130, 198, .18)),
+        linear-gradient(120deg, #eef4f9 0%, #ffffff 52%, #d7edf8 100%);
+    color: #0f172a;
+    display: block;
+    height: 132px;
+    overflow: hidden;
+    position: relative;
+    text-decoration: none;
+}
+
+.project-course-cover:hover {
+    color: #0f172a;
+    text-decoration: none;
+}
+
+.project-cover-band {
+    background: #d71920;
+    bottom: 0;
+    left: 0;
+    position: absolute;
+    top: 0;
+    width: 7px;
+    z-index: 2;
+}
+
+.course-ok .project-cover-band { background: #16a34a; }
+.course-advertencia .project-cover-band { background: #d97706; }
+.course-riesgo .project-cover-band { background: #dc2626; }
+
+.project-cover-photo {
+    background:
+        radial-gradient(circle at 18% 28%, rgba(255,255,255,.95) 0 10%, transparent 11%),
+        linear-gradient(135deg, rgba(15, 23, 42, .16), transparent 38%),
+        repeating-linear-gradient(90deg, rgba(15, 23, 42, .1) 0 2px, transparent 2px 12px),
+        linear-gradient(135deg, #f8fafc 0%, #dbeafe 46%, #fef2f2 100%);
+    inset: 0;
+    position: absolute;
+}
+
+.project-cover-photo::before,
+.project-cover-photo::after {
+    background: rgba(255, 255, 255, .72);
+    content: "";
+    height: 190px;
+    position: absolute;
+    top: -24px;
+    transform: rotate(15deg);
+    width: 44px;
+}
+
+.project-cover-photo::before { left: 54px; }
+.project-cover-photo::after { left: 114px; }
+
+.project-cover-logo {
+    align-items: center;
+    background: rgba(255, 255, 255, .92);
+    border: 1px solid rgba(15, 23, 42, .08);
+    box-shadow: 0 12px 26px rgba(15, 23, 42, .16);
+    display: grid;
+    gap: .35rem;
+    justify-items: center;
+    left: 50%;
+    min-width: 122px;
+    padding: .55rem .75rem;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.project-cover-logo img {
+    display: block;
+    height: 18px;
+    max-width: 90px;
+    object-fit: contain;
+}
+
+.project-cover-logo strong {
+    color: #111827;
+    font-size: .86rem;
+    font-weight: 900;
+    letter-spacing: .04em;
+}
+
+.project-course-body {
+    display: grid;
+    flex: 1;
+    gap: .75rem;
+    padding: .95rem 1rem .85rem;
+}
+
+.project-course-heading {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .45rem;
+}
+
+.project-course-body h2 {
+    font-size: 1.02rem;
+    font-weight: 900;
+    line-height: 1.32;
+    margin: 0;
+}
+
+.project-course-body h2 a {
+    color: #111827;
+    text-decoration: none;
+}
+
+.project-course-body h2 a:hover {
+    color: #d71920;
+}
+
+.project-course-meta {
+    color: #52627a;
+    font-size: .84rem;
+    line-height: 1.45;
+    margin: 0;
+}
+
+.project-course-progress {
+    display: grid;
+    gap: .35rem;
+}
+
+.project-course-progress > div:first-child {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+}
+
+.project-course-progress span,
+.project-course-detail-row span {
+    color: #52627a;
+    font-size: .78rem;
+    font-weight: 800;
+}
+
+.project-course-progress strong {
+    color: #142033;
+    font-size: .9rem;
+    font-weight: 900;
+}
+
+.project-course-progress .progress {
+    background: #e8edf2;
+    border-radius: 999px;
+    height: .55rem;
+}
+
+.project-course-progress .progress-bar { background: #d71920; }
+.course-ok .project-course-progress .progress-bar { background: #16a34a; }
+.course-advertencia .project-course-progress .progress-bar { background: #d97706; }
+.course-riesgo .project-course-progress .progress-bar { background: #dc2626; }
+
+.project-course-detail-row {
+    display: grid;
+    gap: .35rem;
+}
+
+.project-course-detail-row i {
+    color: #d71920;
+    margin-right: .25rem;
+}
+
+.project-course-owners {
+    align-content: start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    min-height: 30px;
+}
+
+.project-course-actions {
+    align-items: center;
+    border-top: 1px solid #e5edf5;
+    display: grid;
+    gap: .5rem;
+    grid-template-columns: 1fr 1fr auto auto;
+    padding: .8rem 1rem;
+}
+
+.project-course-actions .btn {
+    align-items: center;
+    display: inline-flex;
+    gap: .35rem;
+    justify-content: center;
+    min-height: 38px;
+    padding-left: .75rem;
+    padding-right: .75rem;
+}
+
+.project-course-actions .btn[title] {
+    width: 38px;
+}
+
+@media (max-width: 1199px) {
+    .project-course-filter {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .project-course-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .project-course-actions {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .project-course-actions .btn[title] {
+        width: auto;
+    }
+}
+
 /* Modern dashboard */
 .dashboard-modern {
     display: grid;
@@ -4022,6 +4285,373 @@ a {
     font-weight: 700;
     margin: .5rem 0 0;
     padding: .7rem;
+}
+
+.workspace-compact-panels {
+    display: grid;
+    gap: .75rem;
+}
+
+.workspace-collapsible-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 10px 24px rgba(31, 36, 45, .04);
+    overflow: hidden;
+}
+
+.workspace-collapsible-card summary {
+    align-items: center;
+    cursor: pointer;
+    display: grid;
+    gap: .8rem;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    list-style: none;
+    min-height: 76px;
+    padding: .9rem 1rem;
+}
+
+.workspace-collapsible-card summary::-webkit-details-marker {
+    display: none;
+}
+
+.workspace-collapsible-card summary:hover {
+    background: #fbfcfe;
+}
+
+.workspace-collapsible-icon {
+    align-items: center;
+    background: #fff4f4;
+    border: 1px solid rgba(215, 25, 32, .22);
+    border-radius: 8px;
+    color: var(--inacap-red);
+    display: inline-flex;
+    font-size: 1.25rem;
+    height: 44px;
+    justify-content: center;
+    width: 44px;
+}
+
+.workspace-collapsible-card summary strong {
+    color: var(--ink);
+    display: block;
+    font-size: 1.05rem;
+    font-weight: 900;
+}
+
+.workspace-collapsible-card summary small {
+    color: var(--muted);
+    display: block;
+    font-weight: 700;
+    margin-top: .15rem;
+}
+
+.workspace-collapsible-meta {
+    background: #f5f7fa;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: .8rem;
+    font-weight: 800;
+    padding: .35rem .7rem;
+    white-space: nowrap;
+}
+
+.workspace-collapsible-arrow {
+    color: var(--muted);
+    transition: transform .18s ease;
+}
+
+.workspace-collapsible-card[open] .workspace-collapsible-arrow {
+    transform: rotate(180deg);
+}
+
+.workspace-collapsible-card[open] {
+    box-shadow: 0 16px 32px rgba(31, 36, 45, .07);
+}
+
+.workspace-collapsible-card[open] summary {
+    border-bottom: 1px solid var(--line);
+}
+
+.workspace-activity-grid.compact {
+    padding: 1rem;
+}
+
+.workspace-collapsible-actions {
+    padding: .85rem 1rem 0;
+}
+
+.specific-objectives-builder {
+    display: grid;
+    gap: .75rem;
+}
+
+.specific-objectives-builder > textarea,
+.expected-results-builder > textarea {
+    display: none;
+}
+
+.specific-objectives-list,
+.expected-results-list {
+    display: grid;
+    gap: .65rem;
+}
+
+.specific-objective-row,
+.expected-result-row,
+.expected-results-head {
+    align-items: center;
+    display: grid;
+    gap: .65rem;
+}
+
+.specific-objective-row {
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+}
+
+.expected-result-row,
+.expected-results-head {
+    grid-template-columns: minmax(0, 1fr) 110px 110px;
+}
+
+.specific-objective-row span,
+.expected-result-row > span {
+    align-items: center;
+    background: #fff4f4;
+    border: 1px solid rgba(215, 25, 32, .22);
+    border-radius: 8px;
+    color: var(--inacap-red);
+    display: inline-flex;
+    font-weight: 900;
+    height: 34px;
+    justify-content: center;
+    width: 34px;
+}
+
+.expected-results-builder {
+    display: grid;
+    gap: .75rem;
+}
+
+.expected-results-note {
+    background: #f8fafc;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    color: var(--muted);
+    font-weight: 800;
+    padding: .65rem .8rem;
+}
+
+.expected-results-note.is-invalid {
+    background: #fff4f4;
+    border-color: rgba(215, 25, 32, .45);
+    color: var(--inacap-red);
+}
+
+.expected-results-head {
+    color: var(--muted);
+    font-size: .76rem;
+    font-weight: 900;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+@media (max-width: 767px) {
+    .expected-results-head {
+        display: none;
+    }
+
+    .specific-objective-row,
+    .expected-result-row {
+        grid-template-columns: 1fr;
+    }
+
+    .specific-objective-row .btn,
+    .expected-result-row .btn {
+        grid-column: 2;
+        justify-self: start;
+    }
+}
+
+.project-plan-builder,
+.project-plan-readonly,
+.project-plan-work-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.project-plan-builder {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 1.25rem;
+}
+
+.project-plan-builder-header,
+.project-plan-objective-head,
+.project-plan-result-head {
+    align-items: flex-start;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+}
+
+.project-plan-builder-header h2 {
+    color: var(--ink);
+    font-size: 1.35rem;
+    margin: .25rem 0;
+}
+
+.project-plan-builder-header p,
+.project-plan-date-note {
+    color: var(--muted);
+    margin: 0;
+}
+
+.project-plan-date-note {
+    background: #f8fafc;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    font-weight: 800;
+    padding: .75rem 1rem;
+}
+
+.project-plan-objectives,
+.project-plan-results,
+.project-plan-indicators {
+    display: grid;
+    gap: .9rem;
+}
+
+.project-plan-objective,
+.project-plan-result,
+.project-plan-readonly-card,
+.project-plan-work-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+}
+
+.project-plan-objective {
+    border-left: 4px solid var(--inacap-red);
+    display: grid;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.project-plan-objective-head span,
+.project-plan-result-head strong {
+    color: var(--ink);
+    font-weight: 900;
+}
+
+.project-plan-result {
+    background: #f8fafc;
+    display: grid;
+    gap: .85rem;
+    padding: 1rem;
+}
+
+.project-plan-result-grid {
+    display: grid;
+    gap: .85rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.project-plan-indicator-row {
+    align-items: center;
+    display: grid;
+    gap: .65rem;
+    grid-template-columns: 1fr auto;
+}
+
+.project-plan-readonly {
+    margin-top: 1rem;
+}
+
+.project-plan-readonly-card {
+    border-left: 4px solid var(--inacap-red);
+    padding: 1rem;
+}
+
+.project-plan-readonly-card > span,
+.project-plan-work-card summary > span {
+    color: var(--inacap-red);
+    font-size: .75rem;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.project-plan-readonly-card h3,
+.project-plan-work-card summary strong {
+    color: var(--ink);
+    font-size: 1.1rem;
+    margin: .35rem 0 0;
+}
+
+.project-plan-readonly-results,
+.project-plan-work-result {
+    display: grid;
+    gap: .75rem;
+    margin-top: .9rem;
+}
+
+.project-plan-readonly-results > div,
+.project-plan-work-result {
+    background: #f8fafc;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: .85rem;
+}
+
+.project-plan-readonly-results strong,
+.project-plan-work-result strong {
+    color: var(--ink);
+    display: block;
+}
+
+.project-plan-readonly-results p,
+.project-plan-work-result span {
+    color: var(--muted);
+    display: block;
+    margin: .25rem 0 .5rem;
+}
+
+.project-plan-readonly-results ul,
+.project-plan-work-result ul {
+    margin: 0;
+    padding-left: 1.1rem;
+}
+
+.project-plan-work-card summary {
+    cursor: pointer;
+    display: grid;
+    gap: .25rem;
+}
+
+@media (max-width: 767px) {
+    .workspace-collapsible-card summary {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .workspace-collapsible-meta {
+        grid-column: 2 / 4;
+        justify-self: start;
+    }
+
+    .project-plan-builder-header,
+    .project-plan-objective-head,
+    .project-plan-result-head {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .project-plan-result-grid,
+    .project-plan-indicator-row {
+        grid-template-columns: 1fr;
+    }
 }
 
 .stage-work-page {
@@ -6669,5 +7299,596 @@ button.stage-close-button {
 @media (max-width: 480px) {
     .health-summary {
         grid-template-columns: 1fr;
+    }
+}
+
+/* --- Panel general: salud de portafolio v2 --- */
+.panel-health {
+    gap: 1.15rem;
+}
+
+.panel-health-hero {
+    border-radius: 12px;
+    min-height: auto;
+}
+
+.health-analytics-panel {
+    padding: 1.25rem;
+}
+
+.health-chart-title {
+    margin-bottom: .75rem;
+}
+
+.health-chart-layout {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    align-items: stretch;
+}
+
+.health-chart-scroll {
+    background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+    min-height: 360px;
+}
+
+.health-line-svg {
+    min-width: 100%;
+}
+
+.health-line-svg a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.health-line-svg a:hover circle:nth-of-type(2) {
+    filter: drop-shadow(0 8px 10px rgba(15, 23, 42, .22));
+}
+
+.chart-name-chip {
+    fill: #0f172a;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .02em;
+}
+
+.health-priority-panel {
+    background: #f8fafc;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    min-height: 360px;
+    padding: 1rem;
+}
+
+.health-priority-heading {
+    border-bottom: 1px solid var(--line);
+    margin-bottom: .75rem;
+    padding-bottom: .65rem;
+}
+
+.health-priority-heading h3 {
+    font-size: 1rem;
+    font-weight: 900;
+    margin: 0;
+}
+
+.health-priority-list {
+    display: grid;
+    gap: .55rem;
+    overflow: auto;
+    padding-right: .15rem;
+}
+
+.health-priority-item {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-left: 4px solid #94a3b8;
+    border-radius: 10px;
+    color: var(--ink);
+    display: grid;
+    gap: .18rem;
+    padding: .7rem .75rem;
+    text-decoration: none;
+}
+
+.health-priority-item:hover {
+    color: var(--ink);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, .08);
+    text-decoration: none;
+}
+
+.health-priority-item span {
+    color: var(--muted);
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+}
+
+.health-priority-item strong {
+    font-size: .9rem;
+    font-weight: 900;
+    line-height: 1.25;
+}
+
+.health-priority-item small {
+    color: var(--muted);
+    font-size: .78rem;
+    line-height: 1.35;
+}
+
+.priority-ok {
+    border-left-color: #16a34a;
+}
+
+.priority-advertencia {
+    border-left-color: #d97706;
+}
+
+.priority-riesgo {
+    border-left-color: #dc2626;
+}
+
+.health-project-strip {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.health-project-strip .watchlist-item {
+    min-width: 0;
+}
+
+.health-project-strip .watchlist-item strong {
+    white-space: normal;
+}
+
+@media (max-width: 1280px) {
+    .health-chart-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .health-priority-panel {
+        min-height: auto;
+    }
+
+    .health-priority-list {
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    }
+}
+
+@media (max-width: 767px) {
+    .health-analytics-panel {
+        padding: 1rem;
+    }
+
+    .portfolio-line-legend {
+        flex-wrap: wrap;
+        gap: .55rem;
+    }
+
+    .health-chart-scroll {
+        min-height: 330px;
+    }
+}
+
+/* --- Panel mockup: linea de avance de proyectos --- */
+.progress-board {
+    background: #fff;
+    border: 1px solid #d8e1eb;
+    border-radius: 14px;
+    box-shadow: 0 14px 36px rgba(15, 23, 42, .06);
+    color: #132033;
+    overflow: hidden;
+}
+
+.progress-board-header {
+    align-items: flex-start;
+    border-bottom: 1px solid #e5edf5;
+    display: flex;
+    gap: 1.25rem;
+    justify-content: space-between;
+    padding: 1.1rem 1.6rem 1rem;
+}
+
+.progress-board-header h1 {
+    color: #142033;
+    font-size: clamp(1.15rem, 1.6vw, 1.55rem);
+    font-weight: 900;
+    letter-spacing: 0;
+    margin: 0 0 .2rem;
+}
+
+.progress-board-header p {
+    color: #52627a;
+    font-size: .88rem;
+    margin: 0;
+}
+
+.progress-board-legend {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #dfe7f0;
+    border-radius: 8px;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .04);
+    display: flex;
+    gap: 1.45rem;
+    padding: .9rem 1.05rem;
+}
+
+.progress-board-legend span {
+    align-items: center;
+    color: #142033;
+    display: inline-flex;
+    font-size: .95rem;
+    font-weight: 800;
+    gap: .55rem;
+    white-space: nowrap;
+}
+
+.progress-board-main {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    min-height: 420px;
+}
+
+.progress-project-list {
+    align-content: start;
+    border-right: 1px solid #e5edf5;
+    display: grid;
+    gap: .65rem;
+    padding: 1.2rem 1rem;
+}
+
+.progress-project-row {
+    align-items: center;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    color: #142033;
+    display: grid;
+    gap: .6rem;
+    grid-template-columns: 38px minmax(0, 1fr);
+    min-height: 42px;
+    padding: .25rem .35rem;
+    text-decoration: none;
+    transition: background .15s ease, border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.progress-project-row:hover,
+.progress-project-row.is-active {
+    background: #f8fafc;
+    border-color: #dbe5ef;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, .06);
+    color: #142033;
+    text-decoration: none;
+}
+
+.progress-project-row.is-active {
+    transform: translateX(3px);
+}
+
+.project-row-ok.is-active {
+    border-left: 4px solid #16a34a;
+}
+
+.project-row-advertencia.is-active {
+    border-left: 4px solid #d97706;
+}
+
+.project-row-riesgo.is-active {
+    border-left: 4px solid #dc2626;
+}
+
+.progress-project-icon {
+    align-items: center;
+    background: #f4f7fb;
+    border: 1px solid #e6edf5;
+    border-radius: 7px;
+    display: inline-flex;
+    font-size: 1.1rem;
+    height: 38px;
+    justify-content: center;
+    width: 38px;
+}
+
+.project-row-ok .progress-project-icon {
+    background: #eafaf1;
+    color: #16a34a;
+}
+
+.project-row-advertencia .progress-project-icon {
+    background: #fff7e6;
+    color: #d97706;
+}
+
+.project-row-riesgo .progress-project-icon {
+    background: #fff0f1;
+    color: #dc2626;
+}
+
+.progress-project-copy {
+    min-width: 0;
+}
+
+.progress-project-copy strong {
+    align-items: center;
+    display: flex;
+    font-size: .82rem;
+    font-weight: 900;
+    gap: .35rem;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.progress-project-copy strong i {
+    background: #94a3b8;
+    border-radius: 999px;
+    display: inline-block;
+    flex: 0 0 auto;
+    height: .45rem;
+    width: .45rem;
+}
+
+.project-row-ok .progress-project-copy strong i {
+    background: #16a34a;
+}
+
+.project-row-advertencia .progress-project-copy strong i {
+    background: #f2ad00;
+}
+
+.project-row-riesgo .progress-project-copy strong i {
+    background: #ef4444;
+}
+
+.progress-project-copy small {
+    color: #52627a;
+    display: block;
+    font-size: .76rem;
+    margin-top: .15rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.progress-chart-area {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 1.2rem 1.2rem 1rem;
+    position: relative;
+}
+
+.progress-chart-area canvas {
+    flex: 1;
+    height: 100% !important;
+    width: 100% !important;
+}
+
+.progress-project-detail {
+    align-items: center;
+    background: #fbfdff;
+    border-top: 1px solid #e5edf5;
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(220px, 1.2fr) minmax(340px, 2fr) minmax(220px, .9fr);
+    padding: 1rem 1.35rem;
+}
+
+.progress-project-detail h2 {
+    color: #142033;
+    font-size: 1.12rem;
+    font-weight: 900;
+    margin: .15rem 0 .2rem;
+}
+
+.progress-project-detail p {
+    color: #52627a;
+    margin: 0;
+}
+
+.progress-project-detail.is-active {
+    border-left: 5px solid #94a3b8;
+}
+
+.progress-project-detail.detail-ok {
+    border-left-color: #16a34a;
+}
+
+.progress-project-detail.detail-advertencia {
+    border-left-color: #d97706;
+}
+
+.progress-project-detail.detail-riesgo {
+    border-left-color: #dc2626;
+}
+
+.progress-detail-stats {
+    display: grid;
+    gap: .6rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.progress-detail-stats article {
+    background: #fff;
+    border: 1px solid #e5edf5;
+    border-radius: 8px;
+    padding: .65rem .75rem;
+}
+
+.progress-detail-stats span {
+    color: #66758c;
+    display: block;
+    font-size: .68rem;
+    font-weight: 900;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.progress-detail-stats strong {
+    color: #142033;
+    display: block;
+    font-size: 1rem;
+    font-weight: 900;
+    margin-top: .15rem;
+}
+
+.progress-detail-actions {
+    align-items: center;
+    display: grid;
+    gap: .7rem;
+    justify-items: end;
+}
+
+.progress-detail-actions p {
+    font-size: .86rem;
+    line-height: 1.35;
+    text-align: right;
+}
+
+.progress-extra-note {
+    border-top: 1px solid #e5edf5;
+    color: #52627a;
+    font-size: .9rem;
+    margin: 0;
+    padding: .9rem 2rem;
+}
+
+.progress-board-footer {
+    background: #fbfdff;
+    border-top: 1px solid #e5edf5;
+    display: grid;
+    gap: .85rem;
+    grid-template-columns: repeat(3, minmax(120px, 1fr)) minmax(240px, 1.65fr);
+    padding: .85rem 1.4rem 1rem;
+}
+
+.progress-summary-card,
+.progress-summary-info {
+    align-items: center;
+    border: 1px solid #e5edf5;
+    border-radius: 8px;
+    display: grid;
+    min-height: 62px;
+    padding: .65rem 1rem;
+}
+
+.progress-summary-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.progress-summary-card strong {
+    display: block;
+    font-size: 1.35rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.progress-summary-card span {
+    color: #142033;
+    display: block;
+    font-size: .85rem;
+    font-weight: 800;
+    margin-top: .3rem;
+}
+
+.progress-summary-card i {
+    font-size: 1.8rem;
+}
+
+.summary-ok {
+    background: #f0fdf4;
+    color: #16a34a;
+}
+
+.summary-risk {
+    background: #fffbeb;
+    color: #d97706;
+}
+
+.summary-critical {
+    background: #fff1f2;
+    color: #ef4444;
+}
+
+.progress-summary-info {
+    align-items: center;
+    background: #eff6ff;
+    color: #24415f;
+    gap: 1rem;
+    grid-template-columns: auto minmax(0, 1fr);
+}
+
+.progress-summary-info i {
+    color: #1d6fe8;
+    font-size: 1.2rem;
+}
+
+.progress-summary-info span {
+    font-size: .95rem;
+    line-height: 1.45;
+}
+
+@media (max-width: 1200px) {
+    .progress-board-main {
+        grid-template-columns: 1fr;
+        min-height: auto;
+    }
+
+    .progress-project-list {
+        border-bottom: 1px solid #e5edf5;
+        border-right: 0;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        padding: 1.3rem;
+    }
+
+    .progress-chart-area {
+        min-height: 380px;
+    }
+
+    .progress-project-detail {
+        grid-template-columns: 1fr;
+    }
+
+    .progress-detail-actions {
+        justify-items: start;
+    }
+
+    .progress-detail-actions p {
+        text-align: left;
+    }
+
+    .progress-board-footer {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 760px) {
+    .progress-board-header {
+        flex-direction: column;
+        padding: 1.3rem;
+    }
+
+    .progress-board-legend {
+        flex-wrap: wrap;
+        gap: .75rem;
+        width: 100%;
+    }
+
+    .progress-chart-area {
+        padding: 1rem;
+        min-height: 320px;
+    }
+
+    .progress-detail-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .progress-board-footer {
+        grid-template-columns: 1fr;
+        padding: 1.1rem;
     }
 }

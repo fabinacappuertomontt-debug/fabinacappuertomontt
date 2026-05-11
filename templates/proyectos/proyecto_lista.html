@@ -3,20 +3,23 @@
 {% block title %}Proyectos{% endblock %}
 
 {% block content %}
-<div class="projects-page">
-    <div class="projects-hero-modern">
+<div class="projects-page projects-course-page">
+    <div class="projects-hero-modern projects-course-hero">
         <div>
             <span class="eyebrow">Proyectos</span>
-            <h1>Seguimiento del año</h1>
-            <p>Revisa avance, responsables, tareas y alertas del trabajo activo.</p>
+            <h1>Mis proyectos</h1>
+            <p>Explora el avance, responsables, tareas y estado de cada proyecto académico.</p>
         </div>
-        <a class="btn btn-primary" href="{% url 'proyecto_crear' %}">Nuevo proyecto</a>
+        <a class="btn btn-primary" href="{% url 'proyecto_crear' %}">
+            <i class="bi bi-plus-circle" aria-hidden="true"></i>
+            Nuevo proyecto
+        </a>
     </div>
 
-    <form class="project-filter-bar" method="get">
+    <form class="project-filter-bar project-course-filter" method="get">
         <div class="filter-search">
             <label for="project-search">Buscar</label>
-            <input id="project-search" class="form-control" type="search" name="q" value="{{ busqueda }}" placeholder="Nombre o descripción">
+            <input id="project-search" class="form-control" type="search" name="q" value="{{ busqueda }}" placeholder="Buscar por nombre o descripcion">
         </div>
         <div>
             <label for="project-status">Estado</label>
@@ -39,77 +42,87 @@
             </select>
         </div>
         <div class="filter-actions">
-            <button class="btn btn-primary" type="submit">Filtrar</button>
+            <button class="btn btn-primary" type="submit">
+                <i class="bi bi-funnel" aria-hidden="true"></i>
+                Filtrar
+            </button>
             <a class="btn btn-outline-secondary" href="{% url 'proyecto_lista' %}">Limpiar</a>
         </div>
     </form>
 
-    <section class="project-card-list" aria-label="Listado de proyectos">
+    <section class="project-course-grid" aria-label="Listado de proyectos">
         {% for proyecto in proyectos %}
-            <article class="project-list-card">
-                <div class="project-list-main">
-                    <div class="project-title-row">
+            <article class="project-course-card course-{{ proyecto.nivel_alerta }}">
+                <a class="project-course-cover" href="{{ proyecto.get_absolute_url }}" aria-label="Abrir {{ proyecto.nombre }}">
+                    <span class="project-cover-band"></span>
+                    <span class="project-cover-photo" aria-hidden="true"></span>
+                    <span class="project-cover-logo">
+                        <img src="https://portal.inacap.cl/documents/d/guest/logofooter60a" alt="INACAP">
+                        <strong>{{ proyecto.nombre|slice:":6"|upper }}</strong>
+                    </span>
+                </a>
+
+                <div class="project-course-body">
+                    <div class="project-course-heading">
+                        <span class="status-pill status-{{ proyecto.estado }}">{{ proyecto.get_estado_display }}</span>
+                        <span class="alert-dot alert-{{ proyecto.nivel_alerta }}">{{ proyecto.texto_alerta }}</span>
+                    </div>
+
+                    <h2>
+                        <a href="{{ proyecto.get_absolute_url }}">{{ proyecto.nombre }}</a>
+                    </h2>
+
+                    <p class="project-course-meta">
+                        {{ proyecto.fecha_inicio|date:"Y" }}/{{ proyecto.get_sede_display }}
+                        {% if proyecto.fecha_fin %} · vence {{ proyecto.fecha_fin|date:"d/m/Y" }}{% endif %}
+                    </p>
+
+                    <div class="project-course-progress">
                         <div>
-                            <span class="eyebrow">Proyecto</span>
-                            <h2>{{ proyecto.nombre }}</h2>
-                            <p class="project-campus-label">{{ proyecto.get_sede_display }}</p>
+                            <span>Avance del proyecto</span>
+                            <strong>{{ proyecto.porcentaje_avance }}%</strong>
                         </div>
-                        <div class="project-card-badges">
-                            <span class="status-pill status-{{ proyecto.estado }}">{{ proyecto.get_estado_display }}</span>
-                            <span class="alert-dot alert-{{ proyecto.nivel_alerta }}">{{ proyecto.texto_alerta }}</span>
+                        <div class="progress" role="progressbar" aria-valuenow="{{ proyecto.porcentaje_avance }}" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar" style="width: {{ proyecto.porcentaje_avance }}%"></div>
                         </div>
                     </div>
 
-                    <div class="project-card-meta">
-                        <span>{{ proyecto.fecha_inicio }}{% if proyecto.fecha_fin %} - {{ proyecto.fecha_fin }}{% endif %}</span>
-                        <span>{{ proyecto.tareas_completadas }}/{{ proyecto.total_tareas }} tareas</span>
+                    <div class="project-course-detail-row">
+                        <span><i class="bi bi-check2-square" aria-hidden="true"></i> {{ proyecto.tareas_completadas }}/{{ proyecto.total_tareas }} tareas</span>
+                        {% if proyecto.usa_trl %}
+                            <span><i class="bi bi-layers" aria-hidden="true"></i> {{ proyecto.rango_trl_texto }}</span>
+                        {% else %}
+                            <span><i class="bi bi-diagram-3" aria-hidden="true"></i> {{ proyecto.fases_completadas_relevantes }}/{{ proyecto.total_fases_relevantes }} fases</span>
+                        {% endif %}
                     </div>
 
-                    <div class="project-card-progress">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span>Madurez por fases</span>
-                            {% if proyecto.total_fases_relevantes %}
-                                <strong>{% widthratio proyecto.fases_completadas_relevantes proyecto.total_fases_relevantes 100 %}%</strong>
-                            {% else %}
-                                <strong>0%</strong>
-                            {% endif %}
-                        </div>
-                        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100">
-                            {% if proyecto.total_fases_relevantes %}
-                                <div class="progress-bar" style="width: {% widthratio proyecto.fases_completadas_relevantes proyecto.total_fases_relevantes 100 %}%"></div>
-                            {% else %}
-                                <div class="progress-bar" style="width: 0%"></div>
-                            {% endif %}
-                        </div>
-                        <div class="project-card-meta mt-2">
-                            {% if proyecto.usa_trl %}
-                                <span>{{ proyecto.fases_completadas_relevantes }}/{{ proyecto.total_fases_relevantes }} criterios TRL dentro del rango {{ proyecto.rango_trl_texto }}</span>
-                            {% else %}
-                                <span>{{ proyecto.fases_completadas_relevantes }}/{{ proyecto.total_fases_relevantes }} fases completadas</span>
-                            {% endif %}
-                        </div>
-                    </div>
-
-                    <div class="project-card-owners">
-                        <span>Responsables</span>
-                        <div>
-                            {% for responsable in proyecto.responsables.all %}
-                                <span class="person-chip">{{ responsable }}</span>
-                            {% empty %}
-                                <span class="text-muted">Sin asignar</span>
-                            {% endfor %}
-                        </div>
+                    <div class="project-course-owners">
+                        {% for responsable in proyecto.responsables.all|slice:":3" %}
+                            <span class="person-chip">{{ responsable }}</span>
+                        {% empty %}
+                            <span class="text-muted">Sin responsables</span>
+                        {% endfor %}
                     </div>
                 </div>
 
-                <div class="project-card-actions">
-                    <a class="btn btn-primary" href="{{ proyecto.get_absolute_url }}">Ver detalle</a>
-                    <a class="btn btn-outline-primary" href="{% url 'proyecto_trabajo' proyecto.pk %}">{% if proyecto.puede_editar %}Trabajar{% else %}Ver mesa{% endif %}</a>
+                <div class="project-course-actions">
+                    <a class="btn btn-primary" href="{{ proyecto.get_absolute_url }}">
+                        <i class="bi bi-eye" aria-hidden="true"></i>
+                        Ver
+                    </a>
+                    <a class="btn btn-outline-primary" href="{% url 'proyecto_trabajo' proyecto.pk %}">
+                        <i class="bi bi-kanban" aria-hidden="true"></i>
+                        Trabajar
+                    </a>
                     {% if proyecto.puede_editar %}
-                        <a class="btn btn-outline-secondary" href="{% url 'proyecto_editar' proyecto.pk %}">Editar</a>
+                        <a class="btn btn-outline-secondary" href="{% url 'proyecto_editar' proyecto.pk %}" title="Editar {{ proyecto.nombre }}">
+                            <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                        </a>
                     {% endif %}
                     {% if puede_eliminar_proyectos %}
-                        <a class="btn btn-outline-danger" href="{% url 'proyecto_eliminar' proyecto.pk %}">Eliminar</a>
+                        <a class="btn btn-outline-danger" href="{% url 'proyecto_eliminar' proyecto.pk %}" title="Eliminar {{ proyecto.nombre }}">
+                            <i class="bi bi-trash" aria-hidden="true"></i>
+                        </a>
                     {% endif %}
                 </div>
             </article>
@@ -123,18 +136,17 @@
     </section>
 
     {% if is_paginated %}
-        <nav aria-label="Paginación">
+        <nav aria-label="Paginacion">
             <ul class="pagination">
                 {% if page_obj.has_previous %}
-                    <li class="page-item"><a class="page-link" href="page={{ page_obj.previous_page_number }}">Anterior</a></li>
+                    <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a></li>
                 {% endif %}
                 <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
                 {% if page_obj.has_next %}
-                    <li class="page-item"><a class="page-link" href="page={{ page_obj.next_page_number }}">Siguiente</a></li>
+                    <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a></li>
                 {% endif %}
             </ul>
         </nav>
     {% endif %}
 </div>
 {% endblock %}
-
