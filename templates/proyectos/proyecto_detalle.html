@@ -4,15 +4,23 @@
 
 {% block content %}
 <div class="project-overview-page">
-    <header class="overview-hero">
-        <div>
+    <header class="overview-hero overview-hero-compact">
+        <div class="overview-hero-copy">
             <span class="eyebrow">Detalle del proyecto</span>
             <h1>{{ proyecto.nombre }}</h1>
             <p>{{ proyecto.descripcion }}</p>
+            <div class="overview-meta-strip" aria-label="Resumen rapido del proyecto">
+                <span class="status-pill status-{{ proyecto.estado }}">{{ proyecto.get_estado_display }}</span>
+                <span class="alert-dot alert-{{ proyecto.nivel_alerta }}">{{ proyecto.texto_alerta }}</span>
+                <span class="overview-meta-pill">{{ proyecto.get_tipo_proyecto_display }}</span>
+                <span class="overview-meta-pill">{{ proyecto.get_sede_display }}</span>
+                {% if proyecto.usa_trl %}
+                    <span class="overview-meta-pill">TRL {{ proyecto.rango_trl_texto }}</span>
+                {% endif %}
+            </div>
         </div>
         <div class="project-hero-actions">
             <a class="btn btn-outline-secondary" href="{% url 'proyecto_lista' %}">Volver</a>
-            <a class="btn btn-primary" href="{% url 'proyecto_trabajo' proyecto.pk %}">Mesa de trabajo</a>
             {% if puede_editar_proyecto %}
                 <a class="btn btn-outline-primary" href="{% url 'proyecto_editar' proyecto.pk %}">Editar datos</a>
             {% endif %}
@@ -22,56 +30,37 @@
         </div>
     </header>
 
-    <section class="overview-top-grid" aria-label="Resumen ejecutivo del proyecto">
-        <article class="overview-score-card">
-            <span class="eyebrow">Nivel de referencia</span>
-            <div class="overview-score-number">{% if proyecto.usa_trl %}TRL {{ trl_estimado }}{% else %}{{ trl_estimado }}{% endif %}</div>
-            <p>{{ trl_estimado_texto }}</p>
-            <div class="overview-score-note">
-                {% if proyecto.usa_trl %}
-                    Rango definido para este proyecto: {{ proyecto.rango_trl_texto }}.
-                {% else %}
-                    Referencia basada en los criterios completados dentro de cada etapa.
-                {% endif %}
-            </div>
+    <section class="workspace-summary-strip overview-summary-strip" aria-label="Resumen ejecutivo del proyecto">
+        <article>
+            <span>Avance</span>
+            <strong>{{ avance_madurez }}%</strong>
+            <p>Madurez completada del proyecto</p>
         </article>
-
-        <article class="overview-progress-card">
-            <div class="overview-card-title">
-                <div>
-                    <span class="eyebrow">Avance técnico por fases</span>
-                    <h2>{{ avance_madurez }}%</h2>
-                </div>
-                <span class="alert-dot alert-{{ proyecto.nivel_alerta }}">{{ proyecto.texto_alerta }}</span>
-            </div>
-            <div class="progress overview-main-progress" role="progressbar" aria-valuenow="{{ avance_madurez }}" aria-valuemin="0" aria-valuemax="100">
-                <div class="progress-bar" style="width: {{ avance_madurez }}%">{{ avance_madurez }}%</div>
-            </div>
-            <p>Vista solo lectura para profesor o jefe: madurez, fases completadas y respaldo del trabajo.</p>
+        <article>
+            <span>Inicio</span>
+            <strong>{{ proyecto.fecha_inicio|date:"d/m/Y" }}</strong>
+            <p>{% if proyecto.fecha_fin %}Cierre {{ proyecto.fecha_fin|date:"d/m/Y" }}{% else %}Sin fecha de cierre{% endif %}</p>
         </article>
-
-        <article class="overview-data-card">
-            <span class="eyebrow">Datos principales</span>
-            <div class="overview-data-list">
-                <div><span>Estado</span><strong>{{ proyecto.get_estado_display }}</strong></div>
-                <div><span>Inicio</span><strong>{{ proyecto.fecha_inicio }}</strong></div>
-                <div><span>Fin</span><strong>{{ proyecto.fecha_fin|default:"Sin fecha" }}</strong></div>
-                <div><span>Tipo</span><strong>{{ proyecto.get_tipo_proyecto_display }}</strong></div>
-                {% if proyecto.usa_trl %}
-                    <div><span>TRL inicial</span><strong>{{ proyecto.trl_inicial_efectivo }}</strong></div>
-                    <div><span>TRL objetivo</span><strong>{{ proyecto.trl_objetivo_efectivo }}</strong></div>
-                {% endif %}
-                <div>
-                    <span>Responsables</span>
-                    <strong>
-                        {% for responsable in proyecto.responsables.all %}
-                            {{ responsable }}{% if not forloop.last %}, {% endif %}
-                        {% empty %}
-                            Sin responsables
-                        {% endfor %}
-                    </strong>
-                </div>
-            </div>
+        <article>
+            <span>Responsables</span>
+            <strong>{{ proyecto.responsables.all|length }}</strong>
+            <p>
+                {% for responsable in proyecto.responsables.all|slice:":3" %}
+                    {{ responsable }}{% if not forloop.last %}, {% endif %}
+                {% empty %}
+                    Sin responsables
+                {% endfor %}
+            </p>
+        </article>
+        <article>
+            <span>{% if proyecto.usa_trl %}Ruta TRL{% else %}Tipo{% endif %}</span>
+            <strong>{% if proyecto.usa_trl %}{{ proyecto.rango_trl_texto }}{% else %}{{ proyecto.get_tipo_proyecto_display }}{% endif %}</strong>
+            <p>{{ trl_estimado_texto|truncatechars:90 }}</p>
+        </article>
+        <article>
+            <span>Seguimiento</span>
+            <strong>{{ proyecto.avances.all|length }}</strong>
+            <p>{{ proyecto.evidencias.all|length }} evidencias y {{ proyecto.observaciones.all|length }} observaciones</p>
         </article>
     </section>
 
@@ -121,38 +110,81 @@
     {% endif %}
 
 
-    <section class="project-goals-panel" aria-label="Objetivos y medición del proyecto">
+    <section class="project-goals-panel project-goals-accordion-panel" aria-label="Objetivos y medición del proyecto">
         <div class="overview-section-title compact">
             <div>
                 <span class="eyebrow">Plan del proyecto</span>
                 <h2>Objetivos, resultados e indicadores</h2>
             </div>
         </div>
-        <div class="project-goals-grid">
-            <article>
-                <span>Objetivo principal</span>
-                <p>{{ proyecto.objetivo_principal|default:"No definido."|linebreaksbr }}</p>
-            </article>
-            <article>
-                <span>Objetivos específicos</span>
-                <p>{{ proyecto.objetivo_especifico|default:"No definido."|linebreaksbr }}</p>
-            </article>
-            <article>
-                <span>Resultados esperados</span>
-                <p>{{ proyecto.resultados_esperados|default:"No definido."|linebreaksbr }}</p>
-            </article>
-            <article>
-                <span>Indicadores</span>
-                <p>{{ proyecto.indicadores|default:"No definido."|linebreaksbr }}</p>
-            </article>
+        <div class="project-goals-accordion">
+            <details class="workspace-collapsible-card">
+                <summary>
+                    <span class="workspace-collapsible-icon"><i class="bi bi-bullseye" aria-hidden="true"></i></span>
+                    <span>
+                        <strong>Objetivo principal</strong>
+                        <small>Ver planteamiento general del proyecto</small>
+                    </span>
+                    <span class="workspace-collapsible-meta">1 apartado</span>
+                    <i class="bi bi-chevron-down workspace-collapsible-arrow" aria-hidden="true"></i>
+                </summary>
+                <div class="project-goals-accordion-content">
+                    <p>{{ proyecto.objetivo_principal|default:"No definido."|linebreaksbr }}</p>
+                </div>
+            </details>
+
+            <details class="workspace-collapsible-card">
+                <summary>
+                    <span class="workspace-collapsible-icon"><i class="bi bi-list-check" aria-hidden="true"></i></span>
+                    <span>
+                        <strong>Objetivos específicos</strong>
+                        <small>Ver metas concretas del proyecto</small>
+                    </span>
+                    <span class="workspace-collapsible-meta">Detalle</span>
+                    <i class="bi bi-chevron-down workspace-collapsible-arrow" aria-hidden="true"></i>
+                </summary>
+                <div class="project-goals-accordion-content">
+                    <p>{{ proyecto.objetivo_especifico|default:"No definido."|linebreaksbr }}</p>
+                </div>
+            </details>
+
+            <details class="workspace-collapsible-card">
+                <summary>
+                    <span class="workspace-collapsible-icon"><i class="bi bi-clipboard-data" aria-hidden="true"></i></span>
+                    <span>
+                        <strong>Resultados esperados</strong>
+                        <small>Ver entregables y logros esperados</small>
+                    </span>
+                    <span class="workspace-collapsible-meta">Detalle</span>
+                    <i class="bi bi-chevron-down workspace-collapsible-arrow" aria-hidden="true"></i>
+                </summary>
+                <div class="project-goals-accordion-content">
+                    <p>{{ proyecto.resultados_esperados|default:"No definido."|linebreaksbr }}</p>
+                </div>
+            </details>
+
+            <details class="workspace-collapsible-card">
+                <summary>
+                    <span class="workspace-collapsible-icon"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i></span>
+                    <span>
+                        <strong>Indicadores</strong>
+                        <small>Ver como se medira el avance</small>
+                    </span>
+                    <span class="workspace-collapsible-meta">Medicion</span>
+                    <i class="bi bi-chevron-down workspace-collapsible-arrow" aria-hidden="true"></i>
+                </summary>
+                <div class="project-goals-accordion-content">
+                    <p>{{ proyecto.indicadores|default:"No definido."|linebreaksbr }}</p>
+                </div>
+            </details>
         </div>
     </section>
 
     <section class="overview-stage-panel overview-stage-tabs" aria-label="Etapas del proyecto">
         <div class="overview-section-title">
             <div>
-                <span class="eyebrow">Etapas del proyecto</span>
-                <h2>Inicio, validación, pruebas y finalización</h2>
+                <span class="eyebrow">Ruta del proyecto</span>
+                <h2>Etapas y avance</h2>
             </div>
             <span class="status-pill status-{{ proyecto.estado }}">{{ proyecto.get_estado_display }}</span>
         </div>
