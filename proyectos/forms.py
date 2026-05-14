@@ -258,7 +258,9 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
                 f"{objetivo['orden']}. {objetivo['descripcion']}" for objetivo in payload_trl
             )
             cleaned["resultados_esperados"] = "\n".join(
-                f"OE{objetivo['orden']}.R{resultado['orden']}{f' - TRL {resultado['trl']}' if metodologia == Proyecto.Metodologia.TRL else ''}: {resultado['descripcion']} (plazo: {resultado['meses']} meses, {resultado['dias']} dias)"
+                f"OE{objetivo['orden']}.R{resultado['orden']}"
+                f"{' - TRL %s' % resultado['trl'] if metodologia == Proyecto.Metodologia.TRL else ''}: "
+                f"{resultado['descripcion']} (plazo: {resultado['meses']} meses, {resultado['dias']} dias)"
                 for objetivo in payload_trl
                 for resultado in objetivo["resultados"]
             )
