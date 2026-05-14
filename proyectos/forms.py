@@ -1,7 +1,7 @@
 ﻿from django import forms
 from django.contrib.auth.forms import UserCreationForm
 
-from .models import Avance, Evidencia, FaseProyecto, ItemInventario, MensajePrivado, Observacion, Proyecto, Tarea, UsoInventario, Usuario
+from .models import Avance, Evidencia, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Observacion, Proyecto, ResultadoEsperado, Tarea, UsoInventario, Usuario, sumar_meses_y_dias
 
 
 class BootstrapFormMixin:
@@ -101,6 +101,101 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
         self.fields["metodologia"].widget.attrs["data-project-methodology"] = "true"
         self.fields["trl_inicial"].widget.attrs["data-trl-field"] = "true"
         self.fields["trl_objetivo"].widget.attrs["data-trl-field"] = "true"
+        self.fields["objetivo_especifico"].widget.attrs["data-structured-field"] = "objetivos"
+        self.fields["resultados_esperados"].widget.attrs["data-structured-field"] = "resultados"
+        self.fields["indicadores"].widget.attrs["data-structured-field"] = "indicadores"
+        if self.instance.pk:
+            self._cargar_estructura_existente()
+
+    def _cargar_estructura_existente(self):
+        payload = []
+        objetivos = self.instance.objetivos.prefetch_related("resultados__indicadores").all()
+        for objetivo in objetivos:
+            objetivo_data = {
+                "descripcion": objetivo.descripcion,
+                "resultados": [],
+            }
+            for resultado in objetivo.resultados.all():
+                objetivo_data["resultados"].append({
+                    "descripcion": resultado.descripcion,
+                    "trl": resultado.trl_objetivo,
+                    "meses": resultado.plazo_meses,
+                    "dias": resultado.plazo_dias,
+                    "fecha_cumplimiento": resultado.fecha_cumplimiento.isoformat() if resultado.fecha_cumplimiento else "",
+                    "observaciones": resultado.observaciones,
+                    "indicadores": [
+                        {
+                            "descripcion": indicador.descripcion,
+                            "meta": indicador.meta,
+                            "valor_actual": indicador.valor_actual,
+                            "cumplido": indicador.cumplido,
+                        }
+                        for indicador in resultado.indicadores.all()
+                    ],
+                })
+            payload.append(objetivo_data)
+        if payload:
+            serialized = __import__("json").dumps(payload, ensure_ascii=True)
+            self.initial["objetivo_especifico"] = serialized
+            self.initial["resultados_esperados"] = serialized
+            self.initial["indicadores"] = serialized
+
+    def _parsear_payload_trl(self, raw_value):
+        try:
+            payload = __import__("json").loads(raw_value or "[]")
+        except ValueError as error:
+            raise forms.ValidationError("La estructura de objetivos y resultados no tiene un formato valido.") from error
+        if not isinstance(payload, list):
+            raise forms.ValidationError("La estructura enviada debe ser una lista de objetivos.")
+        objetivos_limpios = []
+        for objetivo_index, objetivo in enumerate(payload, start=1):
+            descripcion = str((objetivo or {}).get("descripcion", "")).strip()
+            if not descripcion:
+                continue
+            resultados_limpios = []
+            for resultado_index, resultado in enumerate((objetivo or {}).get("resultados", []), start=1):
+                descripcion_resultado = str((resultado or {}).get("descripcion", "")).strip()
+                if not descripcion_resultado:
+                    continue
+                trl = resultado.get("trl")
+                meses = int(resultado.get("meses") or 0)
+                dias = int(resultado.get("dias") or 0)
+                if not trl:
+                    raise forms.ValidationError(f"Falta definir el TRL del resultado {resultado_index} del objetivo {objetivo_index}.")
+                if meses < 0 or dias < 0 or (meses == 0 and dias == 0):
+                    raise forms.ValidationError(f"El resultado {resultado_index} del objetivo {objetivo_index} debe tener un plazo en meses o dias.")
+                indicadores_limpios = []
+                for indicador_index, indicador in enumerate((resultado or {}).get("indicadores", []), start=1):
+                    descripcion_indicador = str((indicador or {}).get("descripcion", "")).strip()
+                    if not descripcion_indicador:
+                        continue
+                    indicadores_limpios.append({
+                        "descripcion": descripcion_indicador,
+                        "meta": str((indicador or {}).get("meta", "")).strip(),
+                        "valor_actual": str((indicador or {}).get("valor_actual", "")).strip(),
+                        "cumplido": bool((indicador or {}).get("cumplido")),
+                        "orden": indicador_index,
+                    })
+                if not indicadores_limpios:
+                    raise forms.ValidationError(f"El resultado {resultado_index} del objetivo {objetivo_index} necesita al menos un indicador asociado.")
+                resultados_limpios.append({
+                    "descripcion": descripcion_resultado,
+                    "trl": int(trl),
+                    "meses": meses,
+                    "dias": dias,
+                    "fecha_cumplimiento": str((resultado or {}).get("fecha_cumplimiento", "")).strip(),
+                    "observaciones": str((resultado or {}).get("observaciones", "")).strip(),
+                    "indicadores": indicadores_limpios,
+                    "orden": resultado_index,
+                })
+            if not resultados_limpios:
+                raise forms.ValidationError(f"El objetivo {objetivo_index} necesita al menos un resultado esperado.")
+            objetivos_limpios.append({
+                "descripcion": descripcion,
+                "resultados": resultados_limpios,
+                "orden": objetivo_index,
+            })
+        return objetivos_limpios
 
     def clean(self):
         cleaned = super().clean()
@@ -108,6 +203,12 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
         trl_inicial = cleaned.get("trl_inicial")
         trl_objetivo = cleaned.get("trl_objetivo")
         empresa_externa = cleaned.get("empresa_externa")
+        fecha_inicio = cleaned.get("fecha_inicio")
+        payload_trl = []
+        try:
+            payload_trl = self._parsear_payload_trl(cleaned.get("objetivo_especifico"))
+        except forms.ValidationError as error:
+            self.add_error("objetivo_especifico", error)
 
         if metodologia == Proyecto.Metodologia.TRL:
             if not trl_inicial:
@@ -116,11 +217,20 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
                 self.add_error("trl_objetivo", "Indica el TRL objetivo esperado del proyecto tecnológico.")
             if trl_inicial and trl_objetivo and trl_objetivo < trl_inicial:
                 self.add_error("trl_objetivo", "El TRL objetivo no puede ser menor al TRL inicial.")
+            for objetivo in payload_trl:
+                for resultado in objetivo["resultados"]:
+                    if trl_inicial and resultado["trl"] <= trl_inicial:
+                        self.add_error("resultados_esperados", f"Cada resultado debe apuntar a un TRL superior al inicial. Revisa '{resultado['descripcion'][:40]}'.")
+                    if trl_objetivo and resultado["trl"] > trl_objetivo:
+                        self.add_error("resultados_esperados", f"Hay resultados sobre el TRL objetivo definido. Revisa '{resultado['descripcion'][:40]}'.")
             cleaned["tipo_proyecto"] = Proyecto.TipoProyecto.TECNOLOGICO
         else:
             cleaned["trl_inicial"] = None
             cleaned["trl_objetivo"] = None
             cleaned["tipo_proyecto"] = Proyecto.TipoProyecto.GENERAL
+            for objetivo in payload_trl:
+                for resultado in objetivo["resultados"]:
+                    resultado["trl"] = 1
 
         if not empresa_externa:
             for field_name in [
@@ -134,6 +244,30 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
                 "empresa_externa_observaciones",
             ]:
                 cleaned[field_name] = ""
+        cleaned["payload_trl"] = payload_trl
+        if payload_trl:
+            fechas_objetivo = [
+                sumar_meses_y_dias(fecha_inicio, resultado["meses"], resultado["dias"])
+                for objetivo in payload_trl
+                for resultado in objetivo["resultados"]
+                if fecha_inicio
+            ]
+            if fechas_objetivo:
+                cleaned["fecha_fin"] = max(fechas_objetivo)
+            cleaned["objetivo_especifico"] = "\n".join(
+                f"{objetivo['orden']}. {objetivo['descripcion']}" for objetivo in payload_trl
+            )
+            cleaned["resultados_esperados"] = "\n".join(
+                f"OE{objetivo['orden']}.R{resultado['orden']}{f' - TRL {resultado['trl']}' if metodologia == Proyecto.Metodologia.TRL else ''}: {resultado['descripcion']} (plazo: {resultado['meses']} meses, {resultado['dias']} dias)"
+                for objetivo in payload_trl
+                for resultado in objetivo["resultados"]
+            )
+            cleaned["indicadores"] = "\n".join(
+                f"OE{objetivo['orden']}.R{resultado['orden']}.I{indicador['orden']}: {indicador['descripcion']}"
+                for objetivo in payload_trl
+                for resultado in objetivo["resultados"]
+                for indicador in resultado["indicadores"]
+            )
         return cleaned
 
     def save(self, commit=True):
@@ -148,7 +282,46 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
         if commit:
             proyecto.save()
             self.save_m2m()
+            self._guardar_estructura_trl(proyecto)
         return proyecto
+
+    def _guardar_estructura_trl(self, proyecto):
+        from .views import sincronizar_avance_simple_desde_objetivos, sincronizar_trl_desde_resultados
+
+        payload_trl = self.cleaned_data.get("payload_trl") or []
+        ObjetivoEspecifico.objects.filter(proyecto=proyecto).delete()
+        if proyecto.metodologia != Proyecto.Metodologia.TRL:
+            sincronizar_avance_simple_desde_objetivos(proyecto)
+            sincronizar_trl_desde_resultados(proyecto)
+            return
+        for objetivo_data in payload_trl:
+            objetivo = ObjetivoEspecifico.objects.create(
+                proyecto=proyecto,
+                descripcion=objetivo_data["descripcion"],
+                orden=objetivo_data["orden"],
+            )
+            for resultado_data in objetivo_data["resultados"]:
+                resultado = ResultadoEsperado.objects.create(
+                    objetivo=objetivo,
+                    descripcion=resultado_data["descripcion"],
+                    orden=resultado_data["orden"],
+                    trl_objetivo=resultado_data["trl"],
+                    plazo_meses=resultado_data["meses"],
+                    plazo_dias=resultado_data["dias"],
+                    fecha_cumplimiento=forms.DateField().clean(resultado_data["fecha_cumplimiento"]) if resultado_data["fecha_cumplimiento"] else None,
+                    observaciones=resultado_data["observaciones"],
+                )
+                for indicador_data in resultado_data["indicadores"]:
+                    IndicadorResultado.objects.create(
+                        resultado=resultado,
+                        descripcion=indicador_data["descripcion"],
+                        orden=indicador_data["orden"],
+                        meta=indicador_data["meta"],
+                        valor_actual=indicador_data["valor_actual"],
+                        cumplido=indicador_data["cumplido"],
+                    )
+        sincronizar_trl_desde_resultados(proyecto)
+        sincronizar_avance_simple_desde_objetivos(proyecto)
 
 
 
@@ -183,6 +356,12 @@ class AvanceForm(BootstrapFormMixin, forms.ModelForm):
 
 
 class FaseProyectoForm(BootstrapFormMixin, forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk and self.instance.proyecto.usa_trl:
+            self.fields["estado"].disabled = True
+            self.fields["estado"].help_text = "El estado del TRL ahora se calcula automaticamente segun resultados e indicadores."
+
     class Meta:
         model = FaseProyecto
         fields = ["estado", "realizado"]

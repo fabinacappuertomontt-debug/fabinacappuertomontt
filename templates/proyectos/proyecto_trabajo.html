@@ -70,7 +70,18 @@
                     <i class="bi bi-chevron-down workspace-collapsible-arrow" aria-hidden="true"></i>
                 </summary>
                 <div class="project-goals-accordion-content">
-                    <p>{{ proyecto.objetivo_especifico|default:"No definido."|linebreaksbr }}</p>
+                    {% if objetivos_trl %}
+                        <div class="workspace-list compact-list">
+                            {% for objetivo in objetivos_trl %}
+                                <div class="workspace-list-item">
+                                    <strong>Objetivo {{ forloop.counter }}</strong>
+                                    <p>{{ objetivo.descripcion }}</p>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p>{{ proyecto.objetivo_especifico|default:"No definido."|linebreaksbr }}</p>
+                    {% endif %}
                 </div>
             </details>
 
@@ -85,7 +96,21 @@
                     <i class="bi bi-chevron-down workspace-collapsible-arrow" aria-hidden="true"></i>
                 </summary>
                 <div class="project-goals-accordion-content">
-                    <p>{{ proyecto.resultados_esperados|default:"No definido."|linebreaksbr }}</p>
+                    {% if objetivos_trl %}
+                        <div class="workspace-list compact-list">
+                            {% for objetivo in objetivos_trl %}
+                                {% for resultado in objetivo.resultados.all %}
+                                    <div class="workspace-list-item">
+                                        <strong>TRL {{ resultado.trl_objetivo }} - {{ resultado.get_estado_display }}</strong>
+                                        <span>Plazo {{ resultado.plazo_texto }}{% if resultado.fecha_objetivo %} · Meta {{ resultado.fecha_objetivo|date:"d/m/Y" }}{% endif %}</span>
+                                        <p>{{ resultado.descripcion }}</p>
+                                    </div>
+                                {% endfor %}
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p>{{ proyecto.resultados_esperados|default:"No definido."|linebreaksbr }}</p>
+                    {% endif %}
                 </div>
             </details>
 
@@ -100,7 +125,23 @@
                     <i class="bi bi-chevron-down workspace-collapsible-arrow" aria-hidden="true"></i>
                 </summary>
                 <div class="project-goals-accordion-content">
-                    <p>{{ proyecto.indicadores|default:"No definido."|linebreaksbr }}</p>
+                    {% if objetivos_trl %}
+                        <div class="workspace-list compact-list">
+                            {% for objetivo in objetivos_trl %}
+                                {% for resultado in objetivo.resultados.all %}
+                                    {% for indicador in resultado.indicadores.all %}
+                                        <div class="workspace-list-item">
+                                            <strong>{% if indicador.cumplido %}Cumplido{% else %}Pendiente{% endif %} · TRL {{ resultado.trl_objetivo }}</strong>
+                                            <span>{% if indicador.meta %}Meta: {{ indicador.meta }}{% endif %}{% if indicador.valor_actual %} · Actual: {{ indicador.valor_actual }}{% endif %}</span>
+                                            <p>{{ indicador.descripcion }}</p>
+                                        </div>
+                                    {% endfor %}
+                                {% endfor %}
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p>{{ proyecto.indicadores|default:"No definido."|linebreaksbr }}</p>
+                    {% endif %}
                 </div>
             </details>
         </div>

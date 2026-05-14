@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}{% if object %}Editar proyecto{% else %}Nuevo proyecto{% endif %}{% endblock %}
 
@@ -23,9 +23,16 @@
     {{ form.non_field_errors }}
     <div class="row g-3">
         {% for field in form %}
-            {% if field.name != 'empresa_externa' and field.name != 'empresa_externa_nombre' and field.name != 'empresa_externa_rut' and field.name != 'empresa_externa_rubro' and field.name != 'empresa_externa_contacto' and field.name != 'empresa_externa_correo' and field.name != 'empresa_externa_telefono' and field.name != 'empresa_externa_rol' and field.name != 'empresa_externa_observaciones' %}
+            {% if field.name != 'empresa_externa' and field.name != 'empresa_externa_nombre' and field.name != 'empresa_externa_rut' and field.name != 'empresa_externa_rubro' and field.name != 'empresa_externa_contacto' and field.name != 'empresa_externa_correo' and field.name != 'empresa_externa_telefono' and field.name != 'empresa_externa_rol' and field.name != 'empresa_externa_observaciones' and field.name != 'resultados_esperados' and field.name != 'indicadores' %}
                 <div class="{% if field.name == 'descripcion' or field.name == 'objetivo_principal' or field.name == 'objetivo_especifico' or field.name == 'resultados_esperados' or field.name == 'indicadores' or field.name == 'responsables' %}col-12{% else %}col-md-6{% endif %}" {% if field.name == 'trl_inicial' or field.name == 'trl_objetivo' %}data-trl-wrapper{% endif %}>
-                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {% if field.name == "metodologia" %}
+                        <div class="methodology-label-row">
+                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            <span class="methodology-help-pill" aria-hidden="true">?</span>
+                        </div>
+                    {% else %}
+                        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {% endif %}
                     {% if field.name == "responsables" %}
                         <div class="responsables-field-header">
                             {% if es_admin_laboratorio %}
@@ -46,29 +53,22 @@
                             </div>
                         </details>
                     {% elif field.name == "objetivo_especifico" %}
-                        <div class="specific-objectives-builder" data-specific-objectives>
-                            {{ field }}
-                            <div class="specific-objectives-list" data-specific-objectives-list></div>
-                            <button class="btn btn-sm btn-outline-primary" type="button" data-add-specific-objective>
-                                <i class="bi bi-plus-circle" aria-hidden="true"></i>
-                                Agregar objetivo especifico
-                            </button>
+                        <div class="trl-structure-builder" data-trl-structure-builder>
+                            {{ field.as_hidden }}
+                            {{ form.resultados_esperados.as_hidden }}
+                            {{ form.indicadores.as_hidden }}
+                            <div class="form-text mb-3">Usa el boton + para agregar objetivos especificos. Abajo editas el resultado, indicador, plazo y TRL del objetivo seleccionado.</div>
+                            <div class="trl-structure-list" data-trl-structure-list></div>
                         </div>
                     {% elif field.name == "resultados_esperados" %}
-                        <div class="expected-results-builder" data-expected-results>
-                            {{ field }}
-                            <div class="expected-results-note" data-results-calendar-note>
-                                Define fecha de inicio y fin para validar los plazos.
-                            </div>
-                            <div class="expected-results-head" aria-hidden="true">
-                                <strong>Resultado</strong>
-                                <strong>Meses</strong>
-                                <strong>Dias</strong>
-                            </div>
-                            <div class="expected-results-list" data-expected-results-list></div>
-                        </div>
+                        <div class="d-none">{{ field }}</div>
+                    {% elif field.name == "indicadores" %}
+                        <div class="d-none">{{ field }}</div>
                     {% else %}
                         {{ field }}
+                    {% endif %}
+                    {% if field.name == "metodologia" %}
+                        <div class="methodology-help-panel" data-methodology-help></div>
                     {% endif %}
                     {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
                     {% for error in field.errors %}
@@ -133,11 +133,19 @@
 
         const methodology = document.querySelector("[data-project-methodology]");
         const trlFields = document.querySelectorAll("[data-trl-wrapper]");
+        const methodologyHelp = document.querySelector("[data-methodology-help]");
+        const methodologyMessages = {
+            simple: "Proyecto simple: el avance sube segun los objetivos especificos y sus indicadores cumplidos. No usa niveles TRL.",
+            trl: "Proyecto con TRL: cada resultado se asocia a un TRL objetivo y el proyecto sube de nivel cuando se cumplen sus indicadores.",
+        };
         const syncMethodology = () => {
             const usesTrl = methodology && methodology.value === "trl";
             trlFields.forEach((field) => {
                 field.hidden = !usesTrl;
             });
+            if (methodologyHelp && methodology) {
+                methodologyHelp.textContent = methodologyMessages[methodology.value] || "";
+            }
         };
         if (methodology) {
             methodology.addEventListener("change", syncMethodology);
@@ -229,7 +237,7 @@
 
             const parseResultLine = (line) => {
                 const clean = line.replace(/^\s*\d+[\.\)]\s*/, "").trim();
-                const match = clean.match(/^(.*?)\s*\(plazo:\s*(?:(\d+)\s*mes(?:es)?)?\s*(?:,?\s*(\d+)\s*d[ií]a(?:s)?)?\s*\)\s*$/i);
+                const match = clean.match(/^(.*?)\s*\(plazo:\s*(?:(\d+)\s*mes(?:es)?)?\s*(?:,?\s*(\d+)\s*d[iÃ­]a(?:s)?)?\s*\)\s*$/i);
                 if (!match) {
                     return { texto: clean, meses: "", dias: "" };
                 }
@@ -367,4 +375,294 @@
         }
     })();
 </script>
+<script>
+    (() => {
+        const trlBuilder = document.querySelector("[data-trl-structure-builder]");
+        if (!trlBuilder) {
+            return;
+        }
+        const methodology = document.querySelector("[data-project-methodology]");
+        const startInput = document.querySelector("[name='fecha_inicio']");
+        const endInput = document.querySelector("[name='fecha_fin']");
+        const objetivosField = document.querySelector("[data-structured-field='objetivos']");
+        const resultadosField = document.querySelector("[data-structured-field='resultados']");
+        const indicadoresField = document.querySelector("[data-structured-field='indicadores']");
+        const list = trlBuilder.querySelector("[data-trl-structure-list]");
+        const emptyIndicator = () => ({ descripcion: "", meta: "", valor_actual: "", cumplido: false });
+        const emptyResult = () => ({ descripcion: "", trl: "", meses: 0, dias: 0, fecha_cumplimiento: "", observaciones: "", indicadores: [emptyIndicator()] });
+        const emptyObjective = () => ({ descripcion: "", resultados: [emptyResult()] });
+        const escapeHtml = (value) => String(value || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+        const trlOptions = [
+            {% for value, label in form.fields.trl_objetivo.choices %}
+                { value: "{{ value }}", label: "{{ label|escapejs }}" },
+            {% endfor %}
+        ].filter((item) => item.value);
+        const usesTrlMethodology = () => methodology && methodology.value === "trl";
+        const formatDate = (date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const day = String(date.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        };
+        const addMonthsAndDays = (startValue, months, days) => {
+            if (!startValue) {
+                return "";
+            }
+            const date = new Date(`${startValue}T00:00:00`);
+            date.setMonth(date.getMonth() + Number(months || 0));
+            date.setDate(date.getDate() + Number(days || 0));
+            return formatDate(date);
+        };
+
+        let payload = [];
+        let activeObjectiveIndex = 0;
+        let lastMethodology = methodology ? methodology.value : "";
+        try {
+            payload = JSON.parse(objetivosField.value || "[]");
+        } catch (error) {
+            payload = [];
+        }
+        const normalizePayload = (source) => {
+            const normalized = Array.isArray(source) ? source : [];
+            return normalized.map((objective) => {
+                const result = Array.isArray(objective.resultados) && objective.resultados.length ? objective.resultados[0] : emptyResult();
+                const indicator = Array.isArray(result.indicadores) && result.indicadores.length ? result.indicadores[0] : emptyIndicator();
+                return {
+                    descripcion: objective.descripcion || "",
+                    resultados: [{
+                        descripcion: result.descripcion || "",
+                        trl: result.trl || "",
+                        meses: result.meses || 0,
+                        dias: result.dias || 0,
+                        fecha_cumplimiento: result.fecha_cumplimiento || "",
+                        observaciones: result.observaciones || "",
+                        indicadores: [{
+                            descripcion: indicator.descripcion || "",
+                            meta: indicator.meta || "",
+                            valor_actual: indicator.valor_actual || "",
+                            cumplido: Boolean(indicator.cumplido),
+                        }],
+                    }],
+                };
+            });
+        };
+        payload = normalizePayload(payload);
+        if (!Array.isArray(payload) || !payload.length) {
+            payload = [emptyObjective()];
+        }
+
+        const persist = () => {
+            const serialized = JSON.stringify(payload);
+            objetivosField.value = serialized;
+            resultadosField.value = serialized;
+            indicadoresField.value = serialized;
+        };
+
+        const syncProjectEndDate = () => {
+            if (!startInput || !endInput) {
+                return "";
+            }
+            const deadlines = payload
+                .flatMap((objective) => objective.resultados || [])
+                .map((result) => addMonthsAndDays(startInput.value, result.meses, result.dias))
+                .filter(Boolean);
+            if (!deadlines.length) {
+                endInput.removeAttribute("min");
+                endInput.removeAttribute("max");
+                return "";
+            }
+            const maxDeadline = deadlines.sort().slice(-1)[0];
+            endInput.value = maxDeadline;
+            endInput.min = maxDeadline;
+            endInput.max = maxDeadline;
+            return maxDeadline;
+        };
+
+        const render = () => {
+            if (activeObjectiveIndex >= payload.length) {
+                activeObjectiveIndex = Math.max(payload.length - 1, 0);
+            }
+            const activeObjective = payload[activeObjectiveIndex] || emptyObjective();
+            const activeResult = activeObjective.resultados[0] || emptyResult();
+            const activeIndicator = activeResult.indicadores[0] || emptyIndicator();
+            list.innerHTML = `
+                <div class="trl-objective-editor">
+                    <div class="trl-objective-editor__head">
+                        <strong>Objetivos especificos</strong>
+                        <button class="btn btn-sm btn-outline-primary" type="button" data-add-trl-objective>
+                            <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                            Agregar objetivo especifico
+                        </button>
+                    </div>
+                    <div class="trl-objective-list">
+                        ${payload.map((objective, index) => `
+                            <div class="trl-objective-item ${index === activeObjectiveIndex ? "is-active" : ""}">
+                                <button class="trl-objective-item__select" type="button" data-select-objective="${index}">
+                                    <span class="trl-objective-item__index">${index + 1}</span>
+                                    <span>${escapeHtml(objective.descripcion || `Objetivo especifico ${index + 1}`)}</span>
+                                </button>
+                                ${payload.length > 1 ? `<button class="btn btn-sm btn-outline-danger" type="button" data-remove-objective="${index}">Quitar</button>` : ""}
+                            </div>
+                        `).join("")}
+                    </div>
+                    <div class="trl-objective-editor__field">
+                        <label class="form-label">Objetivo especifico seleccionado</label>
+                        <input class="form-control" type="text" value="${escapeHtml(activeObjective.descripcion || "")}" data-objective-description="${activeObjectiveIndex}" placeholder="Describe el objetivo especifico">
+                    </div>
+                    <div class="trl-result-editor">
+                        <div class="trl-result-editor__title">Resultado esperado</div>
+                        <div class="row g-3">
+                            <div class="col-12 trl-result-editor__field">
+                                <input class="form-control" type="text" value="${escapeHtml(activeResult.descripcion || "")}" data-result-description="${activeObjectiveIndex}" data-result-index="0" placeholder="Resultado esperado">
+                            </div>
+                            <div class="col-md-3" ${usesTrlMethodology() ? "" : 'style="display:none;"'}>
+                                <label class="form-label">TRL objetivo</label>
+                                <select class="form-select" data-result-trl="${activeObjectiveIndex}" data-result-index="0" ${usesTrlMethodology() ? "" : "disabled"}>
+                                    <option value="">Selecciona</option>
+                                    ${trlOptions.map((option) => `<option value="${option.value}" ${String(activeResult.trl || "") === String(option.value) ? "selected" : ""}>TRL ${option.value}</option>`).join("")}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Meses</label>
+                                <input class="form-control" type="number" min="0" value="${escapeHtml(activeResult.meses || 0)}" data-result-months="${activeObjectiveIndex}" data-result-index="0">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Dias</label>
+                                <input class="form-control" type="number" min="0" value="${escapeHtml(activeResult.dias || 0)}" data-result-days="${activeObjectiveIndex}" data-result-index="0">
+                            </div>
+                            <div class="col-12 trl-result-editor__field">
+                                <textarea class="form-control" rows="2" data-result-notes="${activeObjectiveIndex}" data-result-index="0" placeholder="Observaciones del resultado">${escapeHtml(activeResult.observaciones || "")}</textarea>
+                            </div>
+                        </div>
+                        <div class="trl-indicator-editor">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-12">
+                                    <div class="trl-result-editor__title">Indicador asociado</div>
+                                </div>
+                                <div class="col-md-7">
+                                    <label class="form-label">Indicador</label>
+                                    <input class="form-control" type="text" value="${escapeHtml(activeIndicator.descripcion || "")}" data-indicator-description="${activeObjectiveIndex}" data-result-index="0" data-indicator-index="0">
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label">Meta</label>
+                                    <input class="form-control" type="text" value="${escapeHtml(activeIndicator.meta || "")}" data-indicator-goal="${activeObjectiveIndex}" data-result-index="0" data-indicator-index="0">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            persist();
+            syncProjectEndDate();
+        };
+
+        trlBuilder.addEventListener("input", (event) => {
+            const target = event.target;
+            let shouldSyncEndDate = false;
+            if (target.dataset.objectiveDescription !== undefined) {
+                payload[Number(target.dataset.objectiveDescription)].descripcion = target.value;
+            }
+            if (target.dataset.resultDescription !== undefined || target.dataset.resultMonths !== undefined || target.dataset.resultDays !== undefined || target.dataset.resultNotes !== undefined || target.dataset.resultTrl !== undefined) {
+                const objectiveIndex = Number(target.dataset.resultDescription ?? target.dataset.resultMonths ?? target.dataset.resultDays ?? target.dataset.resultNotes ?? target.dataset.resultTrl);
+                const resultIndex = Number(target.dataset.resultIndex);
+                const result = payload[objectiveIndex].resultados[resultIndex];
+                if (target.dataset.resultDescription !== undefined) result.descripcion = target.value;
+                if (target.dataset.resultMonths !== undefined) {
+                    result.meses = Number(target.value || 0);
+                    shouldSyncEndDate = true;
+                }
+                if (target.dataset.resultDays !== undefined) {
+                    result.dias = Number(target.value || 0);
+                    shouldSyncEndDate = true;
+                }
+                if (target.dataset.resultNotes !== undefined) result.observaciones = target.value;
+                if (target.dataset.resultTrl !== undefined) result.trl = target.value;
+            }
+            if (target.dataset.indicatorDescription !== undefined || target.dataset.indicatorGoal !== undefined) {
+                const objectiveIndex = Number(target.dataset.indicatorDescription ?? target.dataset.indicatorGoal);
+                const resultIndex = Number(target.dataset.resultIndex);
+                const indicatorIndex = Number(target.dataset.indicatorIndex);
+                const indicator = payload[objectiveIndex].resultados[resultIndex].indicadores[indicatorIndex];
+                if (target.dataset.indicatorDescription !== undefined) indicator.descripcion = target.value;
+                if (target.dataset.indicatorGoal !== undefined) indicator.meta = target.value;
+            }
+            persist();
+            if (shouldSyncEndDate) {
+                syncProjectEndDate();
+            }
+        });
+
+        trlBuilder.addEventListener("change", (event) => {
+            const target = event.target;
+            if (target.dataset.resultTrl !== undefined) {
+                const objectiveIndex = Number(target.dataset.resultTrl);
+                const resultIndex = Number(target.dataset.resultIndex);
+                if (target.dataset.resultTrl !== undefined) payload[objectiveIndex].resultados[resultIndex].trl = target.value;
+            }
+            persist();
+        });
+
+        if (methodology) {
+            methodology.addEventListener("change", () => {
+                if (methodology.value !== lastMethodology) {
+                    payload = [emptyObjective()];
+                    activeObjectiveIndex = 0;
+                    persist();
+                    lastMethodology = methodology.value;
+                }
+                render();
+            });
+        }
+        if (startInput && !startInput.value) {
+            startInput.value = formatDate(new Date());
+        }
+        if (startInput) {
+            startInput.addEventListener("change", render);
+        }
+        if (endInput) {
+            endInput.addEventListener("change", syncProjectEndDate);
+            endInput.addEventListener("input", syncProjectEndDate);
+        }
+
+        trlBuilder.addEventListener("click", (event) => {
+            const addObjective = event.target.closest("[data-add-trl-objective]");
+            if (addObjective) {
+                payload.push(emptyObjective());
+                activeObjectiveIndex = payload.length - 1;
+                render();
+                return;
+            }
+            const selectObjective = event.target.closest("[data-select-objective]");
+            if (selectObjective) {
+                activeObjectiveIndex = Number(selectObjective.dataset.selectObjective);
+                render();
+                return;
+            }
+            const removeObjective = event.target.closest("[data-remove-objective]");
+            if (removeObjective) {
+                const removeIndex = Number(removeObjective.dataset.removeObjective);
+                payload.splice(removeIndex, 1);
+                if (!payload.length) payload = [emptyObjective()];
+                if (activeObjectiveIndex >= payload.length) {
+                    activeObjectiveIndex = payload.length - 1;
+                } else if (removeIndex < activeObjectiveIndex) {
+                    activeObjectiveIndex -= 1;
+                }
+                render();
+                return;
+            }
+        });
+
+        render();
+    })();
+</script>
 {% endblock %}
+
+
+
+

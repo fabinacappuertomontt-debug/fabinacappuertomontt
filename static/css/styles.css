@@ -4591,6 +4591,131 @@ a {
     }
 }
 
+.trl-objective-editor {
+    background: #f8fbff;
+    border: 1px solid #dbe4f0;
+    border-radius: 14px;
+    margin-bottom: 1rem;
+    padding: 1rem 1.1rem;
+}
+
+.methodology-label-row {
+    align-items: center;
+    display: flex;
+    gap: .45rem;
+}
+
+.methodology-help-pill {
+    align-items: center;
+    background: #eef5ff;
+    border: 1px solid #c5d7f0;
+    border-radius: 999px;
+    color: #35507d;
+    display: inline-flex;
+    font-size: .82rem;
+    font-weight: 700;
+    height: 1.2rem;
+    justify-content: center;
+    width: 1.2rem;
+}
+
+.methodology-help-panel {
+    background: #f8fbff;
+    border: 1px solid #dbe4f0;
+    border-radius: 10px;
+    color: #35507d;
+    font-size: .92rem;
+    margin-top: .55rem;
+    padding: .7rem .85rem;
+}
+
+.trl-objective-editor__head {
+    align-items: center;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    margin-bottom: .9rem;
+}
+
+.trl-objective-list {
+    display: grid;
+    gap: .55rem;
+    margin-bottom: .95rem;
+}
+
+.trl-objective-item {
+    align-items: center;
+    display: grid;
+    gap: .6rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.trl-objective-item__select {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #d7e2ef;
+    border-radius: 10px;
+    color: #20314d;
+    display: flex;
+    gap: .75rem;
+    padding: .65rem .8rem;
+    text-align: left;
+    width: 100%;
+}
+
+.trl-objective-item.is-active .trl-objective-item__select {
+    background: #eef5ff;
+    border-color: #b8cdee;
+}
+
+.trl-objective-item__index {
+    align-items: center;
+    background: #f3f7fc;
+    border-radius: 999px;
+    color: #35507d;
+    display: inline-flex;
+    font-size: .82rem;
+    font-weight: 700;
+    height: 1.7rem;
+    justify-content: center;
+    min-width: 1.7rem;
+}
+
+.trl-objective-editor__head strong,
+.trl-result-editor__title {
+    color: #20314d;
+    font-size: .98rem;
+    font-weight: 700;
+}
+
+.trl-objective-editor__field,
+.trl-result-editor__field {
+    margin-bottom: .75rem;
+}
+
+.trl-result-editor {
+    background: #fff;
+    border: 1px solid #e3ebf5;
+    border-radius: 12px;
+    padding: .95rem;
+}
+
+.trl-indicator-editor {
+    border-top: 1px solid #edf2f8;
+    margin-top: .9rem;
+    padding-top: .9rem;
+}
+
+.trl-indicator-editor__check {
+    align-items: center;
+    display: flex;
+    gap: .45rem;
+}
+
+.trl-indicator-editor__check .form-label {
+    margin-bottom: 0;
+}
+
 .project-plan-builder,
 .project-plan-readonly,
 .project-plan-work-list {

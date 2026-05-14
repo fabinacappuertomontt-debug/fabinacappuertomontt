@@ -36,7 +36,7 @@ from .forms import (
     UsuarioRegistroForm,
     UsuarioUpdateForm,
 )
-from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Avance, FaseProyecto, ItemInventario, MensajePrivado, Proyecto, Tarea, UsoInventario, Usuario
+from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Proyecto, ResultadoEsperado, Tarea, UsoInventario, Usuario
 LAB_ADMIN_EMAILS = {"fabinacappuertomontt@gmail.com"}
 
 
@@ -544,6 +544,8 @@ class ProyectoListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         for proyecto in context["proyectos"]:
+            sincronizar_trl_desde_resultados(proyecto)
+            sincronizar_avance_simple_desde_objetivos(proyecto)
             proyecto.puede_editar = usuario_puede_editar_proyecto(self.request.user, proyecto)
         context["estados"] = Proyecto.Estado.choices
         context["responsables"] = usuarios_de_sede(self.request.user).order_by("nombre", "username")
@@ -924,7 +926,132 @@ def trl_estimado_por_porcentaje(porcentaje):
     return 9
 
 
+def estructura_trl_proyecto(proyecto):
+    objetivos = proyecto.objetivos.prefetch_related("resultados__indicadores").all()
+    return objetivos
+
+
+def calcular_avance_por_objetivos(proyecto):
+    resultados = list(ResultadoEsperado.objects.filter(objetivo__proyecto=proyecto).prefetch_related("indicadores"))
+    if not resultados:
+        return 0
+    cumplidos = sum(1 for resultado in resultados if resultado.esta_cumplido)
+    return round((cumplidos * 100) / len(resultados))
+
+
+def resumen_objetivo_de_fase(proyecto, trl):
+    resultados = ResultadoEsperado.objects.filter(
+        objetivo__proyecto=proyecto,
+        trl_objetivo=trl,
+    ).order_by("objetivo__orden", "orden")
+    if not resultados.exists():
+        return f"Completar la evidencia requerida para alcanzar TRL {trl}."
+    resumenes = [resultado.descripcion.strip() for resultado in resultados[:3] if resultado.descripcion.strip()]
+    if resultados.count() > 3:
+        resumenes.append(f"+{resultados.count() - 3} resultados mas")
+    return " | ".join(resumenes)
+
+
+def sincronizar_trl_desde_resultados(proyecto):
+    if not proyecto.usa_trl:
+        return
+    for resultado in ResultadoEsperado.objects.filter(objetivo__proyecto=proyecto).prefetch_related("indicadores"):
+        nuevo_estado = resultado.estado_calculado
+        cambios_resultado = []
+        if resultado.estado != nuevo_estado:
+            resultado.estado = nuevo_estado
+            cambios_resultado.append("estado")
+        if nuevo_estado == ResultadoEsperado.Estado.CUMPLIDO and not resultado.fecha_cumplimiento:
+            resultado.fecha_cumplimiento = timezone.localdate()
+            cambios_resultado.append("fecha_cumplimiento")
+        if nuevo_estado != ResultadoEsperado.Estado.CUMPLIDO and resultado.fecha_cumplimiento:
+            resultado.fecha_cumplimiento = None
+            cambios_resultado.append("fecha_cumplimiento")
+        if cambios_resultado:
+            resultado.save(update_fields=cambios_resultado)
+    nivel_actual = proyecto.calcular_trl_desde_resultados()
+    for fase in proyecto.fases.filter(
+        trl__gte=proyecto.trl_inicial_efectivo,
+        trl__lte=proyecto.trl_objetivo_efectivo,
+    ):
+        resultados = list(
+            ResultadoEsperado.objects.filter(
+                objetivo__proyecto=proyecto,
+                trl_objetivo=fase.trl,
+            ).prefetch_related("indicadores")
+        )
+        objetivo = resumen_objetivo_de_fase(proyecto, fase.trl)
+        if fase.trl <= nivel_actual:
+            estado = FaseProyecto.Estado.COMPLETADA
+        elif resultados and any(resultado.estado_calculado != ResultadoEsperado.Estado.PENDIENTE for resultado in resultados):
+            estado = FaseProyecto.Estado.EN_PROCESO
+        else:
+            estado = FaseProyecto.Estado.PENDIENTE
+        cambios = []
+        if fase.estado != estado:
+            fase.estado = estado
+            cambios.append("estado")
+        if fase.objetivo != objetivo:
+            fase.objetivo = objetivo
+            cambios.append("objetivo")
+        if cambios:
+            fase.save(update_fields=[*cambios, "fecha_actualizacion"])
+    porcentaje = calcular_avance_madurez(proyecto)
+    resultados_qs = ResultadoEsperado.objects.filter(objetivo__proyecto=proyecto)
+    hay_movimiento = resultados_qs.exclude(estado=ResultadoEsperado.Estado.PENDIENTE).exists()
+    objetivo_cumplido = (
+        proyecto.resultados_trl.exists()
+        and proyecto.nivel_actual >= proyecto.trl_objetivo_efectivo
+        and porcentaje >= 100
+    )
+    if objetivo_cumplido:
+        nuevo_estado = Proyecto.Estado.FINALIZADO
+    elif proyecto.estado == Proyecto.Estado.EN_PAUSA:
+        nuevo_estado = Proyecto.Estado.EN_PAUSA
+    elif porcentaje > 0 or hay_movimiento or proyecto.estado == Proyecto.Estado.EN_PROCESO:
+        nuevo_estado = Proyecto.Estado.EN_PROCESO
+    else:
+        nuevo_estado = Proyecto.Estado.PENDIENTE
+    cambios_proyecto = []
+    if proyecto.porcentaje_avance != porcentaje:
+        proyecto.porcentaje_avance = porcentaje
+        cambios_proyecto.append("porcentaje_avance")
+    if proyecto.estado != nuevo_estado:
+        proyecto.estado = nuevo_estado
+        cambios_proyecto.append("estado")
+    if cambios_proyecto:
+        proyecto.save(update_fields=[*cambios_proyecto, "actualizado_en"])
+
+
+def sincronizar_avance_simple_desde_objetivos(proyecto):
+    if proyecto.usa_trl:
+        return
+    porcentaje = calcular_avance_por_objetivos(proyecto)
+    nuevo_estado = proyecto.estado
+    if porcentaje >= 100 and proyecto.resultados_trl.exists():
+        nuevo_estado = Proyecto.Estado.FINALIZADO
+    elif porcentaje > 0 and proyecto.estado in {Proyecto.Estado.PENDIENTE, Proyecto.Estado.FINALIZADO}:
+        nuevo_estado = Proyecto.Estado.EN_PROCESO
+    elif porcentaje == 0 and proyecto.estado == Proyecto.Estado.FINALIZADO:
+        nuevo_estado = Proyecto.Estado.EN_PROCESO
+    cambios = []
+    if proyecto.porcentaje_avance != porcentaje:
+        proyecto.porcentaje_avance = porcentaje
+        cambios.append("porcentaje_avance")
+    if proyecto.estado != nuevo_estado:
+        proyecto.estado = nuevo_estado
+        cambios.append("estado")
+    if cambios:
+        proyecto.save(update_fields=[*cambios, "actualizado_en"])
+
+
 def calcular_avance_madurez(proyecto):
+    if proyecto.usa_trl:
+        total = proyecto.trl_objetivo_efectivo - proyecto.trl_inicial_efectivo
+        logrado = proyecto.nivel_actual - proyecto.trl_inicial_efectivo
+        return round((logrado * 100) / total) if total > 0 else 100
+    if proyecto.resultados_trl.exists():
+        return calcular_avance_por_objetivos(proyecto)
     total = proyecto.total_fases_relevantes
     completadas = proyecto.fases_completadas_relevantes
     return round((completadas * 100) / total) if total else 0
@@ -1008,6 +1135,12 @@ def fase_desbloqueada(fase):
 
 
 def recalcular_avance_por_tareas(proyecto):
+    if proyecto.usa_trl:
+        sincronizar_trl_desde_resultados(proyecto)
+        return
+    if not proyecto.usa_trl and proyecto.resultados_trl.exists():
+        sincronizar_avance_simple_desde_objetivos(proyecto)
+        return
     total = proyecto.tareas.count()
     completadas = proyecto.tareas.filter(estado=Tarea.Estado.COMPLETADA).count()
     porcentaje = round((completadas * 100) / total) if total else 0
@@ -1062,6 +1195,7 @@ def construir_tablero_trl(proyecto):
 
         return tablero
 
+    sincronizar_trl_desde_resultados(proyecto)
     fases = {
         fase.trl: fase
         for fase in proyecto.fases.filter(
@@ -1139,6 +1273,8 @@ class ProyectoCreateView(LoginRequiredMixin, CreateView):
         form.instance.estado = Proyecto.Estado.EN_PROCESO
         response = super().form_valid(form)
         crear_fases_para_proyecto(self.object)
+        sincronizar_trl_desde_resultados(self.object)
+        sincronizar_avance_simple_desde_objetivos(self.object)
         correo_enviado = notificar_responsables_proyecto(self.request, self.object)
         if correo_enviado:
             messages.success(self.request, "Proyecto creado correctamente.")
@@ -1173,6 +1309,8 @@ class ProyectoUpdateView(LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         response = super().form_valid(form)
         crear_fases_para_proyecto(self.object)
+        sincronizar_trl_desde_resultados(self.object)
+        sincronizar_avance_simple_desde_objetivos(self.object)
         messages.success(self.request, "Proyecto actualizado correctamente.")
         return response
 
@@ -1189,6 +1327,8 @@ def proyecto_detalle(request, pk):
         ),
         pk=pk,
     )
+    sincronizar_trl_desde_resultados(proyecto)
+    sincronizar_avance_simple_desde_objetivos(proyecto)
     contexto = {
         "proyecto": proyecto,
         "tareas_pendientes": proyecto.tareas.exclude(estado=Tarea.Estado.COMPLETADA),
@@ -1200,6 +1340,7 @@ def proyecto_detalle(request, pk):
         "avance_madurez": calcular_avance_madurez(proyecto),
         "detalle_etapas": construir_detalle_etapas(proyecto),
         "evidencias_detalle": preparar_evidencias_detalle(proyecto),
+        "objetivos_trl": estructura_trl_proyecto(proyecto),
         "es_admin_laboratorio": usuario_es_admin_laboratorio(request.user),
         "puede_eliminar_proyecto": usuario_puede_eliminar_proyecto(request.user),
         "puede_editar_proyecto": usuario_puede_editar_proyecto(request.user, proyecto),
@@ -1223,6 +1364,8 @@ def proyecto_trabajo(request, pk):
         ),
         pk=pk,
     )
+    sincronizar_trl_desde_resultados(proyecto)
+    sincronizar_avance_simple_desde_objetivos(proyecto)
     contexto = {
         "proyecto": proyecto,
         "tareas_pendientes": proyecto.tareas.exclude(estado=Tarea.Estado.COMPLETADA),
@@ -1231,6 +1374,7 @@ def proyecto_trabajo(request, pk):
         "avance_madurez": calcular_avance_madurez(proyecto),
         "usos_inventario": proyecto.usos_inventario.select_related("item", "usuario")[:6],
         "alertas_inventario": inventario_de_sede(request.user).filter(activo=True, tipo=ItemInventario.Tipo.FUNGIBLE, cantidad__isnull=False, cantidad__lte=F("stock_minimo"))[:5],
+        "objetivos_trl": estructura_trl_proyecto(proyecto),
         "es_admin_laboratorio": usuario_es_admin_laboratorio(request.user),
         "puede_editar_proyecto": usuario_puede_editar_proyecto(request.user, proyecto),
     }
@@ -1250,6 +1394,8 @@ def etapa_trabajo(request, pk, slug):
         ),
         pk=pk,
     )
+    sincronizar_trl_desde_resultados(proyecto)
+    sincronizar_avance_simple_desde_objetivos(proyecto)
     etapa = next((item for item in construir_tablero_trl(proyecto) if item["slug"] == slug), None)
     if not etapa:
         messages.error(request, "La etapa solicitada no existe en este proyecto.")
@@ -1338,6 +1484,8 @@ def construir_linea_temporal(proyecto):
 @login_required
 def fase_detalle(request, pk):
     fase = get_object_or_404(FaseProyecto.objects.select_related("proyecto").filter(proyecto__sede=sede_usuario(request.user)), pk=pk)
+    sincronizar_trl_desde_resultados(fase.proyecto)
+    sincronizar_avance_simple_desde_objetivos(fase.proyecto)
     if not exigir_permiso_edicion_proyecto(request, fase.proyecto):
         return redirect("proyecto_trabajo", pk=fase.proyecto_id)
     if not fase_desbloqueada(fase):
@@ -1348,6 +1496,7 @@ def fase_detalle(request, pk):
         form = FaseProyectoForm(request.POST, instance=fase)
         if form.is_valid():
             form.save()
+            sincronizar_trl_desde_resultados(fase.proyecto)
             messages.success(request, "Fase actualizada correctamente.")
             return redirect(url_retorno_segura(request, fase.proyecto.get_absolute_url()))
     return render(

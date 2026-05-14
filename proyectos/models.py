@@ -1,3 +1,6 @@
+import calendar
+from datetime import date
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.urls import reverse
@@ -35,6 +38,20 @@ GENERAL_FASES = [
     (4, "Validación"),
     (5, "Cierre"),
 ]
+
+
+def sumar_meses_y_dias(fecha_base, meses=0, dias=0):
+    if not fecha_base:
+        return None
+    meses = meses or 0
+    dias = dias or 0
+    year = fecha_base.year + ((fecha_base.month - 1 + meses) // 12)
+    month = ((fecha_base.month - 1 + meses) % 12) + 1
+    day = min(fecha_base.day, calendar.monthrange(year, month)[1])
+    fecha_resultado = date(year, month, day)
+    if dias:
+        fecha_resultado += timezone.timedelta(days=dias)
+    return fecha_resultado
 
 
 class Sede(models.TextChoices):
@@ -230,22 +247,49 @@ class Proyecto(models.Model):
 
     @property
     def total_fases_relevantes(self):
+        if self.usa_trl:
+            return max(self.trl_objetivo_efectivo - self.trl_inicial_efectivo, 0)
         return self.fases_relevantes.count()
 
     @property
     def fases_completadas_relevantes(self):
+        if self.usa_trl:
+            return max(self.nivel_actual - self.trl_inicial_efectivo, 0)
         return self.fases_relevantes.filter(estado=FaseProyecto.Estado.COMPLETADA).count()
 
     @property
     def fase_actual(self):
+        if self.usa_trl:
+            return self.fases_relevantes.filter(trl=self.nivel_actual).first()
         return self.fases_relevantes.filter(estado=FaseProyecto.Estado.COMPLETADA).order_by("-trl").first()
 
     @property
+    def resultados_trl(self):
+        return ResultadoEsperado.objects.filter(objetivo__proyecto=self).select_related("objetivo").prefetch_related("indicadores")
+
+    def calcular_trl_desde_resultados(self):
+        if not self.usa_trl:
+            return 0
+        nivel = self.trl_inicial_efectivo
+        resultados_por_trl = {}
+        for resultado in self.resultados_trl:
+            resultados_por_trl.setdefault(resultado.trl_objetivo, []).append(resultado)
+        for trl in range(self.trl_inicial_efectivo + 1, self.trl_objetivo_efectivo + 1):
+            resultados_nivel = resultados_por_trl.get(trl, [])
+            if not resultados_nivel:
+                break
+            if all(resultado.esta_cumplido for resultado in resultados_nivel):
+                nivel = trl
+            else:
+                break
+        return nivel
+
+    @property
     def nivel_actual(self):
+        if self.usa_trl:
+            return self.calcular_trl_desde_resultados()
         if self.fase_actual:
             return self.fase_actual.trl
-        if self.usa_trl:
-            return self.trl_inicial_efectivo
         return 0
 
     @property
@@ -259,7 +303,7 @@ class Proyecto(models.Model):
     @property
     def nivel_actual_texto(self):
         if self.usa_trl:
-            if not self.fase_actual:
+            if self.nivel_actual == self.trl_inicial_efectivo:
                 return f"TRL base {self.trl_inicial_efectivo}: {TRL_DESCRIPCIONES[self.trl_inicial_efectivo]}"
             return f"TRL actual {self.nivel_actual}: {TRL_DESCRIPCIONES[self.nivel_actual]}"
         if not self.fase_actual:
@@ -272,6 +316,11 @@ class Proyecto(models.Model):
 
     @property
     def siguiente_fase(self):
+        if self.usa_trl:
+            siguiente_trl = self.nivel_actual + 1
+            if siguiente_trl > self.trl_objetivo_efectivo:
+                return None
+            return self.fases_relevantes.filter(trl=siguiente_trl).first()
         return self.fases_relevantes.exclude(estado=FaseProyecto.Estado.COMPLETADA).order_by("trl").first()
 
     @property
@@ -288,6 +337,126 @@ class Proyecto(models.Model):
         if not self.usa_trl:
             return ""
         return f"TRL {self.trl_inicial_efectivo} a TRL {self.trl_objetivo_efectivo}"
+
+
+class ObjetivoEspecifico(models.Model):
+    proyecto = models.ForeignKey(
+        Proyecto,
+        on_delete=models.CASCADE,
+        related_name="objetivos",
+    )
+    descripcion = models.TextField()
+    orden = models.PositiveSmallIntegerField(default=1)
+
+    class Meta:
+        ordering = ["orden", "id"]
+
+    def __str__(self):
+        return f"Objetivo {self.orden} - {self.proyecto}"
+
+
+class ResultadoEsperado(models.Model):
+    class Estado(models.TextChoices):
+        PENDIENTE = "pendiente", "Pendiente"
+        EN_PROCESO = "en_proceso", "En proceso"
+        CUMPLIDO = "cumplido", "Cumplido"
+
+    objetivo = models.ForeignKey(
+        ObjetivoEspecifico,
+        on_delete=models.CASCADE,
+        related_name="resultados",
+    )
+    descripcion = models.TextField()
+    orden = models.PositiveSmallIntegerField(default=1)
+    trl_objetivo = models.PositiveSmallIntegerField(choices=TRL_DEFINICIONES)
+    plazo_meses = models.PositiveSmallIntegerField(default=0)
+    plazo_dias = models.PositiveSmallIntegerField(default=0)
+    estado = models.CharField(
+        max_length=20,
+        choices=Estado.choices,
+        default=Estado.PENDIENTE,
+    )
+    fecha_cumplimiento = models.DateField(blank=True, null=True)
+    observaciones = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["orden", "id"]
+
+    def __str__(self):
+        return f"Resultado {self.orden} - {self.objetivo.proyecto}"
+
+    @property
+    def proyecto(self):
+        return self.objetivo.proyecto
+
+    @property
+    def fecha_objetivo(self):
+        return sumar_meses_y_dias(
+            self.proyecto.fecha_inicio,
+            self.plazo_meses,
+            self.plazo_dias,
+        )
+
+    @property
+    def plazo_texto(self):
+        partes = []
+        if self.plazo_meses:
+            partes.append(f"{self.plazo_meses} mes{'es' if self.plazo_meses != 1 else ''}")
+        if self.plazo_dias:
+            partes.append(f"{self.plazo_dias} dia{'s' if self.plazo_dias != 1 else ''}")
+        return ", ".join(partes) if partes else "Sin plazo definido"
+
+    @property
+    def indicadores_totales(self):
+        return self.indicadores.count()
+
+    @property
+    def indicadores_cumplidos(self):
+        return self.indicadores.filter(cumplido=True).count()
+
+    @property
+    def estado_calculado(self):
+        if self.indicadores_totales and self.indicadores_cumplidos == self.indicadores_totales:
+            return self.Estado.CUMPLIDO
+        if self.indicadores.filter(
+            models.Q(cumplido=True)
+            | ~models.Q(valor_actual="")
+        ).exists():
+            return self.Estado.EN_PROCESO
+        return self.Estado.PENDIENTE
+
+    @property
+    def esta_cumplido(self):
+        return (
+            self.estado_calculado == self.Estado.CUMPLIDO
+            and self.indicadores_totales > 0
+            and self.indicadores_cumplidos == self.indicadores_totales
+        )
+
+    @property
+    def mes_objetivo(self):
+        fecha = self.fecha_objetivo
+        return fecha.strftime("%m/%Y") if fecha else ""
+
+
+class IndicadorResultado(models.Model):
+    resultado = models.ForeignKey(
+        ResultadoEsperado,
+        on_delete=models.CASCADE,
+        related_name="indicadores",
+    )
+    descripcion = models.TextField()
+    orden = models.PositiveSmallIntegerField(default=1)
+    meta = models.CharField(max_length=200, blank=True)
+    valor_actual = models.CharField(max_length=200, blank=True)
+    cumplido = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["orden", "id"]
+
+    def __str__(self):
+        return f"Indicador {self.orden} - {self.resultado}"
+
 
 class FaseProyecto(models.Model):
     class Estado(models.TextChoices):
