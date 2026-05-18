@@ -54,10 +54,10 @@
                         </details>
                     {% elif field.name == "objetivo_especifico" %}
                         <div class="trl-structure-builder" data-trl-structure-builder>
-                            {{ field.as_hidden }}
-                            {{ form.resultados_esperados.as_hidden }}
-                            {{ form.indicadores.as_hidden }}
-                            <div class="form-text mb-3">Usa el boton + para agregar objetivos especificos. Abajo editas el resultado, indicador, plazo y TRL del objetivo seleccionado.</div>
+                            <input type="hidden" name="{{ field.name }}" id="{{ field.id_for_label }}" value="{{ field.value|default_if_none:''|escape }}" data-structured-field="objetivos">
+                            <input type="hidden" name="{{ form.resultados_esperados.name }}" id="{{ form.resultados_esperados.id_for_label }}" value="{{ form.resultados_esperados.value|default_if_none:''|escape }}" data-structured-field="resultados">
+                            <input type="hidden" name="{{ form.indicadores.name }}" id="{{ form.indicadores.id_for_label }}" value="{{ form.indicadores.value|default_if_none:''|escape }}" data-structured-field="indicadores">
+                            <div class="form-text mb-3" data-objective-structure-help>Usa el boton + para agregar objetivos especificos. Abajo editas el resultado, indicador y plazo del objetivo seleccionado.</div>
                             <div class="trl-structure-list" data-trl-structure-list></div>
                         </div>
                     {% elif field.name == "resultados_esperados" %}
@@ -134,18 +134,48 @@
         const methodology = document.querySelector("[data-project-methodology]");
         const trlFields = document.querySelectorAll("[data-trl-wrapper]");
         const methodologyHelp = document.querySelector("[data-methodology-help]");
+        const objectiveStructureHelp = document.querySelector("[data-objective-structure-help]");
         const methodologyMessages = {
             simple: "Proyecto simple: el avance sube segun los objetivos especificos y sus indicadores cumplidos. No usa niveles TRL.",
             trl: "Proyecto con TRL: cada resultado se asocia a un TRL objetivo y el proyecto sube de nivel cuando se cumplen sus indicadores.",
         };
+        const objectiveStructureMessages = {
+            simple: "Usa el boton + para agregar objetivos especificos. Abajo editas el resultado, indicador y plazo del objetivo seleccionado.",
+            trl: "Usa el boton + para agregar objetivos especificos. Abajo editas el resultado, indicador, plazo y TRL del objetivo seleccionado.",
+        };
+        const selectedMethodology = () => {
+            if (!methodology) {
+                return "";
+            }
+            const value = String(methodology.value || "").trim().toLowerCase();
+            const label = methodology.selectedOptions && methodology.selectedOptions.length
+                ? String(methodology.selectedOptions[0].textContent || "").trim().toLowerCase()
+                : "";
+            if (value === "simple" || label.includes("simple")) {
+                return "simple";
+            }
+            if (value === "trl" || label.includes("trl")) {
+                return "trl";
+            }
+            return value;
+        };
         const syncMethodology = () => {
-            const usesTrl = methodology && methodology.value === "trl";
+            const mode = selectedMethodology();
+            const usesTrl = mode === "trl";
             trlFields.forEach((field) => {
                 field.hidden = !usesTrl;
             });
             if (methodologyHelp && methodology) {
-                methodologyHelp.textContent = methodologyMessages[methodology.value] || "";
+                methodologyHelp.textContent = methodologyMessages[mode] || "";
             }
+            if (objectiveStructureHelp) {
+                objectiveStructureHelp.textContent = objectiveStructureMessages[mode] || objectiveStructureMessages.simple;
+            }
+            const structuredBuilder = document.querySelector("[data-trl-structure-builder]");
+            if (structuredBuilder) {
+                structuredBuilder.dataset.currentMethodology = mode;
+            }
+            document.dispatchEvent(new CustomEvent("project-methodology-updated", { detail: { methodology: mode } }));
         };
         if (methodology) {
             methodology.addEventListener("change", syncMethodology);
@@ -384,6 +414,7 @@
         const methodology = document.querySelector("[data-project-methodology]");
         const startInput = document.querySelector("[name='fecha_inicio']");
         const endInput = document.querySelector("[name='fecha_fin']");
+        const projectTrlFields = document.querySelectorAll("[data-trl-field]");
         const objetivosField = document.querySelector("[data-structured-field='objetivos']");
         const resultadosField = document.querySelector("[data-structured-field='resultados']");
         const indicadoresField = document.querySelector("[data-structured-field='indicadores']");
@@ -402,7 +433,28 @@
                 { value: "{{ value }}", label: "{{ label|escapejs }}" },
             {% endfor %}
         ].filter((item) => item.value);
-        const usesTrlMethodology = () => methodology && methodology.value === "trl";
+        const readSelectedMethodology = () => {
+            if (!methodology) {
+                return "";
+            }
+            const value = String(methodology.value || "").trim().toLowerCase();
+            const selectedText = methodology.selectedOptions && methodology.selectedOptions.length
+                ? String(methodology.selectedOptions[0].textContent || "").trim().toLowerCase()
+                : "";
+            if (value === "simple" || selectedText.includes("simple")) {
+                return "simple";
+            }
+            if (value === "trl" || selectedText.includes("trl")) {
+                return "trl";
+            }
+            return value;
+        };
+        const currentMethodologyValue = () => {
+            const mode = readSelectedMethodology() || trlBuilder.dataset.currentMethodology || "";
+            trlBuilder.dataset.currentMethodology = mode;
+            return mode;
+        };
+        const usesTrlMethodology = () => currentMethodologyValue() === "trl";
         const formatDate = (date) => {
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -418,14 +470,37 @@
             date.setDate(date.getDate() + Number(days || 0));
             return formatDate(date);
         };
+        const emptyModeState = () => ({ payload: [emptyObjective()], activeObjectiveIndex: 0 });
+        const activeMode = () => usesTrlMethodology() ? "trl" : "simple";
+        const modeStates = {
+            simple: emptyModeState(),
+            trl: emptyModeState(),
+        };
+        const activeState = () => modeStates[activeMode()];
+        const activePayload = () => activeState().payload;
+        const resetModeState = (mode) => {
+            modeStates[mode] = emptyModeState();
+        };
+        const clearProjectTrlFields = () => {
+            projectTrlFields.forEach((field) => {
+                field.value = "";
+            });
+        };
+        const calculateAccumulatedDeadline = (startValue) => {
+            if (!startValue) {
+                return "";
+            }
+            return activePayload()
+                .flatMap((objective) => objective.resultados || [])
+                .reduce((currentDate, result) => addMonthsAndDays(currentDate, result.meses, result.dias), startValue);
+        };
 
-        let payload = [];
-        let activeObjectiveIndex = 0;
-        let lastMethodology = methodology ? methodology.value : "";
+        let initialPayload = [];
+        let lastMethodology = activeMode();
         try {
-            payload = JSON.parse(objetivosField.value || "[]");
+            initialPayload = JSON.parse(objetivosField.value || "[]");
         } catch (error) {
-            payload = [];
+            initialPayload = [];
         }
         const normalizePayload = (source) => {
             const normalized = Array.isArray(source) ? source : [];
@@ -451,13 +526,20 @@
                 };
             });
         };
-        payload = normalizePayload(payload);
-        if (!Array.isArray(payload) || !payload.length) {
-            payload = [emptyObjective()];
+        const normalizedInitialPayload = normalizePayload(initialPayload);
+        if (normalizedInitialPayload.length) {
+            modeStates[activeMode()].payload = normalizedInitialPayload;
         }
 
         const persist = () => {
-            const serialized = JSON.stringify(payload);
+            const serializedPayload = activePayload().map((objective) => ({
+                ...objective,
+                resultados: (objective.resultados || []).map((result) => ({
+                    ...result,
+                    trl: usesTrlMethodology() ? result.trl : "",
+                })),
+            }));
+            const serialized = JSON.stringify(serializedPayload);
             objetivosField.value = serialized;
             resultadosField.value = serialized;
             indicadoresField.value = serialized;
@@ -467,29 +549,39 @@
             if (!startInput || !endInput) {
                 return "";
             }
-            const deadlines = payload
-                .flatMap((objective) => objective.resultados || [])
-                .map((result) => addMonthsAndDays(startInput.value, result.meses, result.dias))
-                .filter(Boolean);
-            if (!deadlines.length) {
+            const accumulatedDeadline = calculateAccumulatedDeadline(startInput.value);
+            if (!accumulatedDeadline) {
+                endInput.value = "";
                 endInput.removeAttribute("min");
                 endInput.removeAttribute("max");
                 return "";
             }
-            const maxDeadline = deadlines.sort().slice(-1)[0];
-            endInput.value = maxDeadline;
-            endInput.min = maxDeadline;
-            endInput.max = maxDeadline;
-            return maxDeadline;
+            endInput.value = accumulatedDeadline;
+            endInput.min = accumulatedDeadline;
+            endInput.max = accumulatedDeadline;
+            return accumulatedDeadline;
         };
 
         const render = () => {
-            if (activeObjectiveIndex >= payload.length) {
-                activeObjectiveIndex = Math.max(payload.length - 1, 0);
+            const state = activeState();
+            const payload = state.payload;
+            if (state.activeObjectiveIndex >= payload.length) {
+                state.activeObjectiveIndex = Math.max(payload.length - 1, 0);
             }
+            const activeObjectiveIndex = state.activeObjectiveIndex;
             const activeObjective = payload[activeObjectiveIndex] || emptyObjective();
             const activeResult = activeObjective.resultados[0] || emptyResult();
             const activeIndicator = activeResult.indicadores[0] || emptyIndicator();
+            const showTrl = usesTrlMethodology();
+            const trlFieldMarkup = showTrl ? `
+                            <div class="col-md-3 trl-result-target" data-result-trl-wrapper>
+                                <label class="form-label">TRL objetivo</label>
+                                <select class="form-select" data-result-trl="${activeObjectiveIndex}" data-result-index="0">
+                                    <option value="">Selecciona</option>
+                                    ${trlOptions.map((option) => `<option value="${option.value}" ${String(activeResult.trl || "") === String(option.value) ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}
+                                </select>
+                            </div>
+            ` : "";
             list.innerHTML = `
                 <div class="trl-objective-editor">
                     <div class="trl-objective-editor__head">
@@ -511,22 +603,17 @@
                         `).join("")}
                     </div>
                     <div class="trl-objective-editor__field">
-                        <label class="form-label">Objetivo especifico seleccionado</label>
+                        <label class="form-label">Objetivo especifico ${activeObjectiveIndex + 1}</label>
                         <input class="form-control" type="text" value="${escapeHtml(activeObjective.descripcion || "")}" data-objective-description="${activeObjectiveIndex}" placeholder="Describe el objetivo especifico">
                     </div>
                     <div class="trl-result-editor">
-                        <div class="trl-result-editor__title">Resultado esperado</div>
+                        <div class="trl-result-editor__title">Resultado esperado del objetivo ${activeObjectiveIndex + 1}</div>
                         <div class="row g-3">
                             <div class="col-12 trl-result-editor__field">
+                                <label class="form-label">Resultado esperado</label>
                                 <input class="form-control" type="text" value="${escapeHtml(activeResult.descripcion || "")}" data-result-description="${activeObjectiveIndex}" data-result-index="0" placeholder="Resultado esperado">
                             </div>
-                            <div class="col-md-3" ${usesTrlMethodology() ? "" : 'style="display:none;"'}>
-                                <label class="form-label">TRL objetivo</label>
-                                <select class="form-select" data-result-trl="${activeObjectiveIndex}" data-result-index="0" ${usesTrlMethodology() ? "" : "disabled"}>
-                                    <option value="">Selecciona</option>
-                                    ${trlOptions.map((option) => `<option value="${option.value}" ${String(activeResult.trl || "") === String(option.value) ? "selected" : ""}>TRL ${option.value}</option>`).join("")}
-                                </select>
-                            </div>
+                            ${trlFieldMarkup}
                             <div class="col-md-2">
                                 <label class="form-label">Meses</label>
                                 <input class="form-control" type="number" min="0" value="${escapeHtml(activeResult.meses || 0)}" data-result-months="${activeObjectiveIndex}" data-result-index="0">
@@ -535,14 +622,15 @@
                                 <label class="form-label">Dias</label>
                                 <input class="form-control" type="number" min="0" value="${escapeHtml(activeResult.dias || 0)}" data-result-days="${activeObjectiveIndex}" data-result-index="0">
                             </div>
-                            <div class="col-12 trl-result-editor__field">
+                            <div class="col-md-5 trl-result-editor__field">
+                                <label class="form-label">Resumen o referencia del resultado</label>
                                 <textarea class="form-control" rows="2" data-result-notes="${activeObjectiveIndex}" data-result-index="0" placeholder="Observaciones del resultado">${escapeHtml(activeResult.observaciones || "")}</textarea>
                             </div>
                         </div>
                         <div class="trl-indicator-editor">
                             <div class="row g-3 align-items-end">
                                 <div class="col-12">
-                                    <div class="trl-result-editor__title">Indicador asociado</div>
+                                    <div class="trl-result-editor__title">Indicador asociado al resultado</div>
                                 </div>
                                 <div class="col-md-7">
                                     <label class="form-label">Indicador</label>
@@ -559,10 +647,23 @@
             `;
             persist();
             syncProjectEndDate();
+            syncTrlVisibility();
+        };
+
+        const syncTrlVisibility = () => {
+            const showTrl = usesTrlMethodology();
+            if (!showTrl) {
+                trlBuilder.querySelectorAll("[data-result-trl-wrapper]").forEach((wrapper) => wrapper.remove());
+                return;
+            }
+            trlBuilder.querySelectorAll("[data-result-trl]").forEach((select) => {
+                select.disabled = false;
+            });
         };
 
         trlBuilder.addEventListener("input", (event) => {
             const target = event.target;
+            const payload = activePayload();
             let shouldSyncEndDate = false;
             if (target.dataset.objectiveDescription !== undefined) {
                 payload[Number(target.dataset.objectiveDescription)].descripcion = target.value;
@@ -599,6 +700,7 @@
 
         trlBuilder.addEventListener("change", (event) => {
             const target = event.target;
+            const payload = activePayload();
             if (target.dataset.resultTrl !== undefined) {
                 const objectiveIndex = Number(target.dataset.resultTrl);
                 const resultIndex = Number(target.dataset.resultIndex);
@@ -607,17 +709,46 @@
             persist();
         });
 
+        const refreshForMethodologyChange = () => {
+            if (!methodology) {
+                return;
+            }
+            currentMethodologyValue();
+            const mode = activeMode();
+            if (mode !== lastMethodology) {
+                resetModeState(mode);
+                clearProjectTrlFields();
+                persist();
+                lastMethodology = mode;
+            }
+            render();
+            syncTrlVisibility();
+        };
+
         if (methodology) {
+            let observedMethodology = currentMethodologyValue();
             methodology.addEventListener("change", () => {
-                if (methodology.value !== lastMethodology) {
-                    payload = [emptyObjective()];
-                    activeObjectiveIndex = 0;
-                    persist();
-                    lastMethodology = methodology.value;
-                }
-                render();
+                refreshForMethodologyChange();
+                window.requestAnimationFrame(refreshForMethodologyChange);
             });
+            methodology.addEventListener("input", () => {
+                refreshForMethodologyChange();
+            });
+            document.addEventListener("change", (event) => {
+                if (event.target === methodology) {
+                    refreshForMethodologyChange();
+                }
+            });
+            document.addEventListener("project-methodology-updated", refreshForMethodologyChange);
+            window.setInterval(() => {
+                const mode = currentMethodologyValue();
+                if (mode !== observedMethodology) {
+                    observedMethodology = mode;
+                    refreshForMethodologyChange();
+                }
+            }, 250);
         }
+
         if (startInput && !startInput.value) {
             startInput.value = formatDate(new Date());
         }
@@ -625,21 +756,27 @@
             startInput.addEventListener("change", render);
         }
         if (endInput) {
-            endInput.addEventListener("change", syncProjectEndDate);
-            endInput.addEventListener("input", syncProjectEndDate);
+            endInput.addEventListener("change", () => {
+                syncProjectEndDate();
+            });
+            endInput.addEventListener("input", () => {
+                syncProjectEndDate();
+            });
         }
 
         trlBuilder.addEventListener("click", (event) => {
             const addObjective = event.target.closest("[data-add-trl-objective]");
+            const state = activeState();
+            const payload = state.payload;
             if (addObjective) {
                 payload.push(emptyObjective());
-                activeObjectiveIndex = payload.length - 1;
+                state.activeObjectiveIndex = payload.length - 1;
                 render();
                 return;
             }
             const selectObjective = event.target.closest("[data-select-objective]");
             if (selectObjective) {
-                activeObjectiveIndex = Number(selectObjective.dataset.selectObjective);
+                state.activeObjectiveIndex = Number(selectObjective.dataset.selectObjective);
                 render();
                 return;
             }
@@ -647,11 +784,12 @@
             if (removeObjective) {
                 const removeIndex = Number(removeObjective.dataset.removeObjective);
                 payload.splice(removeIndex, 1);
-                if (!payload.length) payload = [emptyObjective()];
-                if (activeObjectiveIndex >= payload.length) {
-                    activeObjectiveIndex = payload.length - 1;
-                } else if (removeIndex < activeObjectiveIndex) {
-                    activeObjectiveIndex -= 1;
+                if (!payload.length) state.payload = [emptyObjective()];
+                const nextPayload = state.payload;
+                if (state.activeObjectiveIndex >= nextPayload.length) {
+                    state.activeObjectiveIndex = nextPayload.length - 1;
+                } else if (removeIndex < state.activeObjectiveIndex) {
+                    state.activeObjectiveIndex -= 1;
                 }
                 render();
                 return;
@@ -659,6 +797,7 @@
         });
 
         render();
+        syncTrlVisibility();
     })();
 </script>
 {% endblock %}

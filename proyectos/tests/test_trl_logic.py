@@ -1,8 +1,10 @@
+import json
 from datetime import timedelta
 
 from django.test import TestCase
 from django.utils import timezone
 
+from proyectos.forms import ProyectoForm
 from proyectos.models import IndicadorResultado, ObjetivoEspecifico, Proyecto, ResultadoEsperado, Tarea, Usuario
 from proyectos.views import calcular_avance_madurez, crear_fases_para_proyecto, recalcular_avance_por_tareas, sincronizar_avance_simple_desde_objetivos, sincronizar_trl_desde_resultados
 
@@ -249,3 +251,83 @@ class TrlStressLogicTests(TestCase):
         proyecto.refresh_from_db()
 
         self.assertEqual(proyecto.porcentaje_avance, 25)
+
+    def test_formulario_simple_guarda_objetivos_sin_exigir_trl(self):
+        payload = [{
+            "descripcion": "Definir flujo de registro de avances.",
+            "resultados": [{
+                "descripcion": "Flujo simple validado con usuarios.",
+                "meses": 1,
+                "dias": 10,
+                "observaciones": "Prueba funcional sin madurez tecnologica.",
+                "indicadores": [{
+                    "descripcion": "Usuarios pueden registrar avances.",
+                    "meta": "Formulario probado",
+                    "valor_actual": "",
+                    "cumplido": False,
+                }],
+            }],
+        }]
+        form = ProyectoForm(data={
+            "metodologia": Proyecto.Metodologia.SIMPLE,
+            "nombre": "Proyecto simple desde formulario",
+            "descripcion": "Seguimiento simple por objetivos.",
+            "objetivo_principal": "Validar seguimiento simple.",
+            "objetivo_especifico": json.dumps(payload),
+            "resultados_esperados": json.dumps(payload),
+            "indicadores": json.dumps(payload),
+            "fecha_inicio": timezone.localdate().isoformat(),
+            "fecha_fin": timezone.localdate().isoformat(),
+            "responsables": [str(self.usuario.pk)],
+        }, sede=self.usuario.sede)
+
+        self.assertTrue(form.is_valid(), form.errors)
+        proyecto = form.save()
+        resultado = ResultadoEsperado.objects.get(objetivo__proyecto=proyecto)
+
+        self.assertEqual(proyecto.metodologia, Proyecto.Metodologia.SIMPLE)
+        self.assertIsNone(proyecto.trl_inicial)
+        self.assertIsNone(proyecto.trl_objetivo)
+        self.assertEqual(resultado.trl_objetivo, 1)
+        self.assertEqual(proyecto.objetivos.count(), 1)
+
+    def test_formulario_trl_guarda_objetivo_con_trl_desde_el_primer_resultado(self):
+        payload = [{
+            "descripcion": "Validar modulo tecnico del sistema.",
+            "resultados": [{
+                "descripcion": "Prototipo validado en laboratorio.",
+                "trl": 4,
+                "meses": 2,
+                "dias": 0,
+                "observaciones": "Resultado asociado a madurez tecnologica.",
+                "indicadores": [{
+                    "descripcion": "Prueba tecnica aprobada.",
+                    "meta": "Evidencia de laboratorio",
+                    "valor_actual": "",
+                    "cumplido": False,
+                }],
+            }],
+        }]
+        form = ProyectoForm(data={
+            "metodologia": Proyecto.Metodologia.TRL,
+            "nombre": "Proyecto TRL desde formulario",
+            "descripcion": "Seguimiento con madurez tecnologica.",
+            "objetivo_principal": "Validar avance TRL.",
+            "objetivo_especifico": json.dumps(payload),
+            "resultados_esperados": json.dumps(payload),
+            "indicadores": json.dumps(payload),
+            "trl_inicial": 3,
+            "trl_objetivo": 6,
+            "fecha_inicio": timezone.localdate().isoformat(),
+            "fecha_fin": timezone.localdate().isoformat(),
+            "responsables": [str(self.usuario.pk)],
+        }, sede=self.usuario.sede)
+
+        self.assertTrue(form.is_valid(), form.errors)
+        proyecto = form.save()
+        resultado = ResultadoEsperado.objects.get(objetivo__proyecto=proyecto)
+
+        self.assertEqual(proyecto.metodologia, Proyecto.Metodologia.TRL)
+        self.assertEqual(proyecto.trl_inicial, 3)
+        self.assertEqual(proyecto.trl_objetivo, 6)
+        self.assertEqual(resultado.trl_objetivo, 4)

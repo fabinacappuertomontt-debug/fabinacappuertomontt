@@ -4693,6 +4693,14 @@ a {
     margin-bottom: .75rem;
 }
 
+.trl-objective-editor .form-label,
+.trl-result-editor .form-label {
+    color: #41556e;
+    font-size: .82rem;
+    font-weight: 800;
+    margin-bottom: .35rem;
+}
+
 .trl-result-editor {
     background: #fff;
     border: 1px solid #e3ebf5;
