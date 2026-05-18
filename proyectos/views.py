@@ -314,9 +314,73 @@ def dashboard(request):
     return render(request, "proyectos/bienvenida.html", contexto)
 
 
+def puntaje_panel_proyecto(proyecto, avance, tareas_pendientes_proyecto, tareas_total, ultimo_avance):
+    penalizaciones = []
+    dias_sin_avance = None
+    puntaje = avance
+    tareas_ratio = (tareas_pendientes_proyecto / tareas_total) if tareas_total else 0
+
+    if proyecto.esta_atrasado:
+        puntaje -= 35
+        penalizaciones.append("Atrasado")
+    elif proyecto.dias_restantes is not None and proyecto.dias_restantes <= 7 and avance < 80:
+        puntaje -= 15
+        penalizaciones.append("Vence pronto")
+
+    if tareas_pendientes_proyecto:
+        penalizacion_tareas = min(25, round(tareas_ratio * 25))
+        puntaje -= penalizacion_tareas
+        penalizaciones.append(f"{tareas_pendientes_proyecto} tareas pendientes")
+
+    if ultimo_avance:
+        dias_sin_avance = (timezone.localdate() - ultimo_avance.fecha).days
+        if dias_sin_avance > 14 and avance < 100:
+            puntaje -= 10
+            penalizaciones.append("Sin avances recientes")
+    elif avance < 100:
+        puntaje -= 8
+        penalizaciones.append("Sin avances registrados")
+
+    nivel = proyecto.nivel_alerta
+    puntaje = max(0, min(100, puntaje))
+    if proyecto.estado == Proyecto.Estado.FINALIZADO:
+        puntaje = 100
+        nivel = "ok"
+    return puntaje, nivel, penalizaciones, dias_sin_avance
+
+
+def construir_serie_panel_proyecto(proyecto, semanas, puntaje_actual, avance_actual, ultimo_avance):
+    hoy = timezone.localdate()
+    fecha_inicio = proyecto.fecha_inicio or hoy
+    dias_desde_inicio = max((hoy - fecha_inicio).days, 0)
+    semanas_totales = len(semanas)
+    semanas_activas = max(1, min(semanas_totales, (dias_desde_inicio // 7) + 1))
+    factor_inicio = 0.28 if proyecto.usa_trl else 0.38
+    valor_inicial = 0 if dias_desde_inicio < 7 else round(puntaje_actual * factor_inicio)
+    primera_semana_activa = max(0, semanas_totales - semanas_activas)
+    serie = []
+
+    for indice in range(semanas_totales):
+        if indice < primera_semana_activa:
+            progreso = 0
+        else:
+            progreso = (indice - primera_semana_activa) / max(semanas_activas - 1, 1)
+        valor = valor_inicial + ((puntaje_actual - valor_inicial) * progreso)
+        if ultimo_avance and indice >= primera_semana_activa and ultimo_avance.fecha >= hoy - timedelta(days=(semanas_totales - 1 - indice) * 7):
+            valor += 3
+        serie.append(max(0, min(100, round(valor))))
+
+    serie[-1] = puntaje_actual
+    return serie
+
+
 @login_required
 def panel_general(request):
-    proyectos = proyectos_de_sede(request.user).prefetch_related("responsables", "tareas", "avances")
+    proyectos_qs = proyectos_de_sede(request.user).prefetch_related("responsables", "tareas", "avances")
+    proyectos = list(proyectos_qs)
+    for proyecto in proyectos:
+        sincronizar_trl_desde_resultados(proyecto)
+        sincronizar_avance_simple_desde_objetivos(proyecto)
     proyectos_ordenados = sorted(
         proyectos,
         key=lambda proyecto: (
@@ -345,59 +409,23 @@ def panel_general(request):
         tareas_total = proyecto.tareas.count()
         tareas_pendientes_proyecto = proyecto.tareas.exclude(estado=Tarea.Estado.COMPLETADA).count()
         avance = max(0, min(100, proyecto.porcentaje_avance or 0))
-        tareas_ratio = (tareas_pendientes_proyecto / tareas_total) if tareas_total else 0
         ultimo_avance = next(iter(proyecto.avances.all()), None)
-        dias_sin_avance = None
-        penalizaciones = []
-        puntaje_salud = avance
-
-        if proyecto.esta_atrasado:
-            puntaje_salud -= 35
-            penalizaciones.append("Atrasado")
-        elif proyecto.dias_restantes is not None and proyecto.dias_restantes <= 7 and avance < 80:
-            puntaje_salud -= 15
-            penalizaciones.append("Vence pronto")
-
-        if tareas_pendientes_proyecto:
-            penalizacion_tareas = min(25, round(tareas_ratio * 25))
-            puntaje_salud -= penalizacion_tareas
-            penalizaciones.append(f"{tareas_pendientes_proyecto} tareas pendientes")
-
-        if ultimo_avance:
-            dias_sin_avance = (timezone.localdate() - ultimo_avance.fecha).days
-            if dias_sin_avance > 14 and avance < 100:
-                puntaje_salud -= 10
-                penalizaciones.append("Sin avances recientes")
-        elif avance < 100:
-            puntaje_salud -= 8
-            penalizaciones.append("Sin avances registrados")
-
-        puntaje_salud = max(0, min(100, puntaje_salud))
-        if puntaje_salud < 34:
-            nivel = "riesgo"
-        elif puntaje_salud < 67:
-            nivel = "advertencia"
-        else:
-            nivel = "ok"
+        puntaje_salud, nivel, penalizaciones, dias_sin_avance = puntaje_panel_proyecto(
+            proyecto,
+            avance,
+            tareas_pendientes_proyecto,
+            tareas_total,
+            ultimo_avance,
+        )
         conteo_salud[nivel] = conteo_salud.get(nivel, 0) + 1
 
-        inicio_estimado = max(0, min(100, puntaje_salud - 10 + min(18, avance // 5)))
-        if nivel == "riesgo":
-            inicio_estimado = min(55, max(0, puntaje_salud + 10))
-        elif nivel == "advertencia":
-            inicio_estimado = max(20, min(70, puntaje_salud + 8))
-        variacion = puntaje_salud - inicio_estimado
-        serie = []
-        for semana_indice, semana in enumerate(semanas):
-            progreso = semana_indice / max(len(semanas) - 1, 1)
-            valor = inicio_estimado + (variacion * progreso)
-            if tareas_pendientes_proyecto and semana_indice >= 3:
-                valor -= min(6, tareas_pendientes_proyecto * 1.5)
-            if ultimo_avance and ultimo_avance.fecha >= hoy - timedelta(days=(6 - semana_indice) * 7):
-                valor += 4
-            if semana_indice == len(semanas) - 1:
-                valor = puntaje_salud
-            serie.append(max(0, min(100, round(valor))))
+        serie = construir_serie_panel_proyecto(
+            proyecto,
+            semanas,
+            puntaje_salud,
+            avance,
+            ultimo_avance,
+        )
 
         nombre = proyecto.nombre
         proyectos_chart.append({
@@ -476,15 +504,15 @@ def panel_general(request):
         {
             "value": value,
             "label": label,
-            "total": proyectos.filter(estado=value).count(),
+            "total": proyectos_qs.filter(estado=value).count(),
         }
         for value, label in Proyecto.Estado.choices
     ]
     contexto = {
-        "total_proyectos": proyectos.count(),
-        "promedio_avance": proyectos.aggregate(promedio=Avg("porcentaje_avance"))["promedio"] or 0,
+        "total_proyectos": proyectos_qs.count(),
+        "promedio_avance": proyectos_qs.aggregate(promedio=Avg("porcentaje_avance"))["promedio"] or 0,
         "tareas_pendientes": Tarea.objects.filter(proyecto__sede=sede_usuario(request.user)).exclude(estado=Tarea.Estado.COMPLETADA).count(),
-        "proyectos_recientes": proyectos[:5],
+        "proyectos_recientes": proyectos_qs[:5],
         "proyectos_riesgo": proyectos_riesgo[:5],
         "proyectos_atrasados": proyectos_atrasados[:5],
         "ultimos_avances": Avance.objects.filter(proyecto__sede=sede_usuario(request.user)).select_related("proyecto", "responsable")[:5],

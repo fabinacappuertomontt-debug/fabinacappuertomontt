@@ -1,0 +1,75 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TrackFlow — Iniciar sesión</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+  <link rel="stylesheet" href="{% static 'css/tema_pro.css' %}">
+</head>
+<body>
+<div class="login-pro-shell">
+  <div class="login-pro-card">
+
+    <div class="login-pro-header">
+      <div class="login-pro-logo">T</div>
+      <h1 class="login-pro-brand">TrackFlow</h1>
+      <p class="login-pro-sub">Plataforma de gestión de proyectos</p>
+    </div>
+
+    {% if form.errors %}
+      <div class="login-pro-error">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        Correo o contraseña incorrectos. Intenta de nuevo.
+      </div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+
+      <div style="margin-bottom:1.2rem;">
+        <label class="login-pro-label" for="id_username">Correo electrónico</label>
+        <input
+          class="login-pro-input"
+          type="text"
+          id="id_username"
+          name="username"
+          placeholder="tu@correo.com"
+          autocomplete="username"
+          autofocus
+          required
+        >
+      </div>
+
+      <div style="margin-bottom:1.6rem;">
+        <label class="login-pro-label" for="id_password">Contraseña</label>
+        <input
+          class="login-pro-input"
+          type="password"
+          id="id_password"
+          name="password"
+          placeholder="••••••••"
+          autocomplete="current-password"
+          required
+        >
+      </div>
+
+      <button type="submit" class="login-pro-btn">
+        <i class="bi bi-box-arrow-in-right"></i>
+        Iniciar sesión
+      </button>
+    </form>
+
+    <p class="login-pro-footer">
+      &copy; {% now "Y" %} TrackFlow &mdash; Todos los derechos reservados
+    </p>
+
+  </div>
+</div>
+</body>
+</html>

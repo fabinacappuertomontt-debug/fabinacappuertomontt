@@ -4,12 +4,32 @@
 
 {% block content %}
 <div class="welcome-page">
+    <section class="welcome-notice" aria-label="Aviso de semana de prueba">
+        <div class="welcome-notice-icon">
+            <i class="bi bi-stars" aria-hidden="true"></i>
+        </div>
+        <div class="welcome-notice-copy">
+            <span class="eyebrow">Semana de prueba</span>
+            <h2>Bienvenidos al periodo de validacion de la plataforma</h2>
+            <p>
+                Durante esta semana estaremos afinando el sistema de seguimiento. Si detectas algun detalle,
+                comportamiento inesperado o tienes sugerencias de mejora, por favor contactame para revisarlo
+                y ajustar la plataforma con mayor precision.
+            </p>
+        </div>
+        <div class="welcome-notice-contact">
+            <strong>Contacto de soporte</strong>
+            <a href="mailto:diego.henriquez34@gmail.com">diego.henriquez34@gmail.com</a>
+            <a href="tel:+56997465007">+56 9 9746 5007</a>
+        </div>
+    </section>
+
     <section class="welcome-hero">
         <div class="welcome-copy">
             <span class="eyebrow">INACAP Puerto Montt</span>
             <h1>Bienvenido, {{ user.nombre|default:user.username }}</h1>
             <p>
-                Este espacio reúne el seguimiento académico del FAB: proyectos, tareas, avances,
+                Este espacio reune el seguimiento academico del FAB: proyectos, tareas, avances,
                 evidencias, observaciones e inventario del laboratorio en un solo lugar.
             </p>
         </div>
@@ -19,7 +39,7 @@
         </div>
     </section>
 
-    <section class="welcome-grid" aria-label="Resumen de acceso rápido">
+    <section class="welcome-grid" aria-label="Resumen de acceso rapido">
         <article class="welcome-card welcome-card-primary">
             <span>Proyectos</span>
             <strong>{{ total_proyectos }}</strong>
@@ -41,26 +61,26 @@
         <article class="welcome-panel">
             <div class="welcome-panel-heading">
                 <div>
-                    <span class="eyebrow">¿Qué puedes hacer aquí?</span>
+                    <span class="eyebrow">Que puedes hacer aqui</span>
                     <h2>Tu espacio de trabajo</h2>
                 </div>
             </div>
             <div class="welcome-feature-list">
                 <article>
                     <strong>Panel general</strong>
-                    <p>Obtén una visión completa del estado de proyectos, alertas y actividad reciente.</p>
+                    <p>Obtienes una vista completa del estado de proyectos, alertas y actividad reciente.</p>
                 </article>
                 <article>
                     <strong>Proyectos</strong>
-                    <p>Entra a cada proyecto para revisar detalle, etapas de trabajo, tareas y evidencias.</p>
+                    <p>Entras a cada proyecto para revisar detalle, etapas de trabajo, tareas y evidencias.</p>
                 </article>
                 <article>
                     <strong>Inventario</strong>
-                    <p>Consulta materiales y registra uso de insumos vinculados al trabajo del laboratorio.</p>
+                    <p>Consultas materiales y registras uso de insumos vinculados al trabajo del laboratorio.</p>
                 </article>
                 <article>
                     <strong>Usuarios</strong>
-                    <p>Gestiona participantes, responsables y accesos del equipo académico.</p>
+                    <p>Gestionas participantes, responsables y accesos del equipo academico.</p>
                 </article>
             </div>
         </article>
@@ -68,7 +88,7 @@
         <article class="welcome-panel">
             <div class="welcome-panel-heading">
                 <div>
-                    <span class="eyebrow">Atención rápida</span>
+                    <span class="eyebrow">Atencion rapida</span>
                     <h2>Proyectos con alerta</h2>
                 </div>
                 <a class="btn btn-sm btn-outline-primary" href="{% url 'panel_general' %}">Ver tablero</a>
@@ -84,12 +104,46 @@
                     </a>
                 {% empty %}
                     <div class="dashboard-empty-state good">
-                        <strong>No hay alertas críticas</strong>
+                        <strong>No hay alertas criticas</strong>
                         <span>El seguimiento actual se ve estable para comenzar la jornada.</span>
                     </div>
                 {% endfor %}
             </div>
         </article>
+    </section>
+
+    <section class="welcome-panel welcome-help-panel">
+        <div class="welcome-panel-heading">
+            <div>
+                <span class="eyebrow">Guia rapida</span>
+                <h2 class="welcome-help-title">
+                    <button class="welcome-help-trigger" type="button" data-bs-toggle="collapse" data-bs-target="#platformHelp" aria-expanded="true" aria-controls="platformHelp" title="Como funciona la plataforma">
+                        <i class="bi bi-question-circle" aria-hidden="true"></i>
+                    </button>
+                    Como funciona la plataforma
+                </h2>
+            </div>
+        </div>
+        <div class="collapse show" id="platformHelp">
+            <div class="welcome-help-grid">
+                <article class="welcome-help-card">
+                    <strong>Vista general</strong>
+                    <p>La plataforma organiza el trabajo del FAB en proyectos, tareas, avances, observaciones, evidencias e inventario. Cada proyecto tiene responsables, fechas, estado y porcentaje de avance.</p>
+                </article>
+                <article class="welcome-help-card">
+                    <strong>Proyecto simple</strong>
+                    <p>Se usa cuando el proyecto no necesita TRL. El avance sube segun los objetivos especificos cumplidos, junto con sus resultados e indicadores asociados.</p>
+                </article>
+                <article class="welcome-help-card">
+                    <strong>Proyecto con TRL</strong>
+                    <p>Se usa para medir madurez tecnologica. Cada objetivo tiene un resultado esperado, un indicador y un TRL objetivo. El proyecto sube de nivel solo cuando se cumplen los resultados e indicadores del siguiente TRL.</p>
+                </article>
+                <article class="welcome-help-card">
+                    <strong>Panel general y grafico</strong>
+                    <p>El grafico toma el avance real del proyecto como valor principal. El color muestra la alerta del proyecto: verde si va bien, amarillo si requiere atencion y rojo si esta en riesgo.</p>
+                </article>
+            </div>
+        </div>
     </section>
 </div>
 {% endblock %}

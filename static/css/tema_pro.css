@@ -1,0 +1,322 @@
+/* ================================================================
+   TrackFlow — Tema comercial pro
+   Sobreescribe el tema INACAP: morado/violeta en lugar de rojo
+   Se carga DESPUÉS de styles.css en base.html cuando request.tema='pro'
+   ================================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+/* ---------- Variables: reemplaza los colores INACAP ---------- */
+:root {
+  --inacap-red:       #7c3aed;   /* violeta principal */
+  --inacap-red-dark:  #6d28d9;   /* violeta oscuro */
+  --inacap-red-soft:  #ede9fe;   /* violeta pálido */
+  --inacap-blue-soft: #ddd6fe;
+  --ink:   #18181b;
+  --muted: #71717a;
+  --line:  #e4e4e7;
+  --soft:  #f4f4f5;
+  --panel: #ffffff;
+}
+
+/* ---------- Tipografía global ---------- */
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #f8f7ff;
+}
+
+/* ---------- Layout background: sin degradado rojo ---------- */
+.app-layout {
+  background:
+    radial-gradient(circle at top left, rgba(124, 58, 237, .06), transparent 20%),
+    linear-gradient(180deg, #f8f7ff 0%, #f0eeff 100%);
+}
+
+/* ---------- Sidebar: morado profundo en vez de azul navy + rojo ---------- */
+.app-sidebar {
+  background: linear-gradient(180deg, #1a0533 0%, #220a45 56%, #2a0d55 100%);
+}
+
+/* Toggle hover: morado */
+.sidebar-toggle:hover,
+.sidebar-toggle:focus,
+.sidebar-toggle[aria-pressed="true"] {
+  background: rgba(124, 58, 237, .25);
+  border-color: rgba(167, 139, 250, .4);
+}
+
+/* Link activo: morado en vez de rojo */
+.sidebar-link.is-active {
+  background: #7c3aed;
+  border-color: rgba(167, 139, 250, .3);
+  box-shadow: inset 4px 0 0 rgba(255, 255, 255, .25);
+}
+
+/* Botón nuevo proyecto (accent azul → morado claro) */
+.sidebar-link-accent {
+  background: rgba(167, 139, 250, .18);
+  border-color: rgba(167, 139, 250, .28);
+}
+
+/* Logout hover: morado */
+.sidebar-logout:hover,
+.sidebar-logout:focus {
+  background: rgba(124, 58, 237, .22);
+  border-color: rgba(167, 139, 250, .38);
+}
+
+/* ---------- Topbar ---------- */
+.app-topbar {
+  background: rgba(255, 255, 255, .9);
+  border-color: rgba(196, 181, 253, .35);
+}
+
+/* ---------- Links ---------- */
+a {
+  color: #7c3aed;
+}
+
+/* ---------- Eyebrow ---------- */
+.eyebrow {
+  color: #7c3aed;
+}
+
+/* ---------- Botones ---------- */
+.btn-primary {
+  background: #7c3aed;
+  border-color: #7c3aed;
+}
+.btn-primary:hover,
+.btn-primary:focus {
+  background: #6d28d9;
+  border-color: #6d28d9;
+}
+.btn-outline-primary {
+  border-color: #7c3aed;
+  color: #7c3aed;
+}
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
+}
+
+/* ---------- Cards y panels ---------- */
+.page-header,
+.project-hero {
+  border-left-color: #7c3aed;
+}
+
+.stat-box {
+  border-top-color: #7c3aed;
+}
+
+/* ---------- Progress bar ---------- */
+.progress-bar {
+  background: #7c3aed;
+}
+
+/* ---------- Tabla hover ---------- */
+.table tbody tr:hover {
+  background: #faf5ff;
+}
+.list-group-item-action:hover {
+  background: #faf5ff;
+  border-color: rgba(124, 58, 237, .2);
+}
+
+/* ---------- Alerts de riesgo ---------- */
+.alert-riesgo {
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+.alert-riesgo::before {
+  background: #7c3aed;
+}
+
+/* ---------- Badges y notificaciones ---------- */
+.sidebar-notification-dot {
+  background: #7c3aed !important;
+}
+
+/* ---------- Formularios: focus morado ---------- */
+.form-control:focus,
+.form-select:focus {
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, .15);
+}
+
+/* ---------- Scrollbar ---------- */
+::-webkit-scrollbar-thumb {
+  background: #a78bfa;
+}
+
+/* ---------- Sidebar brand: logo TrackFlow en vez de INACAP ---------- */
+.trackflow-brand-icon {
+  align-items: center;
+  background: linear-gradient(135deg, #7c3aed, #a78bfa);
+  border-radius: 9px;
+  color: #fff;
+  display: inline-flex;
+  font-size: .95rem;
+  font-weight: 900;
+  height: 36px;
+  justify-content: center;
+  letter-spacing: -.02em;
+  width: 36px;
+  flex-shrink: 0;
+}
+
+/* ---------- Login pro: página oscura independiente ---------- */
+.login-pro-shell {
+  align-items: center;
+  background: #0d0117;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem 1rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Grid decorativo de fondo */
+.login-pro-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(124, 58, 237, .06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(124, 58, 237, .06) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, #000 30%, transparent 100%);
+}
+
+/* Orbe de color */
+.login-pro-shell::after {
+  content: '';
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(124, 58, 237, .2) 0%, transparent 70%);
+  top: -150px;
+  left: 50%;
+  transform: translateX(-50%);
+  filter: blur(60px);
+  pointer-events: none;
+}
+
+.login-pro-card {
+  background: rgba(255, 255, 255, .04);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(167, 139, 250, .15);
+  border-radius: 20px;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, .5), 0 0 0 1px rgba(167, 139, 250, .08);
+  padding: 2.5rem;
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  z-index: 1;
+}
+
+.login-pro-header {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.login-pro-logo {
+  align-items: center;
+  background: linear-gradient(135deg, #7c3aed, #a78bfa);
+  border-radius: 14px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 1.4rem;
+  font-weight: 900;
+  height: 52px;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+  width: 52px;
+}
+
+.login-pro-brand {
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  margin: 0 0 .3rem;
+}
+
+.login-pro-sub {
+  color: rgba(255, 255, 255, .45);
+  font-size: .85rem;
+}
+
+.login-pro-label {
+  color: rgba(255, 255, 255, .55);
+  display: block;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  margin-bottom: .5rem;
+  text-transform: uppercase;
+}
+
+.login-pro-input {
+  background: rgba(255, 255, 255, .06) !important;
+  border: 1px solid rgba(167, 139, 250, .2) !important;
+  border-radius: 10px !important;
+  color: #fff !important;
+  padding: .8rem 1rem !important;
+  width: 100%;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.login-pro-input::placeholder {
+  color: rgba(255, 255, 255, .25) !important;
+}
+.login-pro-input:focus {
+  border-color: #a78bfa !important;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, .2) !important;
+  outline: none !important;
+  background: rgba(255, 255, 255, .08) !important;
+}
+
+.login-pro-btn {
+  background: linear-gradient(135deg, #7c3aed, #9333ea) !important;
+  border: none !important;
+  border-radius: 10px !important;
+  color: #fff !important;
+  font-size: .95rem !important;
+  font-weight: 700 !important;
+  padding: .85rem 1rem !important;
+  transition: all .2s ease !important;
+  width: 100%;
+}
+.login-pro-btn:hover {
+  background: linear-gradient(135deg, #6d28d9, #7c3aed) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(124, 58, 237, .4) !important;
+}
+
+.login-pro-error {
+  background: rgba(239, 68, 68, .1);
+  border: 1px solid rgba(239, 68, 68, .25);
+  border-radius: 10px;
+  color: #fca5a5;
+  font-size: .88rem;
+  padding: .75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.login-pro-footer {
+  color: rgba(255, 255, 255, .28);
+  font-size: .75rem;
+  margin-top: 1.5rem;
+  text-align: center;
+}
+
+/* Nav buttons morado */
+.nav-link:hover,
+.nav-link:focus {
+  border-bottom-color: #7c3aed !important;
+  color: #7c3aed !important;
+}

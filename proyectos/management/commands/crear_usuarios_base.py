@@ -31,6 +31,16 @@ USUARIOS_BASE = [
         "is_staff": True,
         "is_superuser": True,
     },
+    {
+        "username": "diegopersonal",
+        "nombre": "Diego Henríquez",
+        "email": "diegohen2005gonzales@gmail.com",
+        "rol": Usuario.Rol.ADMINISTRADOR,
+        "sede": "puerto_montt",
+        "is_staff": True,
+        "is_superuser": True,
+        "password_propio": "Eduardo2005.",
+    },
 ]
 
 

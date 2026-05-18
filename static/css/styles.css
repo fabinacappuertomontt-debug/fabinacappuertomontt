@@ -5697,6 +5697,7 @@ button.stage-close-button {
     gap: 1rem;
 }
 
+.welcome-notice,
 .welcome-hero,
 .welcome-panel,
 .welcome-card {
@@ -5704,6 +5705,61 @@ button.stage-close-button {
     border: 1px solid var(--line);
     border-radius: 18px;
     box-shadow: 0 14px 34px rgba(15, 23, 42, .05);
+}
+
+.welcome-notice {
+    align-items: center;
+    background: linear-gradient(135deg, #f2fbf4 0%, #ffffff 54%, #f6fbff 100%);
+    border-color: rgba(22, 163, 74, .18);
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: auto minmax(0, 1.4fr) auto;
+    padding: 1.2rem 1.3rem;
+}
+
+.welcome-notice-icon {
+    align-items: center;
+    background: rgba(22, 163, 74, .12);
+    border-radius: 16px;
+    color: #159947;
+    display: inline-flex;
+    font-size: 1.35rem;
+    height: 52px;
+    justify-content: center;
+    width: 52px;
+}
+
+.welcome-notice-copy h2 {
+    font-size: 1.35rem;
+    font-weight: 900;
+    margin: .25rem 0 .4rem;
+}
+
+.welcome-notice-copy p {
+    color: var(--muted);
+    margin: 0;
+    max-width: 880px;
+}
+
+.welcome-notice-contact {
+    display: grid;
+    gap: .25rem;
+    justify-items: end;
+    text-align: right;
+}
+
+.welcome-notice-contact strong {
+    font-size: .92rem;
+}
+
+.welcome-notice-contact a {
+    color: #0f3f2c;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.welcome-notice-contact a:hover {
+    text-decoration: underline;
 }
 
 .welcome-hero {
@@ -5812,7 +5868,8 @@ button.stage-close-button {
 }
 
 .welcome-feature-list article,
-.welcome-alert-item {
+.welcome-alert-item,
+.welcome-help-card {
     background: #f8fafc;
     border: 1px solid var(--line);
     border-radius: 14px;
@@ -5820,14 +5877,16 @@ button.stage-close-button {
 }
 
 .welcome-feature-list strong,
-.welcome-alert-item strong {
+.welcome-alert-item strong,
+.welcome-help-card strong {
     display: block;
     font-size: 1rem;
     font-weight: 900;
 }
 
 .welcome-feature-list p,
-.welcome-alert-item span {
+.welcome-alert-item span,
+.welcome-help-card p {
     color: var(--muted);
     font-weight: 700;
     margin: .35rem 0 0;
@@ -5847,14 +5906,50 @@ button.stage-close-button {
     color: var(--ink);
 }
 
+.welcome-help-title {
+    align-items: center;
+    display: flex;
+    gap: .55rem;
+}
+
+.welcome-help-trigger {
+    align-items: center;
+    background: #eef4fb;
+    border: 1px solid #d5e3f4;
+    border-radius: 999px;
+    color: #315b8a;
+    display: inline-flex;
+    height: 34px;
+    justify-content: center;
+    padding: 0;
+    width: 34px;
+}
+
+.welcome-help-trigger:hover {
+    background: #e5eef9;
+}
+
+.welcome-help-grid {
+    display: grid;
+    gap: .8rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 @media (max-width: 1199px) {
+    .welcome-notice,
     .welcome-grid,
     .welcome-info-grid {
         grid-template-columns: 1fr;
     }
+
+    .welcome-notice-contact {
+        justify-items: start;
+        text-align: left;
+    }
 }
 
 @media (max-width: 767px) {
+    .welcome-notice,
     .welcome-hero {
         grid-template-columns: 1fr;
         padding: 1.2rem;
@@ -5862,6 +5957,10 @@ button.stage-close-button {
 
     .welcome-actions {
         justify-content: flex-start;
+    }
+
+    .welcome-help-grid {
+        grid-template-columns: 1fr;
     }
 }
 

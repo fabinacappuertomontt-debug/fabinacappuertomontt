@@ -4,12 +4,15 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Área personal | AAI</title>
+    <title>{% if request.tema == 'pro' %}TrackFlow{% else %}Área personal | AAI{% endif %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    {% if request.tema != 'pro' %}
     <link rel="icon" type="image/svg+xml" href="{% static 'img/inacap-favicon.svg' %}">
     <link rel="shortcut icon" type="image/svg+xml" href="{% static 'img/inacap-favicon.svg' %}">
+    {% endif %}
     <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=20260504-chat">
+    {% if request.tema == 'pro' %}<link rel="stylesheet" href="{% static 'css/tema_pro.css' %}">{% endif %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
     {% if user.is_authenticated %}
@@ -18,15 +21,24 @@
                 <div class="app-sidebar-brand">
                     <div class="sidebar-brand-tools">
                         <a class="app-brand" href="{% url 'dashboard' %}">
-                            <img src="https://portal.inacap.cl/documents/d/guest/logofooter60a" alt="INACAP">
+                            {% if request.tema == 'pro' %}
+                                <span class="trackflow-brand-icon">T</span>
+                            {% else %}
+                                <img src="https://portal.inacap.cl/documents/d/guest/logofooter60a" alt="INACAP">
+                            {% endif %}
                         </a>
                         <button class="sidebar-toggle" type="button" title="Ocultar menú" aria-label="Ocultar menú" aria-pressed="false">
                             <i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i>
                         </button>
                     </div>
                     <div class="sidebar-brand-copy">
-                        <strong>FAB {{ user.get_sede_display|default:"Puerto Montt" }}</strong>
-                        <span>Seguimiento de proyectos</span>
+                        {% if request.tema == 'pro' %}
+                            <strong>TrackFlow</strong>
+                            <span>Gestión de proyectos</span>
+                        {% else %}
+                            <strong>FAB {{ user.get_sede_display|default:"Puerto Montt" }}</strong>
+                            <span>Seguimiento de proyectos</span>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -70,8 +82,13 @@
                 <div class="sidebar-section sidebar-helper">
                     <span class="sidebar-label">Contexto</span>
                     <div class="sidebar-helper-card">
-                        <strong>Área Aprender Haciendo</strong>
-                        <p>Controla proyectos, avances, etapas y recursos desde una sola vista de trabajo.</p>
+                        {% if request.tema == 'pro' %}
+                            <strong>TrackFlow Pro</strong>
+                            <p>Gestión de proyectos, tareas, avances y recursos en una sola plataforma.</p>
+                        {% else %}
+                            <strong>Área Aprender Haciendo</strong>
+                            <p>Controla proyectos, avances, etapas y recursos desde una sola vista de trabajo.</p>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -106,10 +123,10 @@
             <div class="app-content-shell">
                 <header class="app-topbar">
                     <div class="app-topbar-copy">
-                        <span class="app-topbar-kicker">Área personal</span>
+                        <span class="app-topbar-kicker">{% if request.tema == 'pro' %}Panel de control{% else %}Área personal{% endif %}</span>
                         <strong class="app-topbar-current">
                             {% if request.resolver_match.url_name == 'dashboard' %}
-                                Bienvenida
+                                {% if request.tema == 'pro' %}Inicio{% else %}Bienvenida{% endif %}
                             {% elif request.resolver_match.url_name == 'panel_general' %}
                                 Panel general
                             {% elif request.resolver_match.url_name == 'proyecto_lista' %}
@@ -121,14 +138,20 @@
                             {% elif request.resolver_match.url_name == 'chat_lista' or request.resolver_match.url_name == 'chat_privado' %}
                                 Chat
                             {% else %}
-                                FAB INACAP {{ user.get_sede_display|default:"Puerto Montt" }}
+                                {% if request.tema == 'pro' %}TrackFlow{% else %}FAB INACAP {{ user.get_sede_display|default:"Puerto Montt" }}{% endif %}
                             {% endif %}
                         </strong>
                     </div>
                     <div class="app-topbar-meta">
-                        <span><i class="bi bi-building"></i> {{ user.get_sede_display|default:"Puerto Montt" }}</span>
-                        <span><i class="bi bi-mortarboard-fill"></i> Aprender Haciendo</span>
-                        <span><i class="bi bi-shield-check"></i> Interno</span>
+                        {% if request.tema == 'pro' %}
+                            <span><i class="bi bi-building"></i> {{ user.get_sede_display|default:"Tu empresa" }}</span>
+                            <span><i class="bi bi-kanban"></i> TrackFlow Pro</span>
+                            <span><i class="bi bi-shield-check"></i> Verificado</span>
+                        {% else %}
+                            <span><i class="bi bi-building"></i> {{ user.get_sede_display|default:"Puerto Montt" }}</span>
+                            <span><i class="bi bi-mortarboard-fill"></i> Aprender Haciendo</span>
+                            <span><i class="bi bi-shield-check"></i> Interno</span>
+                        {% endif %}
                     </div>
                 </header>
     {% endif %}
@@ -165,8 +188,13 @@
                 <footer class="app-footer">
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                         <div>
-                            <strong>INACAP {{ user.get_sede_display|default:"Puerto Montt" }}</strong>
-                            <span>Gestión, avance y seguimiento académico.</span>
+                            {% if request.tema == 'pro' %}
+                                <strong>TrackFlow</strong>
+                                <span>Gestión de proyectos empresarial.</span>
+                            {% else %}
+                                <strong>INACAP {{ user.get_sede_display|default:"Puerto Montt" }}</strong>
+                                <span>Gestión, avance y seguimiento académico.</span>
+                            {% endif %}
                         </div>
                         <span>Chile</span>
                     </div>
