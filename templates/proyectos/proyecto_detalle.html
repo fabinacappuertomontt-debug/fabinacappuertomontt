@@ -34,7 +34,7 @@
         <article>
             <span>Avance</span>
             <strong>{{ avance_madurez }}%</strong>
-            <p>Madurez completada del proyecto</p>
+            <p>{% if proyecto.usa_trl %}Madurez completada del proyecto{% else %}Avance por objetivos del proyecto{% endif %}</p>
         </article>
         <article>
             <span>Inicio</span>
@@ -138,7 +138,7 @@
                     <span class="workspace-collapsible-icon"><i class="bi bi-list-check" aria-hidden="true"></i></span>
                     <span>
                         <strong>Objetivos específicos</strong>
-                        <small>Ver metas concretas del proyecto</small>
+                        <small>Ver objetivos concretos del proyecto</small>
                     </span>
                     <span class="workspace-collapsible-meta">Detalle</span>
                     <i class="bi bi-chevron-down workspace-collapsible-arrow" aria-hidden="true"></i>
@@ -175,8 +175,8 @@
                             {% for objetivo in objetivos_trl %}
                                 {% for resultado in objetivo.resultados.all %}
                                     <div class="workspace-list-item">
-                                        <strong>TRL {{ resultado.trl_objetivo }} - {{ resultado.get_estado_display }}</strong>
-                                        <span>Plazo {{ resultado.plazo_texto }}{% if resultado.fecha_objetivo %} · Meta {{ resultado.fecha_objetivo|date:"d/m/Y" }}{% endif %}</span>
+                                        <strong>{% if proyecto.usa_trl %}TRL {{ resultado.trl_objetivo }} - {% endif %}{{ resultado.get_estado_display }}</strong>
+                                        <span>Plazo {{ resultado.plazo_texto }}{% if resultado.fecha_objetivo %} · Fecha objetivo {{ resultado.fecha_objetivo|date:"d/m/Y" }}{% endif %}</span>
                                         <p>{{ resultado.descripcion }}</p>
                                     </div>
                                 {% endfor %}
@@ -205,8 +205,8 @@
                                 {% for resultado in objetivo.resultados.all %}
                                     {% for indicador in resultado.indicadores.all %}
                                         <div class="workspace-list-item">
-                                            <strong>{% if indicador.cumplido %}Cumplido{% else %}Pendiente{% endif %} · TRL {{ resultado.trl_objetivo }}</strong>
-                                            <span>{% if indicador.meta %}Meta: {{ indicador.meta }}{% endif %}{% if indicador.valor_actual %} · Actual: {{ indicador.valor_actual }}{% endif %}</span>
+                                            <strong>{% if indicador.cumplido %}Cumplido{% else %}Pendiente{% endif %}{% if proyecto.usa_trl %} · TRL {{ resultado.trl_objetivo }}{% endif %}</strong>
+                                            {% if indicador.valor_actual %}<span>Actual: {{ indicador.valor_actual }}</span>{% endif %}
                                             <p>{{ indicador.descripcion }}</p>
                                         </div>
                                     {% endfor %}

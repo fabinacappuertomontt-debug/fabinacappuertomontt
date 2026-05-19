@@ -2,7 +2,8 @@ from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.mail import send_mail
+from django.conf import settings
+from django.core.mail import EmailMultiAlternatives
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Avg, Count, F, Q
@@ -10,6 +11,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.core import signing
+from django.utils.html import escape
 from django.utils.text import slugify
 from django.views.generic import CreateView, ListView, UpdateView
 from datetime import datetime, timedelta
@@ -74,6 +76,10 @@ def exigir_permiso_edicion_proyecto(request, proyecto):
 
 def sede_usuario(user):
     return getattr(user, "sede", "puerto_montt")
+
+
+def organizacion_usuario(user):
+    return getattr(user, "organizacion", None)
 
 
 def filtrar_por_sede(queryset, user, campo="sede"):
@@ -828,26 +834,81 @@ def crear_fases_para_proyecto(proyecto):
 
 
 
-def enviar_correo_simple(asunto, destinatarios, mensaje):
+def url_publica(request, path):
+    base_url = getattr(settings, "PUBLIC_SITE_URL", "").rstrip("/")
+    if base_url:
+        return f"{base_url}{path}"
+    return request.build_absolute_uri(path)
+
+
+def correo_html_inacap(titulo, subtitulo, contenido, boton_texto=None, boton_url=None):
+    logo_url = "https://portal.inacap.cl/documents/d/guest/logofooter60a"
+    boton = ""
+    if boton_texto and boton_url:
+        boton = f"""
+            <tr>
+                <td style="padding:8px 32px 30px 32px;">
+                    <a href="{escape(boton_url)}" style="display:inline-block;background:#cf3f4f;color:#ffffff;text-decoration:none;font-weight:700;border-radius:8px;padding:13px 20px;font-family:Arial,Helvetica,sans-serif;">{escape(boton_texto)}</a>
+                </td>
+            </tr>
+        """
+    return f"""
+    <!doctype html>
+    <html lang="es">
+    <body style="margin:0;padding:0;background:#eef3f8;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef3f8;padding:24px 12px;">
+            <tr>
+                <td align="center">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #d9e2ec;">
+                        <tr>
+                            <td style="background:#142033;padding:22px 32px;border-bottom:5px solid #cf3f4f;">
+                                <img src="{logo_url}" alt="INACAP" style="max-height:42px;display:block;margin-bottom:14px;">
+                                <div style="color:#ffffff;font-size:20px;font-weight:800;line-height:1.25;">{escape(titulo)}</div>
+                                <div style="color:#cbd5e1;font-size:14px;margin-top:6px;">{escape(subtitulo)}</div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding:30px 32px 18px 32px;font-size:15px;line-height:1.65;color:#24324a;">{contenido}</td>
+                        </tr>
+                        {boton}
+                        <tr>
+                            <td style="background:#f7fafc;padding:18px 32px;color:#64748b;font-size:12px;border-top:1px solid #e2e8f0;">
+                                <strong style="color:#1f2937;">FAB INACAP Puerto Montt</strong><br>
+                                Gestion, avance y seguimiento academico.
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+
+
+def enviar_correo_simple(asunto, destinatarios, mensaje, html=None):
     destinatarios = [correo for correo in destinatarios if correo]
     if not destinatarios:
         return False
     try:
-        enviados = send_mail(
+        correo = EmailMultiAlternatives(
             asunto,
             mensaje,
-            None,
+            settings.DEFAULT_FROM_EMAIL,
             destinatarios,
-            fail_silently=False,
         )
+        if html:
+            correo.attach_alternative(html, "text/html")
+        enviados = correo.send(fail_silently=False)
     except Exception:
         return False
     return enviados > 0
 
 
 def notificar_responsables_proyecto(request, proyecto):
-    url = request.build_absolute_uri(proyecto.get_absolute_url())
+    url = url_publica(request, proyecto.get_absolute_url())
     destinatarios = [usuario.email for usuario in proyecto.responsables.all()]
+    subtitulo = f"Nuevo proyecto asignado | {proyecto.get_estado_display()} | Avance {proyecto.porcentaje_avance}%"
     mensaje = (
         f"Hola,\n\n"
         f"Fuiste asignado como responsable del proyecto '{proyecto.nombre}'.\n\n"
@@ -856,17 +917,34 @@ def notificar_responsables_proyecto(request, proyecto):
         f"Revisar proyecto: {url}\n\n"
         f"FAB INACAP Puerto Montt"
     )
+    contenido = f"""
+        <p style="margin:0 0 16px 0;">Hola,</p>
+        <p style="margin:0 0 18px 0;">Fuiste asignado como responsable del proyecto:</p>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:5px solid #cf3f4f;border-radius:10px;padding:18px 20px;margin:0 0 20px 0;">
+            <div style="font-size:18px;font-weight:800;color:#142033;line-height:1.3;">{escape(proyecto.nombre)}</div>
+            <div style="font-size:13px;color:#64748b;margin-top:8px;">{escape(proyecto.descripcion[:180])}</div>
+        </div>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 18px 0;">
+            <tr>
+                <td style="padding:10px 12px;background:#eef6ff;border-radius:8px;color:#1f4f82;font-weight:700;">Estado<br><span style="font-size:18px;color:#142033;">{escape(proyecto.get_estado_display())}</span></td>
+                <td style="width:12px;"></td>
+                <td style="padding:10px 12px;background:#eefaf3;border-radius:8px;color:#007a3d;font-weight:700;">Avance<br><span style="font-size:18px;color:#142033;">{proyecto.porcentaje_avance}%</span></td>
+            </tr>
+        </table>
+        <p style="margin:0;color:#64748b;">Puedes revisar el detalle del proyecto desde el boton inferior.</p>
+    """
     return enviar_correo_simple(
         f"Nuevo proyecto asignado: {proyecto.nombre}",
         destinatarios,
         mensaje,
+        correo_html_inacap("Nuevo proyecto asignado", subtitulo, contenido, "Revisar proyecto", url),
     )
 
 
 def notificar_tarea_asignada(request, tarea):
     if not tarea.responsable or not tarea.responsable.email:
         return False
-    url = request.build_absolute_uri(tarea.proyecto.get_absolute_url())
+    url = url_publica(request, tarea.proyecto.get_absolute_url())
     mensaje = (
         f"Hola {tarea.responsable.nombre or tarea.responsable.username},\n\n"
         f"Se te asignó la tarea '{tarea.nombre}' en el proyecto '{tarea.proyecto.nombre}'.\n\n"
@@ -882,7 +960,7 @@ def notificar_tarea_asignada(request, tarea):
 
 
 def notificar_observacion(request, observacion):
-    url = request.build_absolute_uri(observacion.proyecto.get_absolute_url())
+    url = url_publica(request, observacion.proyecto.get_absolute_url())
     destinatarios = [usuario.email for usuario in observacion.proyecto.responsables.all()]
     mensaje = (
         f"Hola,\n\n"
@@ -1155,7 +1233,7 @@ def fase_desbloqueada(fase):
     if not fase.proyecto.usa_trl:
         return True
     return not fase.proyecto.fases.filter(
-        trl__gte=fase.proyecto.trl_inicial_efectivo,
+        trl__gt=fase.proyecto.trl_inicial_efectivo,
         trl__lt=fase.trl,
     ).exclude(
         estado=FaseProyecto.Estado.COMPLETADA
@@ -1227,7 +1305,7 @@ def construir_tablero_trl(proyecto):
     fases = {
         fase.trl: fase
         for fase in proyecto.fases.filter(
-            trl__gte=proyecto.trl_inicial_efectivo,
+            trl__gt=proyecto.trl_inicial_efectivo,
             trl__lte=proyecto.trl_objetivo_efectivo,
         )
     }
@@ -1289,6 +1367,7 @@ class ProyectoCreateView(LoginRequiredMixin, CreateView):
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs["sede"] = sede_usuario(self.request.user)
+        kwargs["organizacion"] = organizacion_usuario(self.request.user)
         return kwargs
 
     def get_context_data(self, **kwargs):
@@ -1298,6 +1377,7 @@ class ProyectoCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.sede = sede_usuario(self.request.user)
+        form.instance.organizacion = organizacion_usuario(self.request.user)
         form.instance.estado = Proyecto.Estado.EN_PROCESO
         response = super().form_valid(form)
         crear_fases_para_proyecto(self.object)
@@ -1321,6 +1401,7 @@ class ProyectoUpdateView(LoginRequiredMixin, UpdateView):
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs["sede"] = self.object.sede
+        kwargs["organizacion"] = self.object.organizacion
         return kwargs
 
     def get_context_data(self, **kwargs):

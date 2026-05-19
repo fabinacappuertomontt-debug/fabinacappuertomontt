@@ -59,8 +59,30 @@ class Sede(models.TextChoices):
     OSORNO = "osorno", "Osorno"
 
 
+class Organizacion(models.Model):
+    nombre = models.CharField(max_length=180)
+    slug = models.SlugField(max_length=80, unique=True)
+    logo = models.ImageField(upload_to="organizaciones/logos/%Y/%m/", blank=True, null=True)
+    color_principal = models.CharField(max_length=7, default="#cf3f4f")
+    color_secundario = models.CharField(max_length=7, default="#1f334d")
+    activa = models.BooleanField(default=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nombre"]
+        verbose_name = "Organizacion"
+        verbose_name_plural = "Organizaciones"
+
+    def __str__(self):
+        return self.nombre
+
+
 class Usuario(AbstractUser):
     class Rol(models.TextChoices):
+        SUPERADMIN = "superadmin", "Superadmin"
+        ADMIN_ORGANIZACION = "admin_organizacion", "Administrador de organizacion"
+        LIDER = "lider", "Lider"
+        INTEGRANTE = "integrante", "Integrante"
         ALUMNO = "alumno", "Alumno"
         PRACTICANTE = "practicante", "Practicante"
         PROFESOR = "profesor", "Profesor / Líder"
@@ -89,6 +111,13 @@ class Usuario(AbstractUser):
         max_length=30,
         choices=Sede.choices,
         default=Sede.PUERTO_MONTT,
+    )
+    organizacion = models.ForeignKey(
+        Organizacion,
+        on_delete=models.PROTECT,
+        related_name="usuarios",
+        blank=True,
+        null=True,
     )
     correo_verificado = models.BooleanField(default=True)
     estado_registro = models.CharField(
@@ -122,6 +151,13 @@ class Proyecto(models.Model):
         TRL = "trl", "Proyecto con TRL"
 
     nombre = models.CharField(max_length=200)
+    organizacion = models.ForeignKey(
+        Organizacion,
+        on_delete=models.PROTECT,
+        related_name="proyectos",
+        blank=True,
+        null=True,
+    )
     sede = models.CharField(
         max_length=30,
         choices=Sede.choices,

@@ -1,22 +1,25 @@
 import json
 from datetime import timedelta
 
+from django.core import mail
 from django.test import TestCase
+from django.test import RequestFactory, override_settings
+from django.urls import reverse
 from django.utils import timezone
 
 from proyectos.forms import ProyectoForm
 from proyectos.models import IndicadorResultado, ObjetivoEspecifico, Proyecto, ResultadoEsperado, Tarea, Usuario
-from proyectos.views import calcular_avance_madurez, crear_fases_para_proyecto, recalcular_avance_por_tareas, sincronizar_avance_simple_desde_objetivos, sincronizar_trl_desde_resultados
+from proyectos.views import calcular_avance_madurez, construir_tablero_trl, crear_fases_para_proyecto, notificar_responsables_proyecto, recalcular_avance_por_tareas, sincronizar_avance_simple_desde_objetivos, sincronizar_trl_desde_resultados
 
 
 class TrlStressLogicTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.usuario = Usuario.objects.create_user(
-            username="trltester",
+            username="logictester",
             password="secret123",
-            email="trltester@example.com",
-            nombre="TRL Tester",
+            email="logictester@example.com",
+            nombre="Usuario Tester",
             sede=Usuario._meta.get_field("sede").default,
         )
 
@@ -91,6 +94,34 @@ class TrlStressLogicTests(TestCase):
                 descripcion=f"Evidencia tecnica TRL {trl}",
                 orden=2,
                 meta="2 pruebas",
+                valor_actual="",
+                cumplido=False,
+            )
+            resultados.append(resultado)
+        return resultados
+
+    def crear_estructura_simple(self, proyecto, cantidad=3):
+        objetivo = ObjetivoEspecifico.objects.create(
+            proyecto=proyecto,
+            descripcion="Organizar el seguimiento operativo del proyecto.",
+            orden=1,
+        )
+        resultados = []
+        for orden in range(1, cantidad + 1):
+            resultado = ResultadoEsperado.objects.create(
+                objetivo=objetivo,
+                descripcion=f"Resultado operativo {orden} validado.",
+                orden=orden,
+                trl_objetivo=1,
+                plazo_meses=orden,
+                plazo_dias=0,
+                estado=ResultadoEsperado.Estado.PENDIENTE,
+            )
+            IndicadorResultado.objects.create(
+                resultado=resultado,
+                descripcion=f"Indicador operativo {orden}",
+                orden=1,
+                meta="Cumplimiento documentado",
                 valor_actual="",
                 cumplido=False,
             )
@@ -181,6 +212,23 @@ class TrlStressLogicTests(TestCase):
         self.assertEqual(proyecto.porcentaje_avance, 0)
         self.assertEqual(proyecto.nivel_actual, 3)
         self.assertEqual(proyecto.estado, Proyecto.Estado.EN_PROCESO)
+
+    def test_trl_inicial_no_aparece_como_etapa_completada_sin_resultados(self):
+        proyecto = self.crear_proyecto_trl()
+        proyecto.trl_objetivo = 6
+        proyecto.save(update_fields=["trl_objetivo"])
+        self.crear_estructura_trl(proyecto)
+
+        sincronizar_trl_desde_resultados(proyecto)
+        proyecto.refresh_from_db()
+        tablero = construir_tablero_trl(proyecto)
+
+        self.assertEqual(proyecto.nivel_actual, 3)
+        self.assertEqual(proyecto.porcentaje_avance, 0)
+        self.assertEqual(calcular_avance_madurez(proyecto), 0)
+        self.assertFalse(any(etapa["inicio"] <= 3 <= etapa["fin"] for etapa in tablero))
+        self.assertFalse(any(etapa["completa"] for etapa in tablero))
+        self.assertTrue(any(etapa["inicio"] == 4 for etapa in tablero))
 
     def test_proyecto_trl_no_termina_hasta_alcanzar_el_ultimo_nivel(self):
         proyecto = self.crear_proyecto_trl()
@@ -331,3 +379,51 @@ class TrlStressLogicTests(TestCase):
         self.assertEqual(proyecto.trl_inicial, 3)
         self.assertEqual(proyecto.trl_objetivo, 6)
         self.assertEqual(resultado.trl_objetivo, 4)
+
+    def test_vistas_de_proyecto_simple_no_muestran_texto_trl(self):
+        proyecto = self.crear_proyecto_simple()
+        self.crear_estructura_simple(proyecto)
+        self.client.force_login(self.usuario)
+
+        for url_name in ["proyecto_detalle", "proyecto_trabajo"]:
+            response = self.client.get(reverse(url_name, kwargs={"pk": proyecto.pk}))
+            self.assertEqual(response.status_code, 200)
+            self.assertNotContains(response, "TRL")
+
+    def test_estres_proyectos_simples_no_se_presentan_como_trl(self):
+        self.client.force_login(self.usuario)
+        for indice in range(25):
+            proyecto = self.crear_proyecto_simple()
+            proyecto.nombre = f"Proyecto simple operativo {indice + 1}"
+            proyecto.save(update_fields=["nombre"])
+            resultados = self.crear_estructura_simple(proyecto, cantidad=5)
+            for resultado in resultados[:2]:
+                self.cumplir_resultado(resultado)
+            sincronizar_avance_simple_desde_objetivos(proyecto)
+
+            detalle = self.client.get(reverse("proyecto_detalle", kwargs={"pk": proyecto.pk}))
+            trabajo = self.client.get(reverse("proyecto_trabajo", kwargs={"pk": proyecto.pk}))
+
+            self.assertEqual(detalle.status_code, 200)
+            self.assertEqual(trabajo.status_code, 200)
+            self.assertNotContains(detalle, "TRL")
+            self.assertNotContains(trabajo, "TRL")
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        PUBLIC_SITE_URL="https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net",
+    )
+    def test_correo_de_proyecto_usa_url_publica_y_html_inacap(self):
+        proyecto = self.crear_proyecto_trl()
+        request = RequestFactory().get("/")
+
+        enviado = notificar_responsables_proyecto(request, proyecto)
+
+        self.assertTrue(enviado)
+        self.assertEqual(len(mail.outbox), 1)
+        correo = mail.outbox[0]
+        self.assertIn("https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net", correo.body)
+        self.assertNotIn("127.0.0.1", correo.body)
+        self.assertEqual(correo.alternatives[0][1], "text/html")
+        self.assertIn("INACAP", correo.alternatives[0][0])
+        self.assertIn("Revisar proyecto", correo.alternatives[0][0])

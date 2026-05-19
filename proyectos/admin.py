@@ -1,20 +1,27 @@
 ﻿from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import Avance, Evidencia, FaseProyecto, ItemInventario, MensajePrivado, Observacion, Proyecto, Tarea, UsoInventario, Usuario
+from .models import Avance, Evidencia, FaseProyecto, ItemInventario, MensajePrivado, Observacion, Organizacion, Proyecto, Tarea, UsoInventario, Usuario
+
+
+@admin.register(Organizacion)
+class OrganizacionAdmin(admin.ModelAdmin):
+    list_display = ("nombre", "slug", "activa", "fecha_creacion")
+    list_filter = ("activa",)
+    search_fields = ("nombre", "slug")
 
 
 @admin.register(Usuario)
 class UsuarioAdmin(UserAdmin):
     fieldsets = UserAdmin.fieldsets + (
-        ("Datos del sistema", {"fields": ("nombre", "institucion", "telefono", "cargo", "direccion", "biografia", "foto", "rol", "sede", "correo_verificado", "estado_registro")}),
+        ("Datos del sistema", {"fields": ("nombre", "institucion", "telefono", "cargo", "direccion", "biografia", "foto", "rol", "organizacion", "sede", "correo_verificado", "estado_registro")}),
     )
     add_fieldsets = UserAdmin.add_fieldsets + (
-        ("Datos del sistema", {"fields": ("nombre", "email", "rol", "sede")}),
+        ("Datos del sistema", {"fields": ("nombre", "email", "rol", "organizacion", "sede")}),
     )
-    list_display = ("username", "nombre", "email", "telefono", "institucion", "rol", "sede", "estado_registro", "is_active", "is_staff")
-    list_filter = ("sede", "rol", "estado_registro", "correo_verificado", "is_active", "is_staff")
-    search_fields = ("username", "nombre", "email", "institucion")
+    list_display = ("username", "nombre", "email", "telefono", "institucion", "rol", "organizacion", "sede", "estado_registro", "is_active", "is_staff")
+    list_filter = ("organizacion", "sede", "rol", "estado_registro", "correo_verificado", "is_active", "is_staff")
+    search_fields = ("username", "nombre", "email", "institucion", "organizacion__nombre")
 
 
 class FaseProyectoInline(admin.TabularInline):
@@ -53,9 +60,9 @@ class UsoInventarioInline(admin.TabularInline):
 
 @admin.register(Proyecto)
 class ProyectoAdmin(admin.ModelAdmin):
-    list_display = ("nombre", "sede", "estado", "empresa_externa", "porcentaje_avance", "fecha_inicio", "fecha_fin")
-    list_filter = ("sede", "estado", "empresa_externa", "fecha_inicio")
-    search_fields = ("nombre", "descripcion", "empresa_externa_nombre", "empresa_externa_contacto")
+    list_display = ("nombre", "organizacion", "sede", "estado", "empresa_externa", "porcentaje_avance", "fecha_inicio", "fecha_fin")
+    list_filter = ("organizacion", "sede", "estado", "empresa_externa", "fecha_inicio")
+    search_fields = ("nombre", "descripcion", "empresa_externa_nombre", "empresa_externa_contacto", "organizacion__nombre")
     filter_horizontal = ("responsables",)
     inlines = [FaseProyectoInline, TareaInline, AvanceInline, ObservacionInline, EvidenciaInline, UsoInventarioInline]
 

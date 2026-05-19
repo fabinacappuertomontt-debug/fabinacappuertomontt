@@ -94,9 +94,11 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
             "responsables": forms.CheckboxSelectMultiple(),
         }
 
-    def __init__(self, *args, sede=None, **kwargs):
+    def __init__(self, *args, sede=None, organizacion=None, **kwargs):
         super().__init__(*args, **kwargs)
-        if sede:
+        if organizacion:
+            self.fields["responsables"].queryset = Usuario.objects.filter(organizacion=organizacion).order_by("nombre", "username")
+        elif sede:
             self.fields["responsables"].queryset = Usuario.objects.filter(sede=sede).order_by("nombre", "username")
         trl_choices = self._choices_trl_con_numero()
         self.fields["trl_inicial"].choices = trl_choices

@@ -632,13 +632,9 @@
                                 <div class="col-12">
                                     <div class="trl-result-editor__title">Indicador asociado al resultado</div>
                                 </div>
-                                <div class="col-md-7">
+                                <div class="col-12">
                                     <label class="form-label">Indicador</label>
                                     <input class="form-control" type="text" value="${escapeHtml(activeIndicator.descripcion || "")}" data-indicator-description="${activeObjectiveIndex}" data-result-index="0" data-indicator-index="0">
-                                </div>
-                                <div class="col-md-5">
-                                    <label class="form-label">Meta</label>
-                                    <input class="form-control" type="text" value="${escapeHtml(activeIndicator.meta || "")}" data-indicator-goal="${activeObjectiveIndex}" data-result-index="0" data-indicator-index="0">
                                 </div>
                             </div>
                         </div>
@@ -684,13 +680,12 @@
                 if (target.dataset.resultNotes !== undefined) result.observaciones = target.value;
                 if (target.dataset.resultTrl !== undefined) result.trl = target.value;
             }
-            if (target.dataset.indicatorDescription !== undefined || target.dataset.indicatorGoal !== undefined) {
-                const objectiveIndex = Number(target.dataset.indicatorDescription ?? target.dataset.indicatorGoal);
+            if (target.dataset.indicatorDescription !== undefined) {
+                const objectiveIndex = Number(target.dataset.indicatorDescription);
                 const resultIndex = Number(target.dataset.resultIndex);
                 const indicatorIndex = Number(target.dataset.indicatorIndex);
                 const indicator = payload[objectiveIndex].resultados[resultIndex].indicadores[indicatorIndex];
                 if (target.dataset.indicatorDescription !== undefined) indicator.descripcion = target.value;
-                if (target.dataset.indicatorGoal !== undefined) indicator.meta = target.value;
             }
             persist();
             if (shouldSyncEndDate) {
