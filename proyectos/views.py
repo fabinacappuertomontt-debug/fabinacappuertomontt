@@ -1,4 +1,4 @@
-from django.contrib import messages
+﻿from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -82,12 +82,21 @@ def organizacion_usuario(user):
     return getattr(user, "organizacion", None)
 
 
+def area_usuario(user):
+    return getattr(user, "area", None)
+
+
 def filtrar_por_sede(queryset, user, campo="sede"):
     return queryset.filter(**{campo: sede_usuario(user)})
 
 
 def proyectos_de_sede(user):
-    return filtrar_por_sede(Proyecto.objects.all(), user)
+    queryset = filtrar_por_sede(Proyecto.objects.all(), user)
+    if organizacion_usuario(user):
+        queryset = queryset.filter(organizacion=organizacion_usuario(user))
+    if area_usuario(user):
+        queryset = queryset.filter(area=area_usuario(user))
+    return queryset
 
 
 def inventario_de_sede(user):
@@ -95,7 +104,12 @@ def inventario_de_sede(user):
 
 
 def usuarios_de_sede(user):
-    return filtrar_por_sede(Usuario.objects.all(), user)
+    queryset = filtrar_por_sede(Usuario.objects.all(), user)
+    if organizacion_usuario(user):
+        queryset = queryset.filter(organizacion=organizacion_usuario(user))
+    if area_usuario(user):
+        queryset = queryset.filter(area=area_usuario(user))
+    return queryset
 
 
 def mensajes_no_leidos(user):
@@ -114,7 +128,7 @@ def estado_presencia(usuario):
     if diferencia <= timedelta(minutes=5):
         return {
             "en_linea": True,
-            "texto": "En línea",
+            "texto": "En lÃ­nea",
         }
     minutos = int(diferencia.total_seconds() // 60)
     if minutos < 60:
@@ -150,18 +164,29 @@ def enviar_codigo_verificacion(request, usuario):
     usuario.codigo_verificacion = generar_codigo_verificacion()
     usuario.codigo_verificacion_expira = timezone.now() + timedelta(minutes=10)
     usuario.save(update_fields=["codigo_verificacion", "codigo_verificacion_expira"])
-    verificar_url = request.build_absolute_uri(reverse("verificar_correo", kwargs={"pk": usuario.pk}))
+    verificar_url = url_publica(request, reverse("verificar_correo", kwargs={"pk": usuario.pk}))
     mensaje = (
         f"Hola {usuario.nombre or usuario.username},\n\n"
-        f"Tu código de confirmación es: {usuario.codigo_verificacion}\n\n"
-        f"Este código vence en 10 minutos.\n"
+        f"Tu codigo de confirmacion es: {usuario.codigo_verificacion}\n\n"
+        f"Este codigo vence en 10 minutos.\n"
         f"Confirmar correo: {verificar_url}\n\n"
         f"FAB INACAP"
     )
+    contenido = f"""
+        <p style="margin:0 0 16px 0;">Hola {escape(usuario.nombre or usuario.username)},</p>
+        <p style="margin:0 0 18px 0;">Usa este codigo para confirmar tu correo y activar el acceso a la plataforma.</p>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:5px solid #cf3f4f;border-radius:10px;padding:18px 20px;margin:0 0 20px 0;text-align:center;">
+            <div style="font-size:13px;color:#64748b;font-weight:800;text-transform:uppercase;">Codigo de confirmacion</div>
+            <div style="font-size:34px;font-weight:900;color:#142033;letter-spacing:6px;margin-top:8px;">{escape(usuario.codigo_verificacion)}</div>
+            <div style="font-size:13px;color:#64748b;margin-top:8px;">Vence en 10 minutos</div>
+        </div>
+        <p style="margin:0;color:#64748b;">Tambien puedes abrir el boton inferior para ir directamente a la pantalla de verificacion.</p>
+    """
     return enviar_correo_simple(
-        "Código de confirmación FAB INACAP",
+        "Codigo de confirmacion FAB INACAP",
         [usuario.email],
         mensaje,
+        correo_html_inacap("Codigo de confirmacion", "Verificacion de cuenta FAB INACAP", contenido, "Confirmar correo", verificar_url),
     )
 
 
@@ -173,25 +198,37 @@ def enviar_solicitud_aprobacion_externa(request, usuario):
     admin_email = next(iter(LAB_ADMIN_EMAILS), "")
     if not admin_email:
         return False
-    aprobar_url = request.build_absolute_uri(
-        reverse("registro_resolver", kwargs={"token": token_aprobacion_usuario(usuario, "aprobar")})
-    )
-    rechazar_url = request.build_absolute_uri(
-        reverse("registro_resolver", kwargs={"token": token_aprobacion_usuario(usuario, "rechazar")})
-    )
+    aprobar_url = url_publica(request, reverse("registro_resolver", kwargs={"token": token_aprobacion_usuario(usuario, "aprobar")}))
+    rechazar_url = url_publica(request, reverse("registro_resolver", kwargs={"token": token_aprobacion_usuario(usuario, "rechazar")}))
     mensaje = (
         "Nueva solicitud de usuario externo.\n\n"
         f"Nombre: {usuario.nombre}\n"
         f"Correo: {usuario.email}\n"
-        f"Institución/empresa: {usuario.institucion or 'No indicada'}\n"
-        f"Sede solicitada: {usuario.get_sede_display()}\n\n"
+        f"Institucion/empresa: {usuario.institucion or 'No indicada'}\n"
+        f"Area solicitada: {usuario.area.nombre if usuario.area else 'No indicada'}\n"
+        f"Sede solicitada: {usuario.get_sede_display()}\n"
+        f"Dominio oficial: {getattr(settings, 'PUBLIC_SITE_URL', '')}\n\n"
         f"Aprobar: {aprobar_url}\n"
         f"Rechazar: {rechazar_url}\n"
     )
+    contenido = f"""
+        <p style="margin:0 0 16px 0;">Se recibio una solicitud de acceso externo para la plataforma FAB INACAP.</p>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden;margin:0 0 20px 0;">
+            <tr><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:700;">Nombre</td><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#142033;">{escape(usuario.nombre)}</td></tr>
+            <tr><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:700;">Correo</td><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#142033;">{escape(usuario.email)}</td></tr>
+            <tr><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:700;">Institucion / empresa</td><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#142033;">{escape(usuario.institucion or "No indicada")}</td></tr>
+            <tr><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:700;">Area solicitada</td><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#142033;">{escape(usuario.area.nombre if usuario.area else "No indicada")}</td></tr>
+            <tr><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:700;">Sede</td><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#142033;">{escape(usuario.get_sede_display())}</td></tr>
+            <tr><td style="padding:10px 12px;color:#64748b;font-weight:700;">Dominio oficial</td><td style="padding:10px 12px;color:#142033;">{escape(getattr(settings, "PUBLIC_SITE_URL", ""))}</td></tr>
+        </table>
+        <p style="margin:0;color:#64748b;">Aprueba solo si reconoces la solicitud. Si no corresponde, usa el enlace de rechazo:</p>
+        <p style="margin:10px 0 0 0;"><a href="{escape(rechazar_url)}" style="color:#cf3f4f;font-weight:700;">Rechazar solicitud</a></p>
+    """
     return enviar_correo_simple(
         "Solicitud de acceso externo FAB INACAP",
         [admin_email],
         mensaje,
+        correo_html_inacap("Solicitud de acceso externo", "Revision de cuenta pendiente", contenido, "Aprobar solicitud", aprobar_url),
     )
 
 
@@ -200,7 +237,7 @@ def enviar_resultado_aprobacion(usuario, aprobado):
         asunto = "Cuenta aprobada FAB INACAP"
         mensaje = (
             f"Hola {usuario.nombre or usuario.username},\n\n"
-            "Tu cuenta fue aprobada. Ya puedes iniciar sesión en el sistema FAB INACAP.\n\n"
+            "Tu cuenta fue aprobada. Ya puedes iniciar sesiÃ³n en el sistema FAB INACAP.\n\n"
             "FAB INACAP"
         )
     else:
@@ -225,9 +262,9 @@ def registro_publico(request):
                 enviar_solicitud_aprobacion_externa(request, usuario)
                 return redirect("registro_pendiente", pk=usuario.pk)
             elif enviar_codigo_verificacion(request, usuario):
-                messages.success(request, "Te enviamos un código de confirmación al correo.")
+                messages.success(request, "Te enviamos un cÃ³digo de confirmaciÃ³n al correo.")
             else:
-                messages.warning(request, "Cuenta creada, pero no se pudo enviar el correo. Revisa la configuración SMTP.")
+                messages.warning(request, "Cuenta creada, pero no se pudo enviar el correo. Revisa la configuraciÃ³n SMTP.")
             return redirect("verificar_correo", pk=usuario.pk)
     return render(request, "registration/register.html", {"form": form})
 
@@ -241,7 +278,7 @@ def registro_resolver(request, token):
     try:
         datos = signing.loads(token, salt="aprobacion-usuario", max_age=60 * 60 * 24 * 7)
     except signing.BadSignature:
-        messages.error(request, "El enlace de aprobación no es válido o venció.")
+        messages.error(request, "El enlace de aprobaciÃ³n no es vÃ¡lido o venciÃ³.")
         return redirect("login")
 
     usuario = get_object_or_404(Usuario, pk=datos.get("usuario_id"))
@@ -264,7 +301,7 @@ def registro_resolver(request, token):
         enviar_resultado_aprobacion(usuario, False)
         messages.warning(request, f"Solicitud rechazada: {usuario.email}")
     else:
-        messages.error(request, "Acción no válida.")
+        messages.error(request, "AcciÃ³n no vÃ¡lida.")
     return redirect("login")
 
 
@@ -274,9 +311,9 @@ def verificar_correo(request, pk):
     if request.method == "POST":
         if "reenviar" in request.POST:
             if enviar_codigo_verificacion(request, usuario):
-                messages.success(request, "Te enviamos un nuevo código.")
+                messages.success(request, "Te enviamos un nuevo cÃ³digo.")
             else:
-                messages.error(request, "No se pudo enviar el código. Revisa la configuración del correo.")
+                messages.error(request, "No se pudo enviar el cÃ³digo. Revisa la configuraciÃ³n del correo.")
             return redirect("verificar_correo", pk=usuario.pk)
 
         form = CodigoVerificacionForm(request.POST)
@@ -284,9 +321,9 @@ def verificar_correo(request, pk):
             codigo = form.cleaned_data["codigo"]
             expira = usuario.codigo_verificacion_expira
             if not usuario.codigo_verificacion or not expira or timezone.now() > expira:
-                form.add_error("codigo", "El código venció. Solicita uno nuevo.")
+                form.add_error("codigo", "El cÃ³digo venciÃ³. Solicita uno nuevo.")
             elif codigo != usuario.codigo_verificacion:
-                form.add_error("codigo", "El código no coincide.")
+                form.add_error("codigo", "El cÃ³digo no coincide.")
             else:
                 usuario.correo_verificado = True
                 usuario.is_active = True
@@ -558,7 +595,7 @@ class ProyectoListView(LoginRequiredMixin, ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        queryset = proyectos_de_sede(self.request.user).prefetch_related("responsables", "fases").annotate(
+        queryset = proyectos_de_sede(self.request.user).select_related("creador").prefetch_related("responsables", "fases").annotate(
             total_tareas=Count("tareas", distinct=True),
             tareas_completadas=Count("tareas", filter=Q(tareas__estado=Tarea.Estado.COMPLETADA), distinct=True),
         )
@@ -620,7 +657,18 @@ class UsuarioCreateView(LoginRequiredMixin, CreateView):
             return redirect("usuario_lista")
         return super().dispatch(request, *args, **kwargs)
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["organizacion"] = organizacion_usuario(self.request.user)
+        return kwargs
+
     def form_valid(self, form):
+        if form.instance.area and not form.instance.organizacion:
+            form.instance.organizacion = form.instance.area.organizacion
+        if not form.instance.organizacion:
+            form.instance.organizacion = organizacion_usuario(self.request.user)
+        if not form.instance.area:
+            form.instance.area = area_usuario(self.request.user)
         if not form.instance.sede:
             form.instance.sede = sede_usuario(self.request.user)
         messages.success(self.request, "Usuario creado correctamente.")
@@ -644,7 +692,14 @@ class UsuarioUpdateView(LoginRequiredMixin, UpdateView):
     def get_queryset(self):
         return usuarios_de_sede(self.request.user)
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["organizacion"] = organizacion_usuario(self.request.user)
+        return kwargs
+
     def form_valid(self, form):
+        if form.instance.area and not form.instance.organizacion:
+            form.instance.organizacion = form.instance.area.organizacion
         messages.success(self.request, "Usuario actualizado correctamente.")
         return super().form_valid(form)
 
@@ -743,7 +798,7 @@ def usuario_eliminar(request, pk):
 
     usuario = get_object_or_404(usuarios_de_sede(request.user), pk=pk)
     if usuario.pk == request.user.pk:
-        messages.error(request, "No puedes eliminar el usuario con el que estás conectado.")
+        messages.error(request, "No puedes eliminar el usuario con el que estÃ¡s conectado.")
         return redirect("usuario_lista")
 
     if request.method == "POST":
@@ -766,17 +821,17 @@ def usuario_eliminar(request, pk):
 
 
 PALABRAS_ACTIVIDAD = {
-    "charla", "reunion", "reunión", "conversacion", "conversación",
-    "presentacion", "presentación", "capacitacion", "capacitación",
-    "evento", "coordinacion", "coordinación", "jornada", "taller",
-    "seminario", "clase", "induccion", "inducción",
+    "charla", "reunion", "reuniÃ³n", "conversacion", "conversaciÃ³n",
+    "presentacion", "presentaciÃ³n", "capacitacion", "capacitaciÃ³n",
+    "evento", "coordinacion", "coordinaciÃ³n", "jornada", "taller",
+    "seminario", "clase", "induccion", "inducciÃ³n",
 }
 
 PALABRAS_TECNOLOGIA = {
-    "sistema", "web", "app", "movil", "móvil", "software", "plataforma",
+    "sistema", "web", "app", "movil", "mÃ³vil", "software", "plataforma",
     "prototipo", "sensor", "hardware", "ia", "inteligencia artificial",
-    "dispositivo", "tecnologia", "tecnología", "herramienta digital",
-    "validar", "automatizacion", "automatización", "producto innovador",
+    "dispositivo", "tecnologia", "tecnologÃ­a", "herramienta digital",
+    "validar", "automatizacion", "automatizaciÃ³n", "producto innovador",
 }
 
 
@@ -797,12 +852,12 @@ def fases_por_tipo(tipo_proyecto):
         ]
     if tipo_proyecto == Proyecto.TipoProyecto.ACTIVIDAD:
         objetivos = {
-            1: "Definir objetivo, público, fecha tentativa y responsables de la actividad.",
-            2: "Preparar presentación, pauta, recursos y materiales necesarios.",
-            3: "Coordinar sala, participantes, difusión y confirmaciones.",
+            1: "Definir objetivo, pÃºblico, fecha tentativa y responsables de la actividad.",
+            2: "Preparar presentaciÃ³n, pauta, recursos y materiales necesarios.",
+            3: "Coordinar sala, participantes, difusiÃ³n y confirmaciones.",
             4: "Realizar la actividad y dejar registro de asistencia o evidencia.",
             5: "Registrar resultados, comentarios, aprendizajes y mejoras detectadas.",
-            6: "Cerrar la actividad con evidencias, conclusiones y próximos pasos.",
+            6: "Cerrar la actividad con evidencias, conclusiones y prÃ³ximos pasos.",
         }
         return [(numero, nombre, objetivos[numero]) for numero, nombre in ACTIVIDAD_FASES]
     objetivos = {
@@ -941,13 +996,108 @@ def notificar_responsables_proyecto(request, proyecto):
     )
 
 
+def notificar_creador_proyecto(request, proyecto):
+    if not proyecto.creador or not proyecto.creador.email:
+        return False
+    url = url_publica(request, proyecto.get_absolute_url())
+    responsables = list(proyecto.responsables.all())
+    responsables_texto = ", ".join(str(responsable) for responsable in responsables) or "Sin responsables asignados"
+    especificaciones = [
+        ("Tipo de seguimiento", proyecto.get_metodologia_display()),
+        ("Tipo de proyecto", proyecto.get_tipo_proyecto_display()),
+        ("Estado", proyecto.get_estado_display()),
+        ("Fecha inicio", proyecto.fecha_inicio.strftime("%d/%m/%Y") if proyecto.fecha_inicio else "Sin fecha"),
+        ("Fecha fin", proyecto.fecha_fin.strftime("%d/%m/%Y") if proyecto.fecha_fin else "Sin fecha"),
+        ("Responsables", responsables_texto),
+    ]
+    if proyecto.usa_trl:
+        especificaciones.append(("Ruta TRL", proyecto.rango_trl_texto))
+    filas_html = "".join(
+        f"""
+        <tr>
+            <td style="padding:9px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:700;">{escape(nombre)}</td>
+            <td style="padding:9px 12px;border-bottom:1px solid #e2e8f0;color:#142033;">{escape(str(valor))}</td>
+        </tr>
+        """
+        for nombre, valor in especificaciones
+    )
+    mensaje = (
+        f"Hola {proyecto.creador.nombre or proyecto.creador.username},\n\n"
+        f"Creaste el proyecto '{proyecto.nombre}'.\n\n"
+        f"Descripcion: {proyecto.descripcion}\n"
+        f"Objetivo principal: {proyecto.objetivo_principal or 'No indicado'}\n"
+        f"Tipo de seguimiento: {proyecto.get_metodologia_display()}\n"
+        f"Responsables: {responsables_texto}\n"
+        f"Revisar proyecto: {url}\n\n"
+        f"FAB INACAP Puerto Montt"
+    )
+    contenido = f"""
+        <p style="margin:0 0 16px 0;">Hola {escape(proyecto.creador.nombre or proyecto.creador.username)},</p>
+        <p style="margin:0 0 18px 0;">Se registrÃ³ correctamente el proyecto que creaste en la plataforma.</p>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:5px solid #cf3f4f;border-radius:10px;padding:18px 20px;margin:0 0 20px 0;">
+            <div style="font-size:18px;font-weight:800;color:#142033;line-height:1.3;">{escape(proyecto.nombre)}</div>
+            <div style="font-size:13px;color:#64748b;margin-top:8px;">{escape(proyecto.descripcion[:260])}</div>
+        </div>
+        <p style="margin:0 0 10px 0;"><strong>Objetivo principal:</strong><br>{escape(proyecto.objetivo_principal or "No indicado")}</p>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden;margin-top:18px;">
+            {filas_html}
+        </table>
+    """
+    return enviar_correo_simple(
+        f"Proyecto creado: {proyecto.nombre}",
+        [proyecto.creador.email],
+        mensaje,
+        correo_html_inacap("Proyecto creado", "Resumen de creaciÃ³n y responsables", contenido, "Revisar proyecto", url),
+    )
+
+
+def url_etapa_para_fase(request, fase):
+    tablero = construir_tablero_trl(fase.proyecto)
+    for etapa in tablero:
+        if any(paso["fase"].pk == fase.pk for paso in etapa["pasos"]):
+            return url_publica(request, reverse("etapa_trabajo", kwargs={"pk": fase.proyecto_id, "slug": etapa["slug"]}))
+    return url_publica(request, fase.proyecto.get_absolute_url())
+
+
+def notificar_creador_fase_completada(request, fase):
+    proyecto = fase.proyecto
+    if not proyecto.creador or not proyecto.creador.email:
+        return False
+    url = url_etapa_para_fase(request, fase)
+    mensaje = (
+        f"Hola {proyecto.creador.nombre or proyecto.creador.username},\n\n"
+        f"Se completÃ³ la etapa '{fase.etiqueta}: {fase.nombre}' del proyecto '{proyecto.nombre}'.\n\n"
+        f"Trabajo registrado:\n{fase.realizado or 'Sin detalle registrado'}\n\n"
+        f"Revisar etapa: {url}\n\n"
+        f"FAB INACAP Puerto Montt"
+    )
+    contenido = f"""
+        <p style="margin:0 0 16px 0;">Hola {escape(proyecto.creador.nombre or proyecto.creador.username)},</p>
+        <p style="margin:0 0 18px 0;">Se completÃ³ una etapa del proyecto que creaste.</p>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-left:5px solid #16a34a;border-radius:10px;padding:18px 20px;margin:0 0 20px 0;">
+            <div style="font-size:13px;color:#166534;font-weight:800;text-transform:uppercase;">Etapa completada</div>
+            <div style="font-size:18px;font-weight:800;color:#142033;line-height:1.3;margin-top:4px;">{escape(fase.etiqueta)}: {escape(fase.nombre)}</div>
+            <div style="font-size:13px;color:#64748b;margin-top:8px;">Proyecto: {escape(proyecto.nombre)}</div>
+        </div>
+        <p style="margin:0 0 8px 0;"><strong>Trabajo registrado:</strong></p>
+        <p style="margin:0;color:#475569;">{escape(fase.realizado or "Sin detalle registrado")}</p>
+        <p style="margin:18px 0 0 0;color:#64748b;">Puedes entrar a la etapa para revisar evidencias, avances, observaciones y recursos usados.</p>
+    """
+    return enviar_correo_simple(
+        f"Etapa completada: {fase.nombre}",
+        [proyecto.creador.email],
+        mensaje,
+        correo_html_inacap("Etapa completada", proyecto.nombre, contenido, "Revisar etapa", url),
+    )
+
+
 def notificar_tarea_asignada(request, tarea):
     if not tarea.responsable or not tarea.responsable.email:
         return False
     url = url_publica(request, tarea.proyecto.get_absolute_url())
     mensaje = (
         f"Hola {tarea.responsable.nombre or tarea.responsable.username},\n\n"
-        f"Se te asignó la tarea '{tarea.nombre}' en el proyecto '{tarea.proyecto.nombre}'.\n\n"
+        f"Se te asignÃ³ la tarea '{tarea.nombre}' en el proyecto '{tarea.proyecto.nombre}'.\n\n"
         f"Estado: {tarea.get_estado_display()}\n"
         f"Revisar proyecto: {url}\n\n"
         f"FAB INACAP Puerto Montt"
@@ -964,13 +1114,13 @@ def notificar_observacion(request, observacion):
     destinatarios = [usuario.email for usuario in observacion.proyecto.responsables.all()]
     mensaje = (
         f"Hola,\n\n"
-        f"{observacion.usuario} agregó una observación al proyecto '{observacion.proyecto.nombre}'.\n\n"
-        f"Observación:\n{observacion.comentario}\n\n"
+        f"{observacion.usuario} agregÃ³ una observaciÃ³n al proyecto '{observacion.proyecto.nombre}'.\n\n"
+        f"ObservaciÃ³n:\n{observacion.comentario}\n\n"
         f"Revisar proyecto: {url}\n\n"
         f"FAB INACAP Puerto Montt"
     )
     return enviar_correo_simple(
-        f"Nueva observación en {observacion.proyecto.nombre}",
+        f"Nueva observaciÃ³n en {observacion.proyecto.nombre}",
         destinatarios,
         mensaje,
     )
@@ -981,15 +1131,15 @@ TRL_ETAPAS = [
         "slug": "inicio",
         "nombre": "Inicio",
         "rango": range(1, 4),
-        "resumen": "Ideas, necesidad, planificación y prueba de concepto inicial.",
+        "resumen": "Ideas, necesidad, planificaciÃ³n y prueba de concepto inicial.",
         "evidencias": ["Problema definido", "Objetivo claro", "Plan de trabajo", "Concepto o prueba inicial"],
     },
     {
         "slug": "validacion",
-        "nombre": "Validación",
+        "nombre": "ValidaciÃ³n",
         "rango": range(4, 6),
-        "resumen": "Validación técnica en laboratorio y revisión en entorno relevante.",
-        "evidencias": ["Ensayos de laboratorio", "Resultados medibles", "Ajustes técnicos", "Validación del funcionamiento"],
+        "resumen": "ValidaciÃ³n tÃ©cnica en laboratorio y revisiÃ³n en entorno relevante.",
+        "evidencias": ["Ensayos de laboratorio", "Resultados medibles", "Ajustes tÃ©cnicos", "ValidaciÃ³n del funcionamiento"],
     },
     {
         "slug": "pruebas",
@@ -1000,10 +1150,10 @@ TRL_ETAPAS = [
     },
     {
         "slug": "finalizacion",
-        "nombre": "Finalización",
+        "nombre": "FinalizaciÃ³n",
         "rango": range(8, 10),
-        "resumen": "Sistema completo, validado y probado con éxito en entorno real.",
-        "evidencias": ["Solución completa", "Documentación final", "Validación real", "Cierre técnico"],
+        "resumen": "Sistema completo, validado y probado con Ã©xito en entorno real.",
+        "evidencias": ["SoluciÃ³n completa", "DocumentaciÃ³n final", "ValidaciÃ³n real", "Cierre tÃ©cnico"],
     },
 ]
 
@@ -1043,6 +1193,19 @@ def calcular_avance_por_objetivos(proyecto):
         return 0
     cumplidos = sum(1 for resultado in resultados if resultado.esta_cumplido)
     return round((cumplidos * 100) / len(resultados))
+
+
+def calcular_avance_por_fases_simples(proyecto):
+    total = proyecto.total_fases_relevantes
+    completadas = proyecto.fases_completadas_relevantes
+    return round((completadas * 100) / total) if total else 0
+
+
+def calcular_avance_simple(proyecto):
+    return max(
+        calcular_avance_por_objetivos(proyecto),
+        calcular_avance_por_fases_simples(proyecto),
+    )
 
 
 def resumen_objetivo_de_fase(proyecto, trl):
@@ -1132,9 +1295,9 @@ def sincronizar_trl_desde_resultados(proyecto):
 def sincronizar_avance_simple_desde_objetivos(proyecto):
     if proyecto.usa_trl:
         return
-    porcentaje = calcular_avance_por_objetivos(proyecto)
+    porcentaje = calcular_avance_simple(proyecto)
     nuevo_estado = proyecto.estado
-    if porcentaje >= 100 and proyecto.resultados_trl.exists():
+    if porcentaje >= 100 and (proyecto.resultados_trl.exists() or proyecto.fases_relevantes.exists()):
         nuevo_estado = Proyecto.Estado.FINALIZADO
     elif porcentaje > 0 and proyecto.estado in {Proyecto.Estado.PENDIENTE, Proyecto.Estado.FINALIZADO}:
         nuevo_estado = Proyecto.Estado.EN_PROCESO
@@ -1156,11 +1319,7 @@ def calcular_avance_madurez(proyecto):
         total = proyecto.trl_objetivo_efectivo - proyecto.trl_inicial_efectivo
         logrado = proyecto.nivel_actual - proyecto.trl_inicial_efectivo
         return round((logrado * 100) / total) if total > 0 else 100
-    if proyecto.resultados_trl.exists():
-        return calcular_avance_por_objetivos(proyecto)
-    total = proyecto.total_fases_relevantes
-    completadas = proyecto.fases_completadas_relevantes
-    return round((completadas * 100) / total) if total else 0
+    return calcular_avance_simple(proyecto)
 
 
 def construir_detalle_etapas(proyecto):
@@ -1368,6 +1527,7 @@ class ProyectoCreateView(LoginRequiredMixin, CreateView):
         kwargs = super().get_form_kwargs()
         kwargs["sede"] = sede_usuario(self.request.user)
         kwargs["organizacion"] = organizacion_usuario(self.request.user)
+        kwargs["area"] = area_usuario(self.request.user)
         return kwargs
 
     def get_context_data(self, **kwargs):
@@ -1378,11 +1538,14 @@ class ProyectoCreateView(LoginRequiredMixin, CreateView):
     def form_valid(self, form):
         form.instance.sede = sede_usuario(self.request.user)
         form.instance.organizacion = organizacion_usuario(self.request.user)
+        form.instance.area = area_usuario(self.request.user)
+        form.instance.creador = self.request.user
         form.instance.estado = Proyecto.Estado.EN_PROCESO
         response = super().form_valid(form)
         crear_fases_para_proyecto(self.object)
         sincronizar_trl_desde_resultados(self.object)
         sincronizar_avance_simple_desde_objetivos(self.object)
+        notificar_creador_proyecto(self.request, self.object)
         correo_enviado = notificar_responsables_proyecto(self.request, self.object)
         if correo_enviado:
             messages.success(self.request, "Proyecto creado correctamente.")
@@ -1402,6 +1565,7 @@ class ProyectoUpdateView(LoginRequiredMixin, UpdateView):
         kwargs = super().get_form_kwargs()
         kwargs["sede"] = self.object.sede
         kwargs["organizacion"] = self.object.organizacion
+        kwargs["area"] = self.object.area
         return kwargs
 
     def get_context_data(self, **kwargs):
@@ -1427,7 +1591,7 @@ class ProyectoUpdateView(LoginRequiredMixin, UpdateView):
 @login_required
 def proyecto_detalle(request, pk):
     proyecto = get_object_or_404(
-        proyectos_de_sede(request.user).prefetch_related(
+        proyectos_de_sede(request.user).select_related("creador").prefetch_related(
             "responsables",
             "avances__responsable",
             "tareas__responsable",
@@ -1463,7 +1627,7 @@ def proyecto_detalle(request, pk):
 @login_required
 def proyecto_trabajo(request, pk):
     proyecto = get_object_or_404(
-        proyectos_de_sede(request.user).prefetch_related(
+        proyectos_de_sede(request.user).select_related("creador").prefetch_related(
             "responsables",
             "avances__responsable",
             "tareas__responsable",
@@ -1575,7 +1739,7 @@ def construir_linea_temporal(proyecto):
     for observacion in proyecto.observaciones.all():
         items.append({
             "fecha": observacion.fecha.date(),
-            "tipo": "Observación",
+            "tipo": "ObservaciÃ³n",
             "titulo": observacion.usuario,
             "descripcion": observacion.comentario,
         })
@@ -1584,7 +1748,7 @@ def construir_linea_temporal(proyecto):
         items.append({
             "fecha": proyecto.fecha_fin,
             "tipo": "Cierre",
-            "titulo": "Fecha de término",
+            "titulo": "Fecha de tÃ©rmino",
             "descripcion": proyecto.get_estado_display(),
         })
 
@@ -1602,10 +1766,14 @@ def fase_detalle(request, pk):
         return redirect("proyecto_trabajo", pk=fase.proyecto_id)
     form = FaseProyectoForm(instance=fase)
     if request.method == "POST":
+        estado_anterior = fase.estado
         form = FaseProyectoForm(request.POST, instance=fase)
         if form.is_valid():
-            form.save()
+            fase = form.save()
             sincronizar_trl_desde_resultados(fase.proyecto)
+            sincronizar_avance_simple_desde_objetivos(fase.proyecto)
+            if estado_anterior != FaseProyecto.Estado.COMPLETADA and fase.estado == FaseProyecto.Estado.COMPLETADA:
+                notificar_creador_fase_completada(request, fase)
             messages.success(request, "Fase actualizada correctamente.")
             return redirect(url_retorno_segura(request, fase.proyecto.get_absolute_url()))
     return render(
@@ -1749,7 +1917,7 @@ def inventario_lector(request):
                     item_encontrado.save(update_fields=["cantidad", "observacion", "actualizado_en"])
                     messages.success(request, f"Stock actualizado: {item_encontrado.nombre}.")
                     return redirect("inventario_lector")
-            messages.warning(request, "No existe un ítem activo con ese código. Completa el alta para dejarlo registrado.")
+            messages.warning(request, "No existe un Ã­tem activo con ese cÃ³digo. Completa el alta para dejarlo registrado.")
             parametros = urlencode({"codigo_barra": codigo, "cantidad": cantidad})
             return redirect(f"{reverse('inventario_crear')}?{parametros}")
     return render(
@@ -1758,7 +1926,7 @@ def inventario_lector(request):
         {
             "form": form,
             "titulo": "Agregar con lector de barra",
-            "descripcion": "Escanea el código del ítem y suma la cantidad ingresada al stock existente.",
+            "descripcion": "Escanea el cÃ³digo del Ã­tem y suma la cantidad ingresada al stock existente.",
             "boton": "Agregar al stock",
             "volver_url": "inventario_lista",
             "modo_lector": True,
@@ -1827,7 +1995,7 @@ def registrar_uso_inventario(request, pk):
             "proyecto": proyecto,
             "form": form,
             "titulo": "Registrar uso de inventario",
-            "descripcion": "Indica qué material, equipo o insumo usó este proyecto.",
+            "descripcion": "Indica quÃ© material, equipo o insumo usÃ³ este proyecto.",
             "boton": "Registrar uso",
         },
     )
@@ -1853,7 +2021,7 @@ def actualizar_estado(request, pk):
             "titulo": "Actualizar estado",
             "descripcion": "Modifica el estado del proyecto.",
             "boton": "Guardar estado",
-            "confirmacion": "¿Actualizar el estado y avance del proyecto?",
+            "confirmacion": "Â¿Actualizar el estado y avance del proyecto?",
         },
     )
 
@@ -1942,7 +2110,7 @@ def subir_evidencia(request, pk):
             "proyecto": proyecto,
             "form": form,
             "titulo": "Subir evidencia",
-            "descripcion": "Adjunta un archivo, presentación, documento o respaldo del proyecto.",
+            "descripcion": "Adjunta un archivo, presentaciÃ³n, documento o respaldo del proyecto.",
             "boton": "Subir evidencia",
             "multipart": True,
         },
@@ -1978,9 +2146,9 @@ def crear_observacion(request, pk):
             observacion.save()
             correo_enviado = notificar_observacion(request, observacion)
             if correo_enviado:
-                messages.success(request, "Observación agregada correctamente. Responsables notificados por correo.")
+                messages.success(request, "ObservaciÃ³n agregada correctamente. Responsables notificados por correo.")
             else:
-                messages.success(request, "Observación agregada correctamente.")
+                messages.success(request, "ObservaciÃ³n agregada correctamente.")
             return redirect(url_retorno_segura(request, proyecto.get_absolute_url().replace(f"/proyectos/{proyecto.pk}/", f"/proyectos/{proyecto.pk}/trabajo/")))
     return render(
         request,
@@ -1988,9 +2156,9 @@ def crear_observacion(request, pk):
         {
             "proyecto": proyecto,
             "form": form,
-            "titulo": "Agregar observación",
-            "descripcion": "Registra una recomendación, comentario o seguimiento del proyecto.",
-            "boton": "Guardar observación",
+            "titulo": "Agregar observaciÃ³n",
+            "descripcion": "Registra una recomendaciÃ³n, comentario o seguimiento del proyecto.",
+            "boton": "Guardar observaciÃ³n",
         },
     )
 

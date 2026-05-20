@@ -33,6 +33,7 @@
             <article><span>Teléfono</span><strong>{{ usuario_obj.telefono|default:"No registrado" }}</strong></article>
             <article><span>Usuario</span><strong>{{ usuario_obj.username }}</strong></article>
             <article><span>Institución</span><strong>{{ usuario_obj.institucion|default:"No registrada" }}</strong></article>
+            <article><span>Área</span><strong>{{ usuario_obj.area.nombre|default:"No registrada" }}</strong></article>
             <article><span>Cargo o área</span><strong>{{ usuario_obj.cargo|default:"No registrado" }}</strong></article>
             <article><span>Dirección o referencia</span><strong>{{ usuario_obj.direccion|default:"No registrada" }}</strong></article>
         </section>

@@ -42,6 +42,11 @@
             <p>{% if proyecto.fecha_fin %}Cierre {{ proyecto.fecha_fin|date:"d/m/Y" }}{% else %}Sin fecha de cierre{% endif %}</p>
         </article>
         <article>
+            <span>Jefe / creador</span>
+            <strong>{{ proyecto.creador|default:"Sin creador" }}</strong>
+            <p>{% if proyecto.creador %}{{ proyecto.creador.email }}{% else %}Usuario no registrado{% endif %}</p>
+        </article>
+        <article>
             <span>Responsables</span>
             <strong>{{ proyecto.responsables.all|length }}</strong>
             <p>

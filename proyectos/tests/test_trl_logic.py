@@ -7,9 +7,9 @@ from django.test import RequestFactory, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from proyectos.forms import ProyectoForm
-from proyectos.models import IndicadorResultado, ObjetivoEspecifico, Proyecto, ResultadoEsperado, Tarea, Usuario
-from proyectos.views import calcular_avance_madurez, construir_tablero_trl, crear_fases_para_proyecto, notificar_responsables_proyecto, recalcular_avance_por_tareas, sincronizar_avance_simple_desde_objetivos, sincronizar_trl_desde_resultados
+from proyectos.forms import ProyectoForm, RegistroPublicoForm
+from proyectos.models import Area, FaseProyecto, IndicadorResultado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, Tarea, Usuario
+from proyectos.views import calcular_avance_madurez, construir_tablero_trl, crear_fases_para_proyecto, enviar_codigo_verificacion, enviar_solicitud_aprobacion_externa, notificar_creador_fase_completada, notificar_creador_proyecto, notificar_responsables_proyecto, recalcular_avance_por_tareas, sincronizar_avance_simple_desde_objetivos, sincronizar_trl_desde_resultados
 
 
 class TrlStressLogicTests(TestCase):
@@ -300,6 +300,20 @@ class TrlStressLogicTests(TestCase):
 
         self.assertEqual(proyecto.porcentaje_avance, 25)
 
+    def test_fases_simples_actualizan_barra_de_avance(self):
+        proyecto = self.crear_proyecto_simple()
+        fase = proyecto.fases.order_by("trl").first()
+        fase.estado = FaseProyecto.Estado.COMPLETADA
+        fase.save(update_fields=["estado"])
+
+        sincronizar_avance_simple_desde_objetivos(proyecto)
+        proyecto.refresh_from_db()
+
+        self.assertEqual(proyecto.fases_completadas_relevantes, 1)
+        self.assertEqual(proyecto.total_fases_relevantes, 5)
+        self.assertEqual(proyecto.porcentaje_avance, 20)
+        self.assertEqual(calcular_avance_madurez(proyecto), 20)
+
     def test_formulario_simple_guarda_objetivos_sin_exigir_trl(self):
         payload = [{
             "descripcion": "Definir flujo de registro de avances.",
@@ -427,3 +441,184 @@ class TrlStressLogicTests(TestCase):
         self.assertEqual(correo.alternatives[0][1], "text/html")
         self.assertIn("INACAP", correo.alternatives[0][0])
         self.assertIn("Revisar proyecto", correo.alternatives[0][0])
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        PUBLIC_SITE_URL="https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net",
+    )
+    def test_correo_al_creador_resume_proyecto_y_responsables(self):
+        proyecto = self.crear_proyecto_simple()
+        proyecto.creador = self.usuario
+        proyecto.objetivo_principal = "Gestionar un proyecto con responsables definidos."
+        proyecto.save(update_fields=["creador", "objetivo_principal"])
+        request = RequestFactory().get("/")
+
+        enviado = notificar_creador_proyecto(request, proyecto)
+
+        self.assertTrue(enviado)
+        self.assertEqual(len(mail.outbox), 1)
+        correo = mail.outbox[0]
+        self.assertIn(self.usuario.email, correo.to)
+        self.assertIn("Proyecto creado", correo.subject)
+        self.assertIn(proyecto.nombre, correo.body)
+        self.assertIn("Responsables:", correo.body)
+        self.assertIn("https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net", correo.body)
+        self.assertEqual(correo.alternatives[0][1], "text/html")
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        PUBLIC_SITE_URL="https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net",
+    )
+    def test_correo_al_creador_al_completar_etapa(self):
+        proyecto = self.crear_proyecto_simple()
+        proyecto.creador = self.usuario
+        proyecto.save(update_fields=["creador"])
+        fase = proyecto.fases.order_by("trl").first()
+        fase.estado = fase.Estado.COMPLETADA
+        fase.realizado = "Se completó el levantamiento y se cargaron evidencias."
+        fase.save(update_fields=["estado", "realizado"])
+        request = RequestFactory().get("/")
+
+        enviado = notificar_creador_fase_completada(request, fase)
+
+        self.assertTrue(enviado)
+        self.assertEqual(len(mail.outbox), 1)
+        correo = mail.outbox[0]
+        self.assertIn(self.usuario.email, correo.to)
+        self.assertIn("Etapa completada", correo.subject)
+        self.assertIn(fase.nombre, correo.body)
+        self.assertIn("/etapas/", correo.body)
+        self.assertEqual(correo.alternatives[0][1], "text/html")
+
+
+class AreaRegistroTests(TestCase):
+    def setUp(self):
+        self.organizacion, _ = Organizacion.objects.get_or_create(
+            slug="fab-inacap-puerto-montt",
+            defaults={
+                "nombre": "FAB INACAP Puerto Montt",
+            },
+        )
+        self.area_fab, _ = Area.objects.get_or_create(
+            organizacion=self.organizacion,
+            slug="fab-puerto-montt",
+            defaults={
+                "nombre": "FAB Puerto Montt",
+                "correo_contacto": "fabinacappuertomontt@gmail.com",
+                "es_fab": True,
+            },
+        )
+        self.area_dae, _ = Area.objects.get_or_create(
+            organizacion=self.organizacion,
+            slug="direccion-vida-estudiantil-dae",
+            defaults={
+                "nombre": "Dirección de Vida Estudiantil (DAE)",
+                "correo_contacto": "dae@inacap.cl",
+            },
+        )
+        self.organizacion.nombre = "FAB INACAP Puerto Montt"
+        self.organizacion.save(update_fields=["nombre"])
+        self.area_fab.nombre = "FAB Puerto Montt"
+        self.area_fab.save(update_fields=["nombre"])
+        self.area_dae.nombre = "Dirección de Vida Estudiantil (DAE)"
+        self.area_dae.save(update_fields=["nombre"])
+
+    def test_registro_publico_asigna_area_y_organizacion(self):
+        form = RegistroPublicoForm(data={
+            "nombre": "Usuario DAE",
+            "email": "usuario.dae@inacapmail.cl",
+            "institucion": "",
+            "rol": Usuario.Rol.ALUMNO,
+            "area": str(self.area_dae.pk),
+            "sede": "puerto_montt",
+            "password1": "ClaveSegura123!",
+            "password2": "ClaveSegura123!",
+        })
+
+        self.assertTrue(form.is_valid(), form.errors)
+        usuario = form.save()
+
+        self.assertEqual(usuario.area, self.area_dae)
+        self.assertEqual(usuario.organizacion, self.organizacion)
+        self.assertEqual(usuario.estado_registro, Usuario.EstadoRegistro.VERIFICACION_CORREO)
+
+    def test_proyecto_form_filtra_responsables_por_area(self):
+        usuario_fab = Usuario.objects.create_user(
+            username="fabuser",
+            password="secret123",
+            email="fab@example.com",
+            nombre="Usuario FAB",
+            organizacion=self.organizacion,
+            area=self.area_fab,
+        )
+        Usuario.objects.create_user(
+            username="daeuser",
+            password="secret123",
+            email="dae@example.com",
+            nombre="Usuario DAE",
+            organizacion=self.organizacion,
+            area=self.area_dae,
+        )
+
+        form = ProyectoForm(sede="puerto_montt", organizacion=self.organizacion, area=self.area_fab)
+
+        self.assertQuerySetEqual(
+            form.fields["responsables"].queryset,
+            [usuario_fab],
+            transform=lambda usuario: usuario,
+        )
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        PUBLIC_SITE_URL="https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net",
+    )
+    def test_correo_aprobacion_externa_usa_dominio_publico_y_html(self):
+        usuario = Usuario.objects.create_user(
+            username="externo",
+            password="secret123",
+            email="externo@gmail.com",
+            nombre="Usuario Externo",
+            institucion="Empresa externa",
+            organizacion=self.organizacion,
+            area=self.area_fab,
+            estado_registro=Usuario.EstadoRegistro.PENDIENTE_APROBACION,
+            is_active=False,
+        )
+        request = RequestFactory().get("/")
+
+        enviado = enviar_solicitud_aprobacion_externa(request, usuario)
+
+        self.assertTrue(enviado)
+        self.assertEqual(len(mail.outbox), 1)
+        correo = mail.outbox[0]
+        self.assertIn("https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net", correo.body)
+        self.assertNotIn("127.0.0.1", correo.body)
+        self.assertIn("Dominio oficial", correo.body)
+        self.assertEqual(correo.alternatives[0][1], "text/html")
+        self.assertIn("Aprobar solicitud", correo.alternatives[0][0])
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        PUBLIC_SITE_URL="https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net",
+    )
+    def test_correo_verificacion_usa_dominio_publico_y_html(self):
+        usuario = Usuario.objects.create_user(
+            username="interno",
+            password="secret123",
+            email="interno@inacapmail.cl",
+            nombre="Usuario Interno",
+            organizacion=self.organizacion,
+            area=self.area_fab,
+            is_active=False,
+        )
+        request = RequestFactory().get("/")
+
+        enviado = enviar_codigo_verificacion(request, usuario)
+
+        self.assertTrue(enviado)
+        self.assertEqual(len(mail.outbox), 1)
+        correo = mail.outbox[0]
+        self.assertIn("https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net", correo.body)
+        self.assertNotIn("127.0.0.1", correo.body)
+        self.assertEqual(correo.alternatives[0][1], "text/html")
+        self.assertIn("Confirmar correo", correo.alternatives[0][0])

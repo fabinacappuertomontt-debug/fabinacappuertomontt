@@ -77,6 +77,31 @@ class Organizacion(models.Model):
         return self.nombre
 
 
+class Area(models.Model):
+    organizacion = models.ForeignKey(
+        Organizacion,
+        on_delete=models.CASCADE,
+        related_name="areas",
+    )
+    nombre = models.CharField(max_length=180)
+    slug = models.SlugField(max_length=90)
+    correo_contacto = models.EmailField(blank=True)
+    activa = models.BooleanField(default=True)
+    es_fab = models.BooleanField(default=False)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nombre"]
+        constraints = [
+            models.UniqueConstraint(fields=["organizacion", "slug"], name="area_unica_por_organizacion")
+        ]
+        verbose_name = "area"
+        verbose_name_plural = "areas"
+
+    def __str__(self):
+        return self.nombre
+
+
 class Usuario(AbstractUser):
     class Rol(models.TextChoices):
         SUPERADMIN = "superadmin", "Superadmin"
@@ -119,6 +144,13 @@ class Usuario(AbstractUser):
         blank=True,
         null=True,
     )
+    area = models.ForeignKey(
+        Area,
+        on_delete=models.PROTECT,
+        related_name="usuarios",
+        blank=True,
+        null=True,
+    )
     correo_verificado = models.BooleanField(default=True)
     estado_registro = models.CharField(
         max_length=30,
@@ -153,6 +185,13 @@ class Proyecto(models.Model):
     nombre = models.CharField(max_length=200)
     organizacion = models.ForeignKey(
         Organizacion,
+        on_delete=models.PROTECT,
+        related_name="proyectos",
+        blank=True,
+        null=True,
+    )
+    area = models.ForeignKey(
+        Area,
         on_delete=models.PROTECT,
         related_name="proyectos",
         blank=True,
@@ -198,6 +237,13 @@ class Proyecto(models.Model):
         default=Estado.PENDIENTE,
     )
     porcentaje_avance = models.PositiveSmallIntegerField(default=0)
+    creador = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        related_name="proyectos_creados",
+        blank=True,
+        null=True,
+    )
     responsables = models.ManyToManyField(
         Usuario,
         related_name="proyectos_responsable",

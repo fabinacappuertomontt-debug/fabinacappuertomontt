@@ -97,6 +97,9 @@
                     </div>
 
                     <div class="project-course-owners">
+                        {% if proyecto.creador %}
+                            <span class="person-chip">Creador: {{ proyecto.creador }}</span>
+                        {% endif %}
                         {% for responsable in proyecto.responsables.all|slice:":3" %}
                             <span class="person-chip">{{ responsable }}</span>
                         {% empty %}

@@ -1,7 +1,7 @@
 ﻿from django import forms
 from django.contrib.auth.forms import UserCreationForm
 
-from .models import Avance, Evidencia, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Observacion, Proyecto, ResultadoEsperado, Tarea, TRL_DEFINICIONES, UsoInventario, Usuario, sumar_meses_y_dias
+from .models import Area, Avance, Evidencia, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Observacion, Proyecto, ResultadoEsperado, Tarea, TRL_DEFINICIONES, UsoInventario, Usuario, sumar_meses_y_dias
 
 
 class BootstrapFormMixin:
@@ -94,9 +94,11 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
             "responsables": forms.CheckboxSelectMultiple(),
         }
 
-    def __init__(self, *args, sede=None, organizacion=None, **kwargs):
+    def __init__(self, *args, sede=None, organizacion=None, area=None, **kwargs):
         super().__init__(*args, **kwargs)
-        if organizacion:
+        if area:
+            self.fields["responsables"].queryset = Usuario.objects.filter(area=area).order_by("nombre", "username")
+        elif organizacion:
             self.fields["responsables"].queryset = Usuario.objects.filter(organizacion=organizacion).order_by("nombre", "username")
         elif sede:
             self.fields["responsables"].queryset = Usuario.objects.filter(sede=sede).order_by("nombre", "username")
@@ -514,20 +516,39 @@ class AjusteStockForm(BootstrapFormMixin, forms.Form):
 class UsuarioRegistroForm(BootstrapFormMixin, UserCreationForm):
     class Meta:
         model = Usuario
-        fields = ["username", "nombre", "email", "rol", "sede", "is_staff", "is_superuser"]
+        fields = ["username", "nombre", "email", "rol", "organizacion", "area", "sede", "is_staff", "is_superuser"]
         labels = {
             "username": "Usuario",
+            "organizacion": "Organizacion",
+            "area": "Area",
             "sede": "Sede",
             "is_staff": "Puede entrar al admin",
             "is_superuser": "Administrador total",
         }
 
     def __init__(self, *args, **kwargs):
+        organizacion = kwargs.pop("organizacion", None)
         super().__init__(*args, **kwargs)
+        if organizacion:
+            self.fields["organizacion"].initial = organizacion
+            self.fields["area"].queryset = Area.objects.filter(organizacion=organizacion, activa=True).order_by("nombre")
+        else:
+            self.fields["area"].queryset = Area.objects.filter(activa=True).select_related("organizacion").order_by("organizacion__nombre", "nombre")
+        self.fields["area"].required = True
         self.fields["password1"].widget.attrs.setdefault("class", "form-control")
         self.fields["password2"].widget.attrs.setdefault("class", "form-control")
         self.fields["is_staff"].widget.attrs.setdefault("class", "form-check-input")
         self.fields["is_superuser"].widget.attrs.setdefault("class", "form-check-input")
+
+    def clean(self):
+        cleaned = super().clean()
+        area = cleaned.get("area")
+        organizacion = cleaned.get("organizacion")
+        if area and not organizacion:
+            cleaned["organizacion"] = area.organizacion
+        elif area and organizacion and area.organizacion_id != organizacion.id:
+            self.add_error("area", "El area debe pertenecer a la organizacion seleccionada.")
+        return cleaned
 
 
 class UsuarioUpdateForm(BootstrapFormMixin, forms.ModelForm):
@@ -544,6 +565,8 @@ class UsuarioUpdateForm(BootstrapFormMixin, forms.ModelForm):
             "biografia",
             "foto",
             "rol",
+            "organizacion",
+            "area",
             "sede",
             "correo_verificado",
             "estado_registro",
@@ -553,6 +576,8 @@ class UsuarioUpdateForm(BootstrapFormMixin, forms.ModelForm):
         ]
         labels = {
             "username": "Usuario",
+            "organizacion": "Organizacion",
+            "area": "Area",
             "sede": "Sede",
             "institucion": "Institución o empresa",
             "telefono": "Teléfono",
@@ -567,9 +592,26 @@ class UsuarioUpdateForm(BootstrapFormMixin, forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        organizacion = kwargs.pop("organizacion", None)
         super().__init__(*args, **kwargs)
+        organizacion_actual = organizacion or getattr(self.instance, "organizacion", None)
+        if organizacion_actual:
+            self.fields["area"].queryset = Area.objects.filter(organizacion=organizacion_actual, activa=True).order_by("nombre")
+        else:
+            self.fields["area"].queryset = Area.objects.filter(activa=True).select_related("organizacion").order_by("organizacion__nombre", "nombre")
+        self.fields["area"].required = True
         for field_name in ["correo_verificado", "is_active", "is_staff", "is_superuser"]:
             self.fields[field_name].widget.attrs.setdefault("class", "form-check-input")
+
+    def clean(self):
+        cleaned = super().clean()
+        area = cleaned.get("area")
+        organizacion = cleaned.get("organizacion")
+        if area and not organizacion:
+            cleaned["organizacion"] = area.organizacion
+        elif area and organizacion and area.organizacion_id != organizacion.id:
+            self.add_error("area", "El area debe pertenecer a la organizacion seleccionada.")
+        return cleaned
 
 
 class PerfilUsuarioForm(BootstrapFormMixin, forms.ModelForm):
@@ -605,20 +647,28 @@ class RegistroPublicoForm(BootstrapFormMixin, UserCreationForm):
 
     class Meta:
         model = Usuario
-        fields = ["nombre", "email", "institucion", "rol", "sede", "password1", "password2"]
+        fields = ["nombre", "email", "institucion", "rol", "area", "sede", "password1", "password2"]
         labels = {
             "nombre": "Nombre completo",
             "email": "Correo institucional o laboral",
             "institucion": "Institución o empresa",
             "rol": "Tipo de usuario",
+            "area": "Area",
             "sede": "Sede",
         }
         help_texts = {
             "institucion": "Obligatorio si no usas un correo INACAP.",
+            "area": "Selecciona el area a la que perteneces. Tu cuenta quedara separada por esa area.",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["area"].queryset = Area.objects.filter(
+            organizacion__slug="fab-inacap-puerto-montt",
+            activa=True,
+        ).order_by("nombre")
+        self.fields["area"].empty_label = "Selecciona tu area"
+        self.fields["area"].required = True
         self.fields["password1"].widget.attrs.setdefault("class", "form-control")
         self.fields["password2"].widget.attrs.setdefault("class", "form-control")
 
@@ -634,6 +684,8 @@ class RegistroPublicoForm(BootstrapFormMixin, UserCreationForm):
         institucion = (cleaned.get("institucion") or "").strip()
         if email and not email.endswith(("@inacap.cl", "@inacapmail.cl")) and not institucion:
             self.add_error("institucion", "Indica tu institución o empresa para solicitar aprobación.")
+        if not cleaned.get("area"):
+            self.add_error("area", "Selecciona el area a la que perteneces.")
         return cleaned
 
     def save(self, commit=True):
@@ -649,6 +701,9 @@ class RegistroPublicoForm(BootstrapFormMixin, UserCreationForm):
         usuario.email = email
         usuario.institucion = self.cleaned_data.get("institucion", "").strip()
         usuario.rol = self.cleaned_data.get("rol") or Usuario.Rol.ALUMNO
+        usuario.area = self.cleaned_data.get("area")
+        if usuario.area:
+            usuario.organizacion = usuario.area.organizacion
         usuario.is_active = False
         usuario.is_staff = False
         usuario.is_superuser = False
