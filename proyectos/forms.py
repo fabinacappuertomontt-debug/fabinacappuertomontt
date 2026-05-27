@@ -71,7 +71,7 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
             "empresa_externa_rol": "Rol en el proyecto",
             "empresa_externa_observaciones": "Observaciones de vinculación",
             "trl_inicial": "TRL inicial de referencia",
-            "trl_objetivo": "TRL objetivo del proyecto",
+            "trl_objetivo": "Nivel TRL esperado",
             "responsables": "Responsables asociados al proyecto",
         }
         help_texts = {
@@ -232,15 +232,15 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
             if not trl_inicial:
                 self.add_error("trl_inicial", "Indica el TRL inicial real del proyecto tecnológico.")
             if not trl_objetivo:
-                self.add_error("trl_objetivo", "Indica el TRL objetivo esperado del proyecto tecnológico.")
+                self.add_error("trl_objetivo", "Indica el nivel TRL esperado del proyecto tecnológico.")
             if trl_inicial and trl_objetivo and trl_objetivo < trl_inicial:
-                self.add_error("trl_objetivo", "El TRL objetivo no puede ser menor al TRL inicial.")
+                self.add_error("trl_objetivo", "El nivel TRL esperado no puede ser menor al TRL inicial.")
             for objetivo in payload_trl:
                 for resultado in objetivo["resultados"]:
                     if trl_inicial and resultado["trl"] <= trl_inicial:
                         self.add_error("resultados_esperados", f"Cada resultado debe apuntar a un TRL superior al inicial. Revisa '{resultado['descripcion'][:40]}'.")
                     if trl_objetivo and resultado["trl"] > trl_objetivo:
-                        self.add_error("resultados_esperados", f"Hay resultados sobre el TRL objetivo definido. Revisa '{resultado['descripcion'][:40]}'.")
+                        self.add_error("resultados_esperados", f"Hay resultados sobre el nivel TRL esperado definido. Revisa '{resultado['descripcion'][:40]}'.")
             cleaned["tipo_proyecto"] = Proyecto.TipoProyecto.TECNOLOGICO
         else:
             cleaned["trl_inicial"] = None

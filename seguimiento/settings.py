@@ -7,8 +7,10 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env", override=True)
 
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-dev-key")
 DEBUG = os.getenv("DEBUG", "True").lower() in {"1", "true", "yes", "on"}
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-dev-key")
+if not DEBUG and SECRET_KEY == "django-insecure-dev-key":
+    raise RuntimeError("Configura SECRET_KEY en variables de entorno antes de ejecutar en produccion.")
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
@@ -112,4 +114,11 @@ EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "webmaster@localhost")
 EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "10"))
-PUBLIC_SITE_URL = os.getenv("PUBLIC_SITE_URL", "https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net").rstrip("/")
+PUBLIC_SITE_URL = os.getenv("PUBLIC_SITE_URL", "").rstrip("/")
+LAB_ADMIN_EMAILS = {
+    email.strip().lower()
+    for email in os.getenv("LAB_ADMIN_EMAILS", "").split(",")
+    if email.strip()
+}
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")

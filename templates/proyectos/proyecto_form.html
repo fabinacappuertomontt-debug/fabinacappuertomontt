@@ -18,6 +18,42 @@
     <a class="btn btn-outline-secondary" href="{% url 'proyecto_lista' %}">Volver</a>
 </div>
 
+{% if not object %}
+<div class="ai-project-dock" data-ai-project-assistant data-ai-url="{% url 'proyecto_asistente_ia' %}">
+    <button class="ai-project-launcher" type="button" data-ai-toggle aria-label="Abrir asistente IA">
+        <i class="bi bi-stars" aria-hidden="true"></i>
+        <span>IA</span>
+    </button>
+    <section class="ai-project-assistant" data-ai-panel hidden>
+        <header class="ai-project-header">
+            <div>
+                <span>Asistente IA</span>
+                <strong>IA INACAP Proyectos</strong>
+            </div>
+            <button type="button" data-ai-close aria-label="Cerrar asistente IA">
+                <i class="bi bi-x-lg" aria-hidden="true"></i>
+            </button>
+        </header>
+        <div class="ai-project-chat" data-ai-result>
+            <div class="ai-message ai-message-assistant">
+                <strong>IA INACAP Proyectos</strong>
+                <p class="mb-0">Hola. Puedo revisar lo que llevas escrito y sugerir TRL, objetivos, indicadores o proximos pasos.</p>
+            </div>
+        </div>
+        <div class="ai-chat-input">
+            <textarea class="form-control" rows="2" data-ai-message placeholder="Escribe tu pregunta sobre el proyecto..."></textarea>
+            <div class="ai-chat-actions">
+                <small>Respuesta orientativa. No modifica el formulario.</small>
+                <button class="btn btn-primary" type="button" data-ai-analyze>
+                    <i class="bi bi-send-fill" aria-hidden="true"></i>
+                    Enviar
+                </button>
+            </div>
+        </div>
+    </section>
+</div>
+{% endif %}
+
 <form method="post" class="form-panel">
     {% csrf_token %}
     {{ form.non_field_errors }}
@@ -137,7 +173,7 @@
         const objectiveStructureHelp = document.querySelector("[data-objective-structure-help]");
         const methodologyMessages = {
             simple: "Proyecto simple: el avance sube segun los objetivos especificos y sus indicadores cumplidos. No usa niveles TRL.",
-            trl: "Proyecto con TRL: cada resultado se asocia a un TRL objetivo y el proyecto sube de nivel cuando se cumplen sus indicadores.",
+            trl: "Proyecto con TRL: cada resultado queda asociado al nivel esperado del proyecto y el avance sube cuando se cumplen sus indicadores.",
         };
         const objectiveStructureMessages = {
             simple: "Usa el boton + para agregar objetivos especificos. Abajo editas el resultado, indicador y plazo del objetivo seleccionado.",
@@ -188,6 +224,130 @@
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
+
+        const csrfToken = document.querySelector("[name=csrfmiddlewaretoken]")?.value || "";
+        const parseJsonField = (selector) => {
+            const field = document.querySelector(selector);
+            if (!field || !field.value) {
+                return [];
+            }
+            try {
+                return JSON.parse(field.value);
+            } catch (error) {
+                return [];
+            }
+        };
+        const aiAssistant = document.querySelector("[data-ai-project-assistant]");
+        if (aiAssistant) {
+            const button = aiAssistant.querySelector("[data-ai-analyze]");
+            const result = aiAssistant.querySelector("[data-ai-result]");
+            const messageInput = aiAssistant.querySelector("[data-ai-message]");
+            const toggle = aiAssistant.querySelector("[data-ai-toggle]");
+            const panel = aiAssistant.querySelector("[data-ai-panel]");
+            const close = aiAssistant.querySelector("[data-ai-close]");
+            const setAssistantOpen = (open) => {
+                if (!panel) {
+                    return;
+                }
+                panel.hidden = !open;
+                aiAssistant.classList.toggle("is-open", open);
+                if (open) {
+                    window.setTimeout(() => messageInput?.focus(), 80);
+                }
+            };
+            toggle?.addEventListener("click", () => setAssistantOpen(panel?.hidden));
+            close?.addEventListener("click", () => setAssistantOpen(false));
+            const appendUserMessage = (message) => {
+                result.innerHTML += `
+                    <div class="ai-message ai-message-user">
+                        <p>${escapeHtml(message || "Analiza mi proyecto con lo que llevo escrito.")}</p>
+                    </div>
+                `;
+                result.scrollTop = result.scrollHeight;
+            };
+            const renderAiResult = (analysis) => {
+                const tasks = Array.isArray(analysis.tareas_sugeridas) ? analysis.tareas_sugeridas : [];
+                result.innerHTML += `
+                    <div class="ai-message ai-message-assistant">
+                        <strong>IA INACAP Proyectos</strong>
+                        <div class="ai-result-stack">
+                            <article>
+                                <span>TRL estimado</span>
+                                <strong>${escapeHtml(analysis.trl_estimado || "Sin estimacion")}</strong>
+                            </article>
+                            <article>
+                                <span>Justificacion</span>
+                                <p>${escapeHtml(analysis.justificacion || "Sin justificacion disponible.")}</p>
+                            </article>
+                            <article>
+                                <span>Recomendaciones</span>
+                                <p>${escapeHtml(analysis.recomendaciones || "Sin recomendaciones disponibles.")}</p>
+                            </article>
+                            <article>
+                                <span>Tareas sugeridas</span>
+                                ${tasks.length ? `<ul>${tasks.map((task) => `<li>${escapeHtml(task)}</li>`).join("")}</ul>` : `<p class="text-muted mb-0">Sin tareas sugeridas.</p>`}
+                            </article>
+                        </div>
+                    </div>
+                `;
+                result.scrollTop = result.scrollHeight;
+            };
+            button.addEventListener("click", async () => {
+                const mensaje = String(messageInput?.value || "").trim();
+                if (!mensaje) {
+                    messageInput?.focus();
+                    return;
+                }
+                const payload = {
+                    mensaje,
+                    metodologia: document.querySelector("[name='metodologia']")?.value || "",
+                    nombre: document.querySelector("[name='nombre']")?.value || "",
+                    descripcion: document.querySelector("[name='descripcion']")?.value || "",
+                    objetivo_principal: document.querySelector("[name='objetivo_principal']")?.value || "",
+                    trl_inicial: document.querySelector("[name='trl_inicial']")?.value || "",
+                    trl_objetivo: document.querySelector("[name='trl_objetivo']")?.value || "",
+                    fecha_inicio: document.querySelector("[name='fecha_inicio']")?.value || "",
+                    fecha_fin: document.querySelector("[name='fecha_fin']")?.value || "",
+                    objetivos: parseJsonField("[data-structured-field='objetivos']"),
+                    resultados: parseJsonField("[data-structured-field='resultados']"),
+                    indicadores: parseJsonField("[data-structured-field='indicadores']"),
+                };
+                button.disabled = true;
+                appendUserMessage(mensaje);
+                result.innerHTML += `<div class="ai-message ai-message-assistant ai-message-loading" data-ai-loading><strong>IA INACAP Proyectos</strong><p class="mb-0">Analizando tu borrador...</p></div>`;
+                result.scrollTop = result.scrollHeight;
+                try {
+                    const response = await fetch(aiAssistant.dataset.aiUrl, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-CSRFToken": csrfToken,
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const data = await response.json();
+                    if (!response.ok || !data.ok) {
+                        throw new Error(data.error || "No se pudo analizar el proyecto.");
+                    }
+                    result.querySelector("[data-ai-loading]")?.remove();
+                    renderAiResult(data.analisis || {});
+                    if (messageInput) {
+                        messageInput.value = "";
+                    }
+                } catch (error) {
+                    result.querySelector("[data-ai-loading]")?.remove();
+                    result.innerHTML += `<div class="ai-message ai-message-assistant"><p class="text-danger mb-0">${escapeHtml(error.message || "No se pudo conectar con el asistente IA.")}</p></div>`;
+                } finally {
+                    button.disabled = false;
+                }
+            });
+            messageInput?.addEventListener("keydown", (event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    button.click();
+                }
+            });
+        }
 
         const objectiveBuilder = document.querySelector("[data-specific-objectives]");
         if (objectiveBuilder) {
@@ -415,6 +575,7 @@
         const startInput = document.querySelector("[name='fecha_inicio']");
         const endInput = document.querySelector("[name='fecha_fin']");
         const projectTrlFields = document.querySelectorAll("[data-trl-field]");
+        const projectTrlTarget = document.querySelector("[name='trl_objetivo']");
         const objetivosField = document.querySelector("[data-structured-field='objetivos']");
         const resultadosField = document.querySelector("[data-structured-field='resultados']");
         const indicadoresField = document.querySelector("[data-structured-field='indicadores']");
@@ -536,7 +697,7 @@
                 ...objective,
                 resultados: (objective.resultados || []).map((result) => ({
                     ...result,
-                    trl: usesTrlMethodology() ? result.trl : "",
+                    trl: usesTrlMethodology() ? (projectTrlTarget?.value || result.trl || "") : "",
                 })),
             }));
             const serialized = JSON.stringify(serializedPayload);
@@ -572,16 +733,11 @@
             const activeObjective = payload[activeObjectiveIndex] || emptyObjective();
             const activeResult = activeObjective.resultados[0] || emptyResult();
             const activeIndicator = activeResult.indicadores[0] || emptyIndicator();
-            const showTrl = usesTrlMethodology();
-            const trlFieldMarkup = showTrl ? `
-                            <div class="col-md-3 trl-result-target" data-result-trl-wrapper>
-                                <label class="form-label">TRL objetivo</label>
-                                <select class="form-select" data-result-trl="${activeObjectiveIndex}" data-result-index="0">
-                                    <option value="">Selecciona</option>
-                                    ${trlOptions.map((option) => `<option value="${option.value}" ${String(activeResult.trl || "") === String(option.value) ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}
-                                </select>
-                            </div>
-            ` : "";
+            const objectiveOptions = payload.map((objective, index) => `
+                <option value="${index}" ${index === activeObjectiveIndex ? "selected" : ""}>
+                    Objetivo ${index + 1}${objective.descripcion ? ` - ${escapeHtml(objective.descripcion)}` : ""}
+                </option>
+            `).join("");
             list.innerHTML = `
                 <div class="trl-objective-editor">
                     <div class="trl-objective-editor__head">
@@ -607,13 +763,18 @@
                         <input class="form-control" type="text" value="${escapeHtml(activeObjective.descripcion || "")}" data-objective-description="${activeObjectiveIndex}" placeholder="Describe el objetivo especifico">
                     </div>
                     <div class="trl-result-editor">
-                        <div class="trl-result-editor__title">Resultado esperado del objetivo ${activeObjectiveIndex + 1}</div>
+                        <div class="trl-result-editor__title">Resultado esperado</div>
                         <div class="row g-3">
-                            <div class="col-12 trl-result-editor__field">
+                            <div class="col-md-7 trl-result-editor__field">
                                 <label class="form-label">Resultado esperado</label>
                                 <input class="form-control" type="text" value="${escapeHtml(activeResult.descripcion || "")}" data-result-description="${activeObjectiveIndex}" data-result-index="0" placeholder="Resultado esperado">
                             </div>
-                            ${trlFieldMarkup}
+                            <div class="col-md-5 trl-result-editor__field">
+                                <label class="form-label">Asociado a objetivo especifico</label>
+                                <select class="form-select" data-select-result-objective>
+                                    ${objectiveOptions}
+                                </select>
+                            </div>
                             <div class="col-md-2">
                                 <label class="form-label">Meses</label>
                                 <input class="form-control" type="number" min="0" value="${escapeHtml(activeResult.meses || 0)}" data-result-months="${activeObjectiveIndex}" data-result-index="0">
@@ -696,6 +857,11 @@
         trlBuilder.addEventListener("change", (event) => {
             const target = event.target;
             const payload = activePayload();
+            if (target.dataset.selectResultObjective !== undefined) {
+                activeState().activeObjectiveIndex = Number(target.value || 0);
+                render();
+                return;
+            }
             if (target.dataset.resultTrl !== undefined) {
                 const objectiveIndex = Number(target.dataset.resultTrl);
                 const resultIndex = Number(target.dataset.resultIndex);
@@ -758,6 +924,10 @@
                 syncProjectEndDate();
             });
         }
+        projectTrlFields.forEach((field) => {
+            field.addEventListener("change", persist);
+            field.addEventListener("input", persist);
+        });
 
         trlBuilder.addEventListener("click", (event) => {
             const addObjective = event.target.closest("[data-add-trl-objective]");

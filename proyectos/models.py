@@ -712,6 +712,62 @@ class Evidencia(models.Model):
         return self.nombre
 
 
+class RevisionIAEtapa(models.Model):
+    class Decision(models.TextChoices):
+        PENDIENTE = "pendiente", "Pendiente"
+        ACEPTADA = "aceptada", "Aceptada"
+        RECHAZADA = "rechazada", "Rechazada"
+
+    proyecto = models.ForeignKey(
+        Proyecto,
+        on_delete=models.CASCADE,
+        related_name="revisiones_ia",
+    )
+    fase = models.ForeignKey(
+        FaseProyecto,
+        on_delete=models.CASCADE,
+        related_name="revisiones_ia",
+    )
+    etapa_slug = models.SlugField(max_length=120)
+    etapa_nombre = models.CharField(max_length=160)
+    trl_actual = models.PositiveSmallIntegerField(blank=True, null=True)
+    trl_sugerido = models.CharField(max_length=40, blank=True)
+    recomienda_avanzar = models.BooleanField(default=False)
+    confianza = models.CharField(max_length=40, blank=True)
+    justificacion = models.TextField(blank=True)
+    faltantes = models.JSONField(default=list, blank=True)
+    acciones_sugeridas = models.JSONField(default=list, blank=True)
+    respuesta = models.JSONField(default=dict, blank=True)
+    decision = models.CharField(
+        max_length=20,
+        choices=Decision.choices,
+        default=Decision.PENDIENTE,
+    )
+    motivo_decision = models.TextField(blank=True)
+    solicitado_por = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        related_name="revisiones_ia_solicitadas",
+        blank=True,
+        null=True,
+    )
+    decidido_por = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        related_name="revisiones_ia_decididas",
+        blank=True,
+        null=True,
+    )
+    creado_en = models.DateTimeField(auto_now_add=True)
+    decidido_en = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ["-creado_en"]
+
+    def __str__(self):
+        return f"Revision IA {self.fase} - {self.get_decision_display()}"
+
+
 
 class ItemInventario(models.Model):
     class Area(models.TextChoices):

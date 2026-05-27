@@ -1,4 +1,6 @@
-from django.core.management.base import BaseCommand
+import os
+
+from django.core.management.base import BaseCommand, CommandError
 
 from proyectos.models import Usuario
 
@@ -39,7 +41,6 @@ USUARIOS_BASE = [
         "sede": "puerto_montt",
         "is_staff": True,
         "is_superuser": True,
-        "password_propio": "Eduardo2005.",
     },
 ]
 
@@ -50,12 +51,14 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--password",
-            default="Inacap2026",
+            default=None,
             help="Contraseña para crear o actualizar los usuarios base.",
         )
 
     def handle(self, *args, **options):
-        password = options["password"]
+        password = options["password"] or os.getenv("BASE_USERS_PASSWORD")
+        if not password:
+            raise CommandError("Indica --password o configura BASE_USERS_PASSWORD. No hay contrasena por defecto por seguridad.")
 
         for datos in USUARIOS_BASE:
             usuario, creado = Usuario.objects.get_or_create(

@@ -4,6 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
+from django.http import JsonResponse
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Avg, Count, F, Q
@@ -13,6 +14,7 @@ from django.utils import timezone
 from django.core import signing
 from django.utils.html import escape
 from django.utils.text import slugify
+from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, ListView, UpdateView
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
@@ -38,8 +40,12 @@ from .forms import (
     UsuarioRegistroForm,
     UsuarioUpdateForm,
 )
-from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Proyecto, ResultadoEsperado, Tarea, UsoInventario, Usuario
-LAB_ADMIN_EMAILS = {"fabinacappuertomontt@gmail.com"}
+from .gemini_service import analizar_borrador_trl, analizar_etapa_trl, analizar_trl
+from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario
+
+
+def correos_admin_laboratorio():
+    return getattr(settings, "LAB_ADMIN_EMAILS", set())
 
 
 def usuario_es_admin_laboratorio(user):
@@ -47,7 +53,7 @@ def usuario_es_admin_laboratorio(user):
         user.is_authenticated
         and (
             getattr(user, "rol", "") == Usuario.Rol.ADMINISTRADOR
-            or (user.email and user.email.lower() in LAB_ADMIN_EMAILS)
+            or (user.email and user.email.lower() in correos_admin_laboratorio())
         )
     )
 
@@ -57,7 +63,7 @@ def usuario_puede_gestionar_inventario(user):
 
 
 def usuario_puede_eliminar_proyecto(user):
-    return bool(user.is_authenticated and user.email and user.email.lower() in LAB_ADMIN_EMAILS)
+    return bool(user.is_authenticated and user.email and user.email.lower() in correos_admin_laboratorio())
 
 
 def usuario_puede_editar_proyecto(user, proyecto):
@@ -195,7 +201,7 @@ def token_aprobacion_usuario(usuario, accion):
 
 
 def enviar_solicitud_aprobacion_externa(request, usuario):
-    admin_email = next(iter(LAB_ADMIN_EMAILS), "")
+    admin_email = next(iter(correos_admin_laboratorio()), "")
     if not admin_email:
         return False
     aprobar_url = url_publica(request, reverse("registro_resolver", kwargs={"token": token_aprobacion_usuario(usuario, "aprobar")}))
@@ -1399,6 +1405,79 @@ def fase_desbloqueada(fase):
     ).exists()
 
 
+def datos_revision_ia_etapa(proyecto, etapa, fase, tareas, avances, evidencias, observaciones):
+    siguiente = proyecto.siguiente_fase
+    return {
+        "proyecto": {
+            "nombre": proyecto.nombre,
+            "descripcion": proyecto.descripcion,
+            "metodologia": proyecto.get_metodologia_display(),
+            "usa_trl": proyecto.usa_trl,
+            "trl_inicial": proyecto.trl_inicial,
+            "trl_actual_sistema": proyecto.trl_actual if proyecto.usa_trl else "",
+            "trl_esperado": proyecto.trl_objetivo,
+            "porcentaje_avance": proyecto.porcentaje_avance,
+            "objetivo_principal": proyecto.objetivo_principal,
+        },
+        "etapa": {
+            "nombre": etapa["nombre"],
+            "slug": etapa["slug"],
+            "resumen": etapa["resumen"],
+            "criterios_completados": etapa["completadas"],
+            "criterios_totales": etapa["total"],
+            "requisitos": etapa["evidencias"],
+        },
+        "fase_activa": {
+            "id": fase.pk,
+            "etiqueta": fase.etiqueta,
+            "nombre": fase.nombre,
+            "objetivo": fase.objetivo,
+            "estado": fase.get_estado_display(),
+            "trabajo_realizado": fase.realizado,
+            "trl": fase.trl if proyecto.usa_trl else "",
+        } if fase else {},
+        "siguiente_paso_sistema": {
+            "etiqueta": siguiente.etiqueta,
+            "nombre": siguiente.nombre,
+            "trl": siguiente.trl if proyecto.usa_trl else "",
+        } if siguiente else {},
+        "tareas": [
+            {
+                "nombre": tarea.nombre,
+                "descripcion": tarea.descripcion,
+                "estado": tarea.get_estado_display(),
+                "responsable": str(tarea.responsable) if tarea.responsable else "",
+            }
+            for tarea in tareas[:20]
+        ],
+        "avances": [
+            {
+                "fecha": avance.fecha.isoformat(),
+                "descripcion": avance.descripcion,
+                "responsable": str(avance.responsable),
+            }
+            for avance in avances[:20]
+        ],
+        "evidencias": [
+            {
+                "nombre": evidencia.nombre,
+                "descripcion": evidencia.descripcion,
+                "usuario": str(evidencia.usuario),
+                "fecha": evidencia.fecha_subida.isoformat(),
+            }
+            for evidencia in evidencias[:20]
+        ],
+        "observaciones": [
+            {
+                "comentario": observacion.comentario,
+                "usuario": str(observacion.usuario),
+                "fecha": observacion.fecha.isoformat(),
+            }
+            for observacion in observaciones[:20]
+        ],
+    }
+
+
 def recalcular_avance_por_tareas(proyecto):
     if proyecto.usa_trl:
         sincronizar_trl_desde_resultados(proyecto)
@@ -1621,6 +1700,42 @@ def proyecto_detalle(request, pk):
     return render(request, "proyectos/proyecto_detalle.html", contexto)
 
 
+@login_required
+def proyecto_ia_trl(request, pk):
+    proyecto = get_object_or_404(
+        proyectos_de_sede(request.user).prefetch_related(
+            "objetivos__resultados__indicadores",
+            "tareas",
+            "avances",
+            "evidencias",
+        ),
+        pk=pk,
+    )
+    sincronizar_trl_desde_resultados(proyecto)
+    sincronizar_avance_simple_desde_objetivos(proyecto)
+    analisis = analizar_trl(proyecto)
+    return render(
+        request,
+        "proyectos/proyecto_ia.html",
+        {
+            "proyecto": proyecto,
+            "analisis": analisis,
+        },
+    )
+
+
+@login_required
+@require_POST
+def asistente_ia_proyecto(request):
+    try:
+        datos = json.loads(request.body.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "error": "No se pudo leer el borrador del proyecto."}, status=400)
+
+    analisis = analizar_borrador_trl(datos)
+    return JsonResponse({"ok": True, "analisis": analisis})
+
+
 
 
 
@@ -1687,6 +1802,12 @@ def etapa_trabajo(request, pk, slug):
     avances_etapa = proyecto.avances.filter(filtro_etapa) if fases_etapa else proyecto.avances.none()
     evidencias_etapa = proyecto.evidencias.filter(filtro_etapa) if fases_etapa else proyecto.evidencias.none()
     observaciones_etapa = proyecto.observaciones.filter(filtro_etapa) if fases_etapa else proyecto.observaciones.none()
+    revision_ia_ultima = None
+    if fase_activa:
+        revision_ia_ultima = RevisionIAEtapa.objects.filter(
+            fase=fase_activa,
+            etapa_slug=slug,
+        ).select_related("solicitado_por", "decidido_por").first()
     contexto = {
         "proyecto": proyecto,
         "etapa": etapa,
@@ -1697,11 +1818,111 @@ def etapa_trabajo(request, pk, slug):
         "observaciones_etapa": observaciones_etapa,
         "evidencias_detalle": preparar_evidencias_detalle(type("ProyectoEvidencias", (), {"evidencias": evidencias_etapa})()),
         "usos_etapa": proyecto.usos_inventario.filter(filtro_etapa).select_related("item", "usuario") if fases_etapa else proyecto.usos_inventario.none(),
+        "revision_ia_ultima": revision_ia_ultima,
         "next_url": request.path,
         "es_admin_laboratorio": usuario_es_admin_laboratorio(request.user),
         "puede_editar_proyecto": usuario_puede_editar_proyecto(request.user, proyecto),
     }
     return render(request, "proyectos/etapa_trabajo.html", contexto)
+
+
+@login_required
+@require_POST
+def analizar_etapa_ia(request, pk, slug):
+    proyecto = get_object_or_404(
+        proyectos_de_sede(request.user).prefetch_related(
+            "avances__responsable",
+            "tareas__responsable",
+            "observaciones__usuario",
+            "evidencias__usuario",
+            "fases",
+        ),
+        pk=pk,
+    )
+    if not exigir_permiso_edicion_proyecto(request, proyecto):
+        return redirect("proyecto_trabajo", pk=proyecto.pk)
+    sincronizar_trl_desde_resultados(proyecto)
+    sincronizar_avance_simple_desde_objetivos(proyecto)
+    etapa = next((item for item in construir_tablero_trl(proyecto) if item["slug"] == slug), None)
+    if not etapa or etapa["bloqueada"]:
+        messages.error(request, "No se pudo analizar esta etapa.")
+        return redirect("proyecto_trabajo", pk=proyecto.pk)
+    fases_etapa = [paso["fase"] for paso in etapa["pasos"]]
+    fase_activa = next((paso["fase"] for paso in etapa["pasos"] if paso["desbloqueada"] and not paso["fase"].completada), None)
+    if not fase_activa and fases_etapa:
+        fase_activa = fases_etapa[-1]
+    if not fase_activa:
+        messages.error(request, "La etapa no tiene una fase activa para revisar.")
+        return redirect("proyecto_trabajo", pk=proyecto.pk)
+    filtro_etapa = Q(fase__in=fases_etapa)
+    if etapa["slug"] == "inicio":
+        filtro_etapa |= Q(fase__isnull=True)
+    tareas_etapa = list(proyecto.tareas.filter(filtro_etapa).select_related("responsable"))
+    avances_etapa = list(proyecto.avances.filter(filtro_etapa).select_related("responsable"))
+    evidencias_etapa = list(proyecto.evidencias.filter(filtro_etapa).select_related("usuario"))
+    observaciones_etapa = list(proyecto.observaciones.filter(filtro_etapa).select_related("usuario"))
+    datos = datos_revision_ia_etapa(
+        proyecto,
+        etapa,
+        fase_activa,
+        tareas_etapa,
+        avances_etapa,
+        evidencias_etapa,
+        observaciones_etapa,
+    )
+    analisis = analizar_etapa_trl(datos)
+    revision = RevisionIAEtapa.objects.create(
+        proyecto=proyecto,
+        fase=fase_activa,
+        etapa_slug=slug,
+        etapa_nombre=etapa["nombre"],
+        trl_actual=proyecto.trl_actual if proyecto.usa_trl else None,
+        trl_sugerido=analisis.get("trl_sugerido", ""),
+        recomienda_avanzar=bool(analisis.get("recomienda_avanzar")),
+        confianza=analisis.get("confianza", ""),
+        justificacion=analisis.get("justificacion", ""),
+        faltantes=analisis.get("faltantes", []),
+        acciones_sugeridas=analisis.get("acciones_sugeridas", []),
+        respuesta=analisis,
+        solicitado_por=request.user,
+    )
+    if revision.recomienda_avanzar:
+        messages.success(request, "La IA recomienda revisar la posibilidad de avanzar. La decision final sigue siendo humana.")
+    else:
+        messages.info(request, "La IA sugiere mantener la etapa en revision y completar los faltantes.")
+    return redirect("etapa_trabajo", pk=proyecto.pk, slug=slug)
+
+
+@login_required
+@require_POST
+def decidir_revision_ia_etapa(request, pk):
+    revision = get_object_or_404(
+        RevisionIAEtapa.objects.select_related("proyecto", "fase").filter(proyecto__sede=sede_usuario(request.user)),
+        pk=pk,
+    )
+    if not exigir_permiso_edicion_proyecto(request, revision.proyecto):
+        return redirect("proyecto_trabajo", pk=revision.proyecto_id)
+    decision = request.POST.get("decision")
+    motivo = (request.POST.get("motivo") or "").strip()
+    if decision == RevisionIAEtapa.Decision.ACEPTADA:
+        revision.decision = RevisionIAEtapa.Decision.ACEPTADA
+        revision.motivo_decision = motivo
+        mensaje = "Recomendacion IA aceptada y registrada. El avance del proyecto sigue controlado por criterios y responsables."
+    elif decision == RevisionIAEtapa.Decision.RECHAZADA:
+        if not motivo:
+            messages.error(request, "Escribe un motivo para rechazar la recomendacion IA.")
+            return redirect("etapa_trabajo", pk=revision.proyecto_id, slug=revision.etapa_slug)
+        revision.decision = RevisionIAEtapa.Decision.RECHAZADA
+        revision.motivo_decision = motivo
+        mensaje = "Rechazo de recomendacion IA registrado correctamente."
+    else:
+        messages.error(request, "Decision no valida.")
+        return redirect("etapa_trabajo", pk=revision.proyecto_id, slug=revision.etapa_slug)
+    revision.decidido_por = request.user
+    revision.decidido_en = timezone.now()
+    revision.save(update_fields=["decision", "motivo_decision", "decidido_por", "decidido_en"])
+    messages.success(request, mensaje)
+    return redirect("etapa_trabajo", pk=revision.proyecto_id, slug=revision.etapa_slug)
 def construir_linea_temporal(proyecto):
     items = [
         {

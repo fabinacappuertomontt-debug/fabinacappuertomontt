@@ -32,11 +32,14 @@ El proyecto utiliza PostgreSQL como motor de base de datos. La conexión se conf
 Ejemplo de configuración:
 
 ```env
-DB_NAME=seguimiento_proyectos
-DB_USER=postgres
-DB_PASSWORD=tu_contraseña
-DB_HOST=localhost
-DB_PORT=5432
+POSTGRES_DB=seguimiento_proyectos
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=tu_password_seguro
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+PUBLIC_SITE_URL=https://tu-dominio-publico
+LAB_ADMIN_EMAILS=correo_admin@dominio.cl
+GEMINI_API_KEY=tu_clave_gemini
 ```
 
 ## Funcionalidades principales
@@ -177,7 +180,7 @@ python manage.py migrate
 7. Crear o actualizar usuarios base:
 
 ```powershell
-python manage.py crear_usuarios_base
+python manage.py crear_usuarios_base --password "contrasena-temporal-segura"
 ```
 
 8. Levantar el servidor:
@@ -202,11 +205,7 @@ El sistema incluye usuarios base para pruebas y demostración:
 | Diego Henríquez | diego.henriquez34@inacapmail.cl | Practicante / Administrador |
 | Jorge Navarro | jorge.navarrp@inacapmail.cl | Practicante / Administrador |
 
-Contraseña inicial:
-
-```text
-Inacap2026
-```
+La contraseña inicial no queda escrita en el código. Debe indicarse al ejecutar el comando con `--password` o mediante la variable `BASE_USERS_PASSWORD`.
 
 ## Dependencias principales
 

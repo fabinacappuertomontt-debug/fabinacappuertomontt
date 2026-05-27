@@ -21,6 +21,9 @@
         </div>
         <div class="project-hero-actions">
             <a class="btn btn-outline-secondary" href="{% url 'proyecto_lista' %}">Volver</a>
+            {% if proyecto.usa_trl %}
+                <a class="btn btn-outline-primary" href="{% url 'proyecto_ia_trl' proyecto.pk %}">Asistente IA</a>
+            {% endif %}
             {% if puede_editar_proyecto %}
                 <a class="btn btn-outline-primary" href="{% url 'proyecto_editar' proyecto.pk %}">Editar datos</a>
             {% endif %}

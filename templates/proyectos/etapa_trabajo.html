@@ -64,6 +64,94 @@
         </article>
     </section>
 
+    <section class="stage-ai-panel stage-ai-compact">
+        <div class="stage-ai-compact-main">
+            <span class="stage-ai-icon"><i class="bi bi-stars" aria-hidden="true"></i></span>
+            <div>
+                <span class="eyebrow">Validación IA</span>
+                <strong>
+                    {% if revision_ia_ultima %}
+                        {% if revision_ia_ultima.recomienda_avanzar %}Recomienda revisar avance{% else %}Mantener en trabajo{% endif %}
+                    {% else %}
+                        Sin revisión IA en esta etapa
+                    {% endif %}
+                </strong>
+                {% if revision_ia_ultima %}
+                    <small>{{ revision_ia_ultima.confianza|default:"Sin confianza" }}{% if revision_ia_ultima.trl_sugerido %} · {{ revision_ia_ultima.trl_sugerido }}{% endif %}</small>
+                {% else %}
+                    <small>Analiza avances, evidencias y criterios cuando lo necesites.</small>
+                {% endif %}
+            </div>
+        </div>
+        <div class="stage-ai-compact-actions">
+            {% if puede_editar_proyecto and fase_activa %}
+                <form method="post" action="{% url 'etapa_ia_analizar' proyecto.pk etapa.slug %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-primary" type="submit">Analizar IA</button>
+                </form>
+            {% endif %}
+            {% if revision_ia_ultima %}
+                <span class="status-pill status-{{ revision_ia_ultima.decision }}">{{ revision_ia_ultima.get_decision_display }}</span>
+            {% endif %}
+        </div>
+
+        {% if revision_ia_ultima %}
+            <details class="stage-ai-details">
+                <summary>Ver análisis IA</summary>
+                <div class="stage-ai-result">
+                    <div class="stage-ai-text">
+                        <strong>Justificación</strong>
+                        <p>{{ revision_ia_ultima.justificacion|default:"La IA no entregó justificación." }}</p>
+                    </div>
+                    <div class="stage-ai-columns">
+                        <div>
+                            <strong>Faltantes</strong>
+                            <ul>
+                                {% for faltante in revision_ia_ultima.faltantes %}
+                                    <li>{{ faltante }}</li>
+                                {% empty %}
+                                    <li>No se detectaron faltantes específicos.</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div>
+                            <strong>Acciones sugeridas</strong>
+                            <ul>
+                                {% for accion in revision_ia_ultima.acciones_sugeridas %}
+                                    <li>{{ accion }}</li>
+                                {% empty %}
+                                    <li>Sin acciones sugeridas.</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {% if puede_editar_proyecto and revision_ia_ultima.decision == "pendiente" %}
+                        <div class="stage-ai-decision">
+                            <form method="post" action="{% url 'revision_ia_decidir' revision_ia_ultima.pk %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="decision" value="aceptada">
+                                <button class="btn btn-success" type="submit">Aceptar recomendación</button>
+                            </form>
+                            <form method="post" action="{% url 'revision_ia_decidir' revision_ia_ultima.pk %}" class="stage-ai-reject-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="decision" value="rechazada">
+                                <label class="form-label" for="motivo-rechazo-ia">No estoy de acuerdo porque</label>
+                                <textarea class="form-control" id="motivo-rechazo-ia" name="motivo" rows="2" placeholder="Ejemplo: todavía falta evidencia del prototipo funcionando."></textarea>
+                                <button class="btn btn-outline-danger" type="submit">No estoy de acuerdo</button>
+                            </form>
+                        </div>
+                    {% elif revision_ia_ultima.motivo_decision %}
+                        <div class="stage-ai-text">
+                            <strong>Motivo registrado</strong>
+                            <p>{{ revision_ia_ultima.motivo_decision }}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </details>
+        {% endif %}
+    </section>
+
     <section class="stage-record-grid">
         <article class="stage-panel">
             <div class="workspace-section-title compact">

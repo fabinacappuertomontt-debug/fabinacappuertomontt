@@ -8,8 +8,12 @@ from django.urls import reverse
 from django.utils import timezone
 
 from proyectos.forms import ProyectoForm, RegistroPublicoForm
+from proyectos.gemini_service import analizar_borrador_trl
 from proyectos.models import Area, FaseProyecto, IndicadorResultado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, Tarea, Usuario
 from proyectos.views import calcular_avance_madurez, construir_tablero_trl, crear_fases_para_proyecto, enviar_codigo_verificacion, enviar_solicitud_aprobacion_externa, notificar_creador_fase_completada, notificar_creador_proyecto, notificar_responsables_proyecto, recalcular_avance_por_tareas, sincronizar_avance_simple_desde_objetivos, sincronizar_trl_desde_resultados
+
+
+TEST_PUBLIC_SITE_URL = "https://example.com"
 
 
 class TrlStressLogicTests(TestCase):
@@ -402,7 +406,8 @@ class TrlStressLogicTests(TestCase):
         for url_name in ["proyecto_detalle", "proyecto_trabajo"]:
             response = self.client.get(reverse(url_name, kwargs={"pk": proyecto.pk}))
             self.assertEqual(response.status_code, 200)
-            self.assertNotContains(response, "TRL")
+            for texto_trl in ["Proyecto con TRL", "TRL objetivo", "TRL inicial", "TRL a", "Asistente IA TRL"]:
+                self.assertNotContains(response, texto_trl)
 
     def test_estres_proyectos_simples_no_se_presentan_como_trl(self):
         self.client.force_login(self.usuario)
@@ -420,12 +425,13 @@ class TrlStressLogicTests(TestCase):
 
             self.assertEqual(detalle.status_code, 200)
             self.assertEqual(trabajo.status_code, 200)
-            self.assertNotContains(detalle, "TRL")
-            self.assertNotContains(trabajo, "TRL")
+            for texto_trl in ["Proyecto con TRL", "TRL objetivo", "TRL inicial", "TRL a", "Asistente IA TRL"]:
+                self.assertNotContains(detalle, texto_trl)
+                self.assertNotContains(trabajo, texto_trl)
 
     @override_settings(
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
-        PUBLIC_SITE_URL="https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net",
+        PUBLIC_SITE_URL=TEST_PUBLIC_SITE_URL,
     )
     def test_correo_de_proyecto_usa_url_publica_y_html_inacap(self):
         proyecto = self.crear_proyecto_trl()
@@ -436,7 +442,7 @@ class TrlStressLogicTests(TestCase):
         self.assertTrue(enviado)
         self.assertEqual(len(mail.outbox), 1)
         correo = mail.outbox[0]
-        self.assertIn("https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net", correo.body)
+        self.assertIn(TEST_PUBLIC_SITE_URL, correo.body)
         self.assertNotIn("127.0.0.1", correo.body)
         self.assertEqual(correo.alternatives[0][1], "text/html")
         self.assertIn("INACAP", correo.alternatives[0][0])
@@ -444,7 +450,7 @@ class TrlStressLogicTests(TestCase):
 
     @override_settings(
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
-        PUBLIC_SITE_URL="https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net",
+        PUBLIC_SITE_URL=TEST_PUBLIC_SITE_URL,
     )
     def test_correo_al_creador_resume_proyecto_y_responsables(self):
         proyecto = self.crear_proyecto_simple()
@@ -462,12 +468,12 @@ class TrlStressLogicTests(TestCase):
         self.assertIn("Proyecto creado", correo.subject)
         self.assertIn(proyecto.nombre, correo.body)
         self.assertIn("Responsables:", correo.body)
-        self.assertIn("https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net", correo.body)
+        self.assertIn(TEST_PUBLIC_SITE_URL, correo.body)
         self.assertEqual(correo.alternatives[0][1], "text/html")
 
     @override_settings(
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
-        PUBLIC_SITE_URL="https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net",
+        PUBLIC_SITE_URL=TEST_PUBLIC_SITE_URL,
     )
     def test_correo_al_creador_al_completar_etapa(self):
         proyecto = self.crear_proyecto_simple()
@@ -570,7 +576,8 @@ class AreaRegistroTests(TestCase):
 
     @override_settings(
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
-        PUBLIC_SITE_URL="https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net",
+        PUBLIC_SITE_URL=TEST_PUBLIC_SITE_URL,
+        LAB_ADMIN_EMAILS={"admin@example.com"},
     )
     def test_correo_aprobacion_externa_usa_dominio_publico_y_html(self):
         usuario = Usuario.objects.create_user(
@@ -591,7 +598,7 @@ class AreaRegistroTests(TestCase):
         self.assertTrue(enviado)
         self.assertEqual(len(mail.outbox), 1)
         correo = mail.outbox[0]
-        self.assertIn("https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net", correo.body)
+        self.assertIn(TEST_PUBLIC_SITE_URL, correo.body)
         self.assertNotIn("127.0.0.1", correo.body)
         self.assertIn("Dominio oficial", correo.body)
         self.assertEqual(correo.alternatives[0][1], "text/html")
@@ -599,7 +606,7 @@ class AreaRegistroTests(TestCase):
 
     @override_settings(
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
-        PUBLIC_SITE_URL="https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net",
+        PUBLIC_SITE_URL=TEST_PUBLIC_SITE_URL,
     )
     def test_correo_verificacion_usa_dominio_publico_y_html(self):
         usuario = Usuario.objects.create_user(
@@ -618,7 +625,69 @@ class AreaRegistroTests(TestCase):
         self.assertTrue(enviado)
         self.assertEqual(len(mail.outbox), 1)
         correo = mail.outbox[0]
-        self.assertIn("https://trl-fablab-h8dxgse0b2dadjc9.eastus-01.azurewebsites.net", correo.body)
+        self.assertIn(TEST_PUBLIC_SITE_URL, correo.body)
         self.assertNotIn("127.0.0.1", correo.body)
         self.assertEqual(correo.alternatives[0][1], "text/html")
         self.assertIn("Confirmar correo", correo.alternatives[0][0])
+
+
+class GeminiAssistantTests(TestCase):
+    def setUp(self):
+        self.usuario = Usuario.objects.create_user(
+            username="aiuser",
+            password="secret123",
+            email="aiuser@example.com",
+            nombre="Usuario IA",
+        )
+
+    @override_settings(GEMINI_API_KEY="")
+    def test_servicio_gemini_sin_api_key_entrega_fallback(self):
+        respuesta = analizar_borrador_trl({
+            "nombre": "Proyecto sensor",
+            "descripcion": "Prototipo para monitorear variables ambientales.",
+        })
+
+        self.assertEqual(respuesta["trl_estimado"], "")
+        self.assertIn("GEMINI_API_KEY", respuesta["recomendaciones"])
+
+    @override_settings(GEMINI_API_KEY="")
+    def test_endpoint_asistente_ia_creacion_responde_json(self):
+        self.client.force_login(self.usuario)
+        response = self.client.post(
+            reverse("proyecto_asistente_ia"),
+            data=json.dumps({
+                "metodologia": Proyecto.Metodologia.TRL,
+                "nombre": "Proyecto sensor",
+                "descripcion": "Prototipo para monitorear variables ambientales.",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertIn("analisis", data)
+        self.assertIn("GEMINI_API_KEY", data["analisis"]["recomendaciones"])
+
+    @override_settings(GEMINI_API_KEY="")
+    def test_vista_ia_proyecto_renderiza_fallback(self):
+        proyecto = Proyecto.objects.create(
+            nombre="Proyecto IA TRL",
+            descripcion="Proyecto de prueba para analisis IA.",
+            metodologia=Proyecto.Metodologia.TRL,
+            tipo_proyecto=Proyecto.TipoProyecto.TECNOLOGICO,
+            trl_inicial=3,
+            trl_objetivo=6,
+            fecha_inicio=timezone.localdate(),
+            fecha_fin=timezone.localdate() + timedelta(days=120),
+            estado=Proyecto.Estado.EN_PROCESO,
+        )
+        proyecto.responsables.add(self.usuario)
+        crear_fases_para_proyecto(proyecto)
+        self.client.force_login(self.usuario)
+
+        response = self.client.get(reverse("proyecto_ia_trl", kwargs={"pk": proyecto.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Asistente IA TRL")
+        self.assertContains(response, "GEMINI_API_KEY")

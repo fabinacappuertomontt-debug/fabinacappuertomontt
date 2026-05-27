@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Asistente IA | {{ proyecto.nombre }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Asistente IA TRL</span>
+        <h1>{{ proyecto.nombre }}</h1>
+        <p>Analisis orientativo generado con Gemini a partir de objetivos, resultados, avances, tareas y evidencias.</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ proyecto.get_absolute_url }}">Volver al proyecto</a>
+</div>
+
+<section class="content-panel">
+    <div class="row g-4">
+        <div class="col-lg-3">
+            <span class="eyebrow">TRL estimado</span>
+            <h2 class="display-6 mb-0">{{ analisis.trl_estimado|default:"Sin estimacion" }}</h2>
+            <p class="text-muted mt-2">El sistema no cambia el TRL automaticamente. Esta respuesta es una recomendacion.</p>
+        </div>
+        <div class="col-lg-9">
+            <h2 class="h5">Justificacion</h2>
+            <p>{{ analisis.justificacion|default:"Sin justificacion disponible."|linebreaksbr }}</p>
+
+            <h2 class="h5 mt-4">Recomendaciones</h2>
+            <p>{{ analisis.recomendaciones|default:"Sin recomendaciones disponibles."|linebreaksbr }}</p>
+
+            <h2 class="h5 mt-4">Tareas sugeridas</h2>
+            {% if analisis.tareas_sugeridas %}
+                <ul class="mb-0">
+                    {% for tarea in analisis.tareas_sugeridas %}
+                        <li>{{ tarea }}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-muted mb-0">Sin tareas sugeridas.</p>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}
