@@ -1,6 +1,7 @@
 ﻿from django.contrib import messages
-from django.contrib.auth import login
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
@@ -34,16 +35,19 @@ from .forms import (
     LectorCodigoBarraForm,
     MensajePrivadoForm,
     ObservacionForm,
+    OrganizacionAdminForm,
+    OrganizacionSuperadminForm,
     PerfilUsuarioForm,
     ProyectoForm,
     RegistroPublicoForm,
+    SuperadminLoginForm,
     TareaForm,
     UsoInventarioForm,
     UsuarioRegistroForm,
     UsuarioUpdateForm,
 )
 from .gemini_service import analizar_borrador_trl, analizar_etapa_trl, analizar_trl, generar_mesa_trabajo_ia
-from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario
+from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario
 
 
 def correos_admin_laboratorio():
@@ -55,8 +59,28 @@ def usuario_es_admin_laboratorio(user):
         user.is_authenticated
         and (
             getattr(user, "rol", "") == Usuario.Rol.ADMINISTRADOR
+            or getattr(user, "rol", "") == Usuario.Rol.ADMIN_ORGANIZACION
+            or getattr(user, "rol", "") == Usuario.Rol.SUPERADMIN
+            or user.is_superuser
             or (user.email and user.email.lower() in correos_admin_laboratorio())
         )
+    )
+
+
+def usuario_es_superadmin(user):
+    return bool(
+        user.is_authenticated
+        and (
+            user.is_superuser
+            or getattr(user, "rol", "") == Usuario.Rol.SUPERADMIN
+        )
+    )
+
+
+def usuario_es_admin_organizacion(user):
+    return bool(
+        user.is_authenticated
+        and getattr(user, "rol", "") == Usuario.Rol.ADMIN_ORGANIZACION
     )
 
 
@@ -99,25 +123,68 @@ def filtrar_por_sede(queryset, user, campo="sede"):
 
 
 def proyectos_de_sede(user):
+    if usuario_es_superadmin(user):
+        return Proyecto.objects.all()
     queryset = filtrar_por_sede(Proyecto.objects.all(), user)
     if organizacion_usuario(user):
         queryset = queryset.filter(organizacion=organizacion_usuario(user))
-    if area_usuario(user):
+    if area_usuario(user) and not usuario_es_admin_organizacion(user):
         queryset = queryset.filter(area=area_usuario(user))
     return queryset
 
 
 def inventario_de_sede(user):
+    if usuario_es_superadmin(user):
+        return ItemInventario.objects.all()
     return filtrar_por_sede(ItemInventario.objects.all(), user)
 
 
 def usuarios_de_sede(user):
+    if usuario_es_superadmin(user):
+        return Usuario.objects.all()
     queryset = filtrar_por_sede(Usuario.objects.all(), user)
     if organizacion_usuario(user):
         queryset = queryset.filter(organizacion=organizacion_usuario(user))
-    if area_usuario(user):
+    if area_usuario(user) and not usuario_es_admin_organizacion(user):
         queryset = queryset.filter(area=area_usuario(user))
     return queryset
+
+
+def crear_username_unico(email):
+    base = slugify((email or "").split("@")[0]) or "usuario"
+    username = base[:140]
+    contador = 1
+    while Usuario.objects.filter(username=username).exists():
+        sufijo = f"-{contador}"
+        username = f"{base[: 150 - len(sufijo)]}{sufijo}"
+        contador += 1
+    return username
+
+
+def organizacion_por_slug_login(slug):
+    alias = {
+        "inacap": "fab-inacap-puerto-montt",
+    }
+    slug_real = alias.get(slug, slug)
+    return get_object_or_404(Organizacion, slug=slug_real, activa=True)
+
+
+def superadmin_stats_context():
+    organizaciones = (
+        Organizacion.objects.select_related("encargado")
+        .annotate(
+            total_usuarios=Count("usuarios", distinct=True),
+            total_proyectos=Count("proyectos", distinct=True),
+        )
+        .order_by("nombre")
+    )
+    return {
+        "organizaciones": organizaciones,
+        "total_organizaciones": organizaciones.count(),
+        "organizaciones_activas": organizaciones.filter(activa=True).count(),
+        "usuarios_totales": Usuario.objects.count(),
+        "proyectos_totales": Proyecto.objects.count(),
+    }
 
 
 def mensajes_no_leidos(user):
@@ -596,6 +663,172 @@ def panel_general(request):
     return render(request, "proyectos/dashboard.html", contexto)
 
 
+def superadmin_organizaciones(request):
+    if not request.user.is_authenticated:
+        return redirect("superadmin_login")
+    if not usuario_es_superadmin(request.user):
+        messages.error(request, "Solo el superadmin puede entrar a este panel.")
+        return redirect("superadmin_login")
+
+    return render(
+        request,
+        "proyectos/superadmin_organizaciones.html",
+        superadmin_stats_context() | {"seccion": "organizaciones"},
+    )
+
+
+def superadmin_usuarios_globales(request):
+    if not request.user.is_authenticated:
+        return redirect("superadmin_login")
+    if not usuario_es_superadmin(request.user):
+        messages.error(request, "Solo el superadmin puede entrar a este panel.")
+        return redirect("superadmin_login")
+
+    usuarios = Usuario.objects.select_related("organizacion", "area").order_by("organizacion__nombre", "nombre", "email")
+    contexto = superadmin_stats_context() | {"usuarios": usuarios, "seccion": "usuarios"}
+    return render(request, "proyectos/superadmin_usuarios.html", contexto)
+
+
+def superadmin_estadisticas(request):
+    if not request.user.is_authenticated:
+        return redirect("superadmin_login")
+    if not usuario_es_superadmin(request.user):
+        messages.error(request, "Solo el superadmin puede entrar a este panel.")
+        return redirect("superadmin_login")
+
+    proyectos_por_org = (
+        Organizacion.objects.annotate(total_proyectos=Count("proyectos", distinct=True), total_usuarios=Count("usuarios", distinct=True))
+        .order_by("-total_proyectos", "nombre")
+    )
+    contexto = superadmin_stats_context() | {"proyectos_por_org": proyectos_por_org, "seccion": "estadisticas"}
+    return render(request, "proyectos/superadmin_estadisticas.html", contexto)
+
+
+def superadmin_organizacion_crear(request):
+    if not request.user.is_authenticated:
+        return redirect("superadmin_login")
+    if not usuario_es_superadmin(request.user):
+        messages.error(request, "Solo el superadmin puede crear organizaciones.")
+        return redirect("superadmin_login")
+
+    form = OrganizacionSuperadminForm()
+    if request.method == "POST":
+        form = OrganizacionSuperadminForm(request.POST, request.FILES)
+        if form.is_valid():
+            with transaction.atomic():
+                organizacion = form.save(commit=False)
+                organizacion.save()
+                encargado_email = form.cleaned_data["encargado_email"]
+                encargado_nombre = form.cleaned_data["encargado_nombre"]
+                password_temporal = secrets.token_urlsafe(10)
+                encargado = Usuario.objects.create_user(
+                    username=crear_username_unico(encargado_email),
+                    email=encargado_email,
+                    nombre=encargado_nombre,
+                    password=password_temporal,
+                    rol=Usuario.Rol.ADMIN_ORGANIZACION,
+                    organizacion=organizacion,
+                    sede=sede_usuario(request.user),
+                    is_staff=False,
+                    correo_verificado=True,
+                    estado_registro=Usuario.EstadoRegistro.APROBADO,
+                )
+                organizacion.encargado = encargado
+                organizacion.save(update_fields=["encargado"])
+            messages.success(
+                request,
+                f"Organización creada. Encargado: {encargado_email}. Contraseña temporal: {password_temporal}",
+            )
+            return redirect("superadmin_organizaciones")
+
+    return render(
+        request,
+        "proyectos/superadmin_organizacion_form.html",
+        {"form": form},
+    )
+
+
+def superadmin_login(request):
+    if request.user.is_authenticated and usuario_es_superadmin(request.user):
+        return redirect("superadmin_organizaciones")
+
+    form = SuperadminLoginForm()
+    if request.method == "POST":
+        form = SuperadminLoginForm(request.POST)
+        if form.is_valid():
+            email = form.cleaned_data["email"].strip().lower()
+            password = form.cleaned_data["password"]
+            usuario = authenticate(request, username=email, password=password)
+            if usuario and usuario_es_superadmin(usuario):
+                login(request, usuario)
+                return redirect("superadmin_organizaciones")
+            form.add_error(None, "Credenciales inválidas o sin permiso de superadmin.")
+
+    return render(request, "registration/superadmin_login.html", {"form": form})
+
+
+def superadmin_logout(request):
+    logout(request)
+    return redirect("superadmin_login")
+
+
+def organizacion_login(request, organizacion_slug):
+    organizacion = organizacion_por_slug_login(organizacion_slug)
+    form = AuthenticationForm(request)
+
+    if request.method == "POST":
+        form = AuthenticationForm(request, data=request.POST)
+        if form.is_valid():
+            usuario = form.get_user()
+            if usuario and usuario_es_superadmin(usuario):
+                form.add_error(None, "Usa el login privado de control para entrar como superadmin.")
+            elif usuario and organizacion_slug == "inacap":
+                if not usuario.organizacion_id:
+                    usuario.organizacion = organizacion
+                    usuario.save(update_fields=["organizacion"])
+                login(request, usuario)
+                request.session["organizacion_login_slug"] = organizacion.slug
+                return redirect("dashboard")
+            elif usuario and (
+                getattr(usuario, "organizacion_id", None) == organizacion.id
+                or organizacion.coincide_con_email(usuario.email)
+            ):
+                if not usuario.organizacion_id:
+                    usuario.organizacion = organizacion
+                    usuario.save(update_fields=["organizacion"])
+                login(request, usuario)
+                request.session["organizacion_login_slug"] = organizacion.slug
+                return redirect("dashboard")
+            else:
+                form.add_error(None, "Credenciales inválidas para esta organización.")
+
+    return render(
+        request,
+        "registration/login.html",
+        {"form": form, "organizacion": organizacion, "login_slug": organizacion_slug},
+    )
+
+
+@login_required
+def organizacion_configuracion(request):
+    if not usuario_es_admin_organizacion(request.user):
+        messages.error(request, "Solo el encargado de organización puede modificar este espacio.")
+        return redirect("dashboard")
+    organizacion = organizacion_usuario(request.user)
+    if not organizacion:
+        messages.error(request, "Tu usuario no tiene una organización asociada.")
+        return redirect("dashboard")
+
+    form = OrganizacionAdminForm(instance=organizacion)
+    if request.method == "POST":
+        form = OrganizacionAdminForm(request.POST, request.FILES, instance=organizacion)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Organización actualizada correctamente.")
+            return redirect("organizacion_configuracion")
+    return render(request, "proyectos/organizacion_configuracion.html", {"form": form, "organizacion": organizacion})
+
+
 class ProyectoListView(LoginRequiredMixin, ListView):
     model = Proyecto
     template_name = "proyectos/proyecto_lista.html"
@@ -660,17 +893,37 @@ class UsuarioCreateView(LoginRequiredMixin, CreateView):
     success_url = "/usuarios/"
 
     def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_staff:
+        if not (request.user.is_staff or usuario_es_admin_organizacion(request.user)):
             messages.error(request, "Solo un usuario administrador puede crear usuarios.")
             return redirect("usuario_lista")
         return super().dispatch(request, *args, **kwargs)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        kwargs["organizacion"] = organizacion_usuario(self.request.user)
+        if not usuario_es_superadmin(self.request.user):
+            kwargs["organizacion"] = organizacion_usuario(self.request.user)
         return kwargs
 
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        if not usuario_es_superadmin(self.request.user):
+            form.fields.pop("organizacion", None)
+            form.fields.pop("is_staff", None)
+            form.fields.pop("is_superuser", None)
+            form.fields["rol"].choices = [
+                (Usuario.Rol.LIDER, "Líder"),
+                (Usuario.Rol.INTEGRANTE, "Integrante"),
+                (Usuario.Rol.ALUMNO, "Alumno"),
+                (Usuario.Rol.PRACTICANTE, "Practicante"),
+                (Usuario.Rol.PROFESOR, "Profesor / Líder"),
+            ]
+        return form
+
     def form_valid(self, form):
+        if not usuario_es_superadmin(self.request.user):
+            form.instance.organizacion = organizacion_usuario(self.request.user)
+            form.instance.is_superuser = False
+            form.instance.is_staff = False
         if form.instance.area and not form.instance.organizacion:
             form.instance.organizacion = form.instance.area.organizacion
         if not form.instance.organizacion:
@@ -692,7 +945,7 @@ class UsuarioUpdateView(LoginRequiredMixin, UpdateView):
     success_url = "/usuarios/"
 
     def dispatch(self, request, *args, **kwargs):
-        if not usuario_es_admin_laboratorio(request.user):
+        if not (usuario_es_admin_laboratorio(request.user) or usuario_es_admin_organizacion(request.user)):
             messages.error(request, "Solo un administrador puede editar usuarios.")
             return redirect("usuario_lista")
         return super().dispatch(request, *args, **kwargs)
@@ -702,10 +955,29 @@ class UsuarioUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        kwargs["organizacion"] = organizacion_usuario(self.request.user)
+        if not usuario_es_superadmin(self.request.user):
+            kwargs["organizacion"] = organizacion_usuario(self.request.user)
         return kwargs
 
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        if not usuario_es_superadmin(self.request.user):
+            for field_name in ["organizacion", "is_staff", "is_superuser"]:
+                form.fields.pop(field_name, None)
+            form.fields["rol"].choices = [
+                (Usuario.Rol.LIDER, "Líder"),
+                (Usuario.Rol.INTEGRANTE, "Integrante"),
+                (Usuario.Rol.ALUMNO, "Alumno"),
+                (Usuario.Rol.PRACTICANTE, "Practicante"),
+                (Usuario.Rol.PROFESOR, "Profesor / Líder"),
+                (Usuario.Rol.ADMIN_ORGANIZACION, "Administrador de organización"),
+            ]
+        return form
+
     def form_valid(self, form):
+        if not usuario_es_superadmin(self.request.user):
+            form.instance.organizacion = organizacion_usuario(self.request.user)
+            form.instance.is_superuser = False
         if form.instance.area and not form.instance.organizacion:
             form.instance.organizacion = form.instance.area.organizacion
         messages.success(self.request, "Usuario actualizado correctamente.")

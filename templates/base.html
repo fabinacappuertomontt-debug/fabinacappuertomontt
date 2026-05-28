@@ -13,6 +13,14 @@
     {% endif %}
     <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=20260524-ai-chat">
     {% if request.tema == 'pro' %}<link rel="stylesheet" href="{% static 'css/tema_pro.css' %}">{% endif %}
+    {% if user.is_authenticated and user.organizacion %}
+    <style>
+        :root {
+            --inacap-red: {{ user.organizacion.color_principal|default:'#c53a43' }};
+            --inacap-red-dark: {{ user.organizacion.color_secundario|default:'#9f2f37' }};
+        }
+    </style>
+    {% endif %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
     {% if user.is_authenticated %}
@@ -23,6 +31,8 @@
                         <a class="app-brand" href="{% url 'dashboard' %}">
                             {% if request.tema == 'pro' %}
                                 <span class="trackflow-brand-icon">T</span>
+                            {% elif user.organizacion.logo %}
+                                <img src="{{ user.organizacion.logo.url }}" alt="{{ user.organizacion.nombre }}">
                             {% else %}
                                 <img src="https://portal.inacap.cl/documents/d/guest/logofooter60a" alt="INACAP">
                             {% endif %}
@@ -35,6 +45,9 @@
                         {% if request.tema == 'pro' %}
                             <strong>TrackFlow</strong>
                             <span>Gestión de proyectos</span>
+                        {% elif user.organizacion %}
+                            <strong>{{ user.organizacion.nombre }}</strong>
+                            <span>Seguimiento de proyectos</span>
                         {% else %}
                             <strong>FAB {{ user.get_sede_display|default:"Puerto Montt" }}</strong>
                             <span>Seguimiento de proyectos</span>
@@ -76,6 +89,12 @@
                             <i class="bi bi-plus-circle-fill"></i>
                             <span>Nuevo proyecto</span>
                         </a>
+                        {% if user.rol == 'admin_organizacion' %}
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'organizacion_configuracion' %}is-active{% endif %}" href="{% url 'organizacion_configuracion' %}">
+                                <i class="bi bi-sliders"></i>
+                                <span>Mi organización</span>
+                            </a>
+                        {% endif %}
                     </nav>
                 </div>
 
@@ -138,7 +157,7 @@
                             {% elif request.resolver_match.url_name == 'chat_lista' or request.resolver_match.url_name == 'chat_privado' %}
                                 Chat
                             {% else %}
-                                {% if request.tema == 'pro' %}TrackFlow{% else %}FAB INACAP {{ user.get_sede_display|default:"Puerto Montt" }}{% endif %}
+                                {% if request.tema == 'pro' %}TrackFlow{% elif user.organizacion %}{{ user.organizacion.nombre }}{% else %}FAB INACAP {{ user.get_sede_display|default:"Puerto Montt" }}{% endif %}
                             {% endif %}
                         </strong>
                     </div>
@@ -148,7 +167,7 @@
                             <span><i class="bi bi-kanban"></i> TrackFlow Pro</span>
                             <span><i class="bi bi-shield-check"></i> Verificado</span>
                         {% else %}
-                            <span><i class="bi bi-building"></i> {{ user.get_sede_display|default:"Puerto Montt" }}</span>
+                            <span><i class="bi bi-building"></i> {% if user.organizacion %}{{ user.organizacion.nombre }}{% else %}{{ user.get_sede_display|default:"Puerto Montt" }}{% endif %}</span>
                             <span><i class="bi bi-mortarboard-fill"></i> Aprender Haciendo</span>
                             <span><i class="bi bi-shield-check"></i> Interno</span>
                         {% endif %}
@@ -192,7 +211,7 @@
                                 <strong>TrackFlow</strong>
                                 <span>Gestión de proyectos empresarial.</span>
                             {% else %}
-                                <strong>INACAP {{ user.get_sede_display|default:"Puerto Montt" }}</strong>
+                                <strong>{% if user.organizacion %}{{ user.organizacion.nombre }}{% else %}INACAP {{ user.get_sede_display|default:"Puerto Montt" }}{% endif %}</strong>
                                 <span>Gestión, avance y seguimiento académico.</span>
                             {% endif %}
                         </div>

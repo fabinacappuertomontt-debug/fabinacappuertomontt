@@ -4,10 +4,18 @@ from . import views
 
 
 urlpatterns = [
+    path("control/login/", views.superadmin_login, name="superadmin_login"),
+    path("control/salir/", views.superadmin_logout, name="superadmin_logout"),
+    path("control/usuarios/", views.superadmin_usuarios_globales, name="superadmin_usuarios"),
+    path("control/estadisticas/", views.superadmin_estadisticas, name="superadmin_estadisticas"),
+    path("login/<slug:organizacion_slug>/", views.organizacion_login, name="organizacion_login"),
+    path("organizacion/configuracion/", views.organizacion_configuracion, name="organizacion_configuracion"),
     path("registro/", views.registro_publico, name="registro"),
     path("registro/pendiente/<int:pk>/", views.registro_pendiente, name="registro_pendiente"),
     path("registro/resolver/<str:token>/", views.registro_resolver, name="registro_resolver"),
     path("registro/verificar/<int:pk>/", views.verificar_correo, name="verificar_correo"),
+    path("control/organizaciones/", views.superadmin_organizaciones, name="superadmin_organizaciones"),
+    path("control/organizaciones/nueva/", views.superadmin_organizacion_crear, name="superadmin_organizacion_crear"),
     path("", views.dashboard, name="dashboard"),
     path("panel/", views.panel_general, name="panel_general"),
     path("usuarios/", views.UsuarioListView.as_view(), name="usuario_lista"),

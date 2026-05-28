@@ -6,9 +6,9 @@ from .models import Area, Avance, Evidencia, FaseProyecto, ItemInventario, Mensa
 
 @admin.register(Organizacion)
 class OrganizacionAdmin(admin.ModelAdmin):
-    list_display = ("nombre", "slug", "activa", "fecha_creacion")
+    list_display = ("nombre", "slug", "dominio_correo", "encargado", "activa", "fecha_creacion")
     list_filter = ("activa",)
-    search_fields = ("nombre", "slug")
+    search_fields = ("nombre", "slug", "dominio_correo", "encargado__email", "encargado__nombre")
 
 
 @admin.register(Area)

@@ -95,6 +95,18 @@ class Organizacion(models.Model):
     logo = models.ImageField(upload_to="organizaciones/logos/%Y/%m/", blank=True, null=True)
     color_principal = models.CharField(max_length=7, default="#cf3f4f")
     color_secundario = models.CharField(max_length=7, default="#1f334d")
+    dominio_correo = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Dominio permitido para detectar usuarios de la organización, por ejemplo inacap.cl.",
+    )
+    encargado = models.OneToOneField(
+        "Usuario",
+        on_delete=models.SET_NULL,
+        related_name="organizacion_encargada",
+        blank=True,
+        null=True,
+    )
     activa = models.BooleanField(default=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
@@ -105,6 +117,16 @@ class Organizacion(models.Model):
 
     def __str__(self):
         return self.nombre
+
+    @property
+    def dominio_normalizado(self):
+        return self.dominio_correo.strip().lower().lstrip("@")
+
+    def coincide_con_email(self, email):
+        dominio = self.dominio_normalizado
+        if not dominio or not email:
+            return False
+        return email.strip().lower().endswith(f"@{dominio}")
 
 
 class Area(models.Model):

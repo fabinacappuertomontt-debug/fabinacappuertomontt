@@ -1,7 +1,7 @@
 ﻿from django import forms
 from django.contrib.auth.forms import UserCreationForm
 
-from .models import Area, Avance, Evidencia, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Observacion, Proyecto, ResultadoEsperado, Tarea, TRL_DEFINICIONES, UsoInventario, Usuario, sumar_meses_y_dias
+from .models import Area, Avance, Evidencia, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Observacion, Organizacion, Proyecto, ResultadoEsperado, Tarea, TRL_DEFINICIONES, UsoInventario, Usuario, sumar_meses_y_dias
 
 
 class BootstrapFormMixin:
@@ -529,6 +529,97 @@ class AjusteStockForm(BootstrapFormMixin, forms.Form):
         label="Observación",
         widget=forms.Textarea(attrs={"rows": 3}),
     )
+
+
+class OrganizacionSuperadminForm(BootstrapFormMixin, forms.ModelForm):
+    encargado_nombre = forms.CharField(label="Nombre del encargado", max_length=150)
+    encargado_email = forms.EmailField(label="Correo del encargado")
+
+    class Meta:
+        model = Organizacion
+        fields = [
+            "nombre",
+            "slug",
+            "logo",
+            "color_principal",
+            "color_secundario",
+            "dominio_correo",
+            "activa",
+            "encargado_nombre",
+            "encargado_email",
+        ]
+        labels = {
+            "nombre": "Nombre de la organización",
+            "slug": "Identificador único",
+            "logo": "Logo",
+            "color_principal": "Color principal",
+            "color_secundario": "Color secundario",
+            "dominio_correo": "Dominio de correo",
+            "activa": "Organización activa",
+        }
+        help_texts = {
+            "slug": "Ejemplo: inacap-puerto-montt. Se usa internamente para identificar la organización.",
+            "dominio_correo": "Ejemplo: inacap.cl. No incluyas @.",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name in ["color_principal", "color_secundario"]:
+            self.fields[field_name].widget = forms.TextInput(attrs={"type": "color", "class": "form-control form-control-color"})
+        self.fields["activa"].widget.attrs.setdefault("class", "form-check-input")
+
+    def clean_dominio_correo(self):
+        dominio = (self.cleaned_data.get("dominio_correo") or "").strip().lower().lstrip("@")
+        return dominio
+
+    def clean_encargado_email(self):
+        email = self.cleaned_data["encargado_email"].strip().lower()
+        if Usuario.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError("Ya existe un usuario con este correo.")
+        return email
+
+
+class SuperadminLoginForm(forms.Form):
+    email = forms.EmailField(
+        label="Correo de control",
+        widget=forms.EmailInput(attrs={
+            "class": "form-control control-input",
+            "placeholder": "tu-correo@empresa.cl",
+            "autocomplete": "email",
+        }),
+    )
+    password = forms.CharField(
+        label="Contraseña",
+        widget=forms.PasswordInput(attrs={
+            "class": "form-control control-input",
+            "placeholder": "Contraseña privada",
+            "autocomplete": "current-password",
+        }),
+    )
+
+
+class OrganizacionAdminForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = Organizacion
+        fields = ["nombre", "logo", "color_principal", "color_secundario", "dominio_correo"]
+        labels = {
+            "nombre": "Nombre visible",
+            "logo": "Logo",
+            "color_principal": "Color principal",
+            "color_secundario": "Color secundario",
+            "dominio_correo": "Dominio institucional",
+        }
+        help_texts = {
+            "dominio_correo": "Ejemplo: inacapmail.cl. Se usa para validar accesos por organización.",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name in ["color_principal", "color_secundario"]:
+            self.fields[field_name].widget = forms.TextInput(attrs={"type": "color", "class": "form-control form-control-color"})
+
+    def clean_dominio_correo(self):
+        return (self.cleaned_data.get("dominio_correo") or "").strip().lower().lstrip("@")
 
 
 class UsuarioRegistroForm(BootstrapFormMixin, UserCreationForm):

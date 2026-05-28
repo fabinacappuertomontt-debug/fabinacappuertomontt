@@ -1,0 +1,48 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Control privado | Estadísticas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        body{min-height:100vh;margin:0;background:linear-gradient(135deg,#f8fbff,#eef4fb 54%,#f8fafc);color:#172033;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.shell{min-height:100vh;display:grid;grid-template-columns:290px 1fr}.side{padding:24px;background:rgba(255,255,255,.74);border-right:1px solid #d9e2ef;display:flex;flex-direction:column;gap:24px}.brand,.session{display:flex;gap:12px;align-items:center}.mark{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,#2563eb,#7c3aed);color:white;font-weight:950}.brand strong,.session strong{display:block;font-weight:950}.brand span,.session span,.label{color:#667085;font-size:.84rem}.label{text-transform:uppercase;letter-spacing:.08em;font-weight:900}.nav{display:grid;gap:7px}.nav a{display:flex;gap:10px;align-items:center;padding:12px 13px;border-radius:12px;color:#475569;text-decoration:none;font-weight:850}.nav a:hover,.nav a.is-active{color:#fff;background:linear-gradient(135deg,#2563eb,#4f46e5)}.session{margin-top:auto;padding:14px;border:1px solid #d9e2ef;border-radius:18px;background:white}.main{padding:clamp(22px,4vw,42px)}h1{font-size:clamp(2rem,4vw,3.3rem);font-weight:950}.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.cardx{border:1px solid #d9e2ef;background:rgba(255,255,255,.88);border-radius:22px;box-shadow:0 18px 55px rgba(15,23,42,.08);padding:20px}.cardx span{color:#667085;font-weight:850}.cardx strong{display:block;font-size:2.3rem;font-weight:950}.org-row{border-top:1px solid #e2e8f0;padding:14px 0;display:flex;justify-content:space-between;gap:12px}
+    </style>
+</head>
+<body>
+<div class="shell">
+    <aside class="side">
+        <div class="brand"><span class="mark">SA</span><div><strong>Control privado</strong><span>Dueño de la plataforma</span></div></div>
+        <div><span class="label">General</span><nav class="nav">
+            <a href="{% url 'superadmin_organizaciones' %}"><i class="bi bi-buildings"></i> Organizaciones</a>
+            <a href="{% url 'superadmin_usuarios' %}"><i class="bi bi-people"></i> Usuarios globales</a>
+            <a class="is-active" href="{% url 'superadmin_estadisticas' %}"><i class="bi bi-bar-chart"></i> Estadísticas</a>
+        </nav></div>
+        <div><span class="label">Sistema</span><nav class="nav"><a href="{% url 'superadmin_logout' %}"><i class="bi bi-box-arrow-right"></i> Cerrar sesión privada</a></nav></div>
+        <div class="session"><span class="mark">D</span><div><strong>{{ user.nombre|default:user.username }}</strong><span>{{ user.email }}</span></div></div>
+    </aside>
+    <main class="main">
+        <h1>Estadísticas globales</h1>
+        <p class="text-muted mb-4">Resumen privado del uso de la plataforma por organización.</p>
+        <section class="cards mb-4">
+            <article class="cardx"><span>Organizaciones</span><strong>{{ total_organizaciones }}</strong></article>
+            <article class="cardx"><span>Usuarios</span><strong>{{ usuarios_totales }}</strong></article>
+            <article class="cardx"><span>Proyectos</span><strong>{{ proyectos_totales }}</strong></article>
+        </section>
+        <section class="cardx">
+            <h2 class="h5 fw-bold mb-3">Actividad por organización</h2>
+            {% for organizacion in proyectos_por_org %}
+                <div class="org-row">
+                    <strong>{{ organizacion.nombre }}</strong>
+                    <span>{{ organizacion.total_proyectos }} proyectos · {{ organizacion.total_usuarios }} usuarios</span>
+                </div>
+            {% empty %}
+                <p class="text-muted mb-0">Sin organizaciones.</p>
+            {% endfor %}
+        </section>
+    </main>
+</div>
+</body>
+</html>

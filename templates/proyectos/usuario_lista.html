@@ -9,7 +9,7 @@
         <h1>Equipo del proyecto</h1>
         <p>Consulta roles, proyectos asignados y tareas pendientes por integrante.</p>
     </div>
-    {% if user.is_staff %}
+    {% if user.is_staff or user.rol == 'admin_organizacion' or user.rol == 'superadmin' %}
         <a class="btn btn-primary" href="{% url 'usuario_crear' %}">Crear usuario</a>
     {% endif %}
 </div>
@@ -43,7 +43,7 @@
                     <td class="text-end">
                         <div class="table-actions">
                             <a class="btn btn-sm btn-outline-secondary" href="{% url 'usuario_detalle' usuario.pk %}">Ver detalle</a>
-                            {% if user.is_staff %}
+                            {% if user.is_staff or user.rol == 'admin_organizacion' or user.rol == 'superadmin' %}
                                 <a class="btn btn-sm btn-outline-primary" href="{% url 'usuario_editar' usuario.pk %}">Editar</a>
                                 {% if usuario.pk != user.pk %}
                                     <a class="btn btn-sm btn-outline-danger" href="{% url 'usuario_eliminar' usuario.pk %}">Eliminar</a>

@@ -9,6 +9,9 @@
         <div class="login-brand-row">
             <img class="login-brand-logo" src="https://portal.inacap.cl/documents/d/guest/logofooter60a" alt="INACAP">
             <span>FAB INACAP</span>
+            {% if organizacion %}
+                <span class="status-pill">{{ organizacion.nombre }}</span>
+            {% endif %}
         </div>
         <span class="eyebrow">Puerto Montt · Osorno</span>
         <h1>Proyectos, evidencia y decisiones para el aprendizaje aplicado</h1>
@@ -31,7 +34,7 @@
             <div class="card-body">
                 <span class="eyebrow">Área personal</span>
                 <h2>Ingresar</h2>
-                <p>Usa tu correo institucional para acceder al sistema.</p>
+                <p>Usa tu correo institucional para acceder al sistema{% if organizacion %} de {{ organizacion.nombre }}{% endif %}.</p>
                 <form method="post">
                     {% csrf_token %}
                     {% if form.errors %}
