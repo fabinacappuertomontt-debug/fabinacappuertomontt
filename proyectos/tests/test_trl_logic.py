@@ -1,5 +1,6 @@
 import json
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.core import mail
 from django.test import TestCase
@@ -7,10 +8,10 @@ from django.test import RequestFactory, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from proyectos.forms import ProyectoForm, RegistroPublicoForm
+from proyectos.forms import EvidenciaForm, ProyectoForm, RegistroPublicoForm
 from proyectos.gemini_service import analizar_borrador_trl
 from proyectos.models import Area, FaseProyecto, IndicadorResultado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, Tarea, Usuario
-from proyectos.views import calcular_avance_madurez, construir_tablero_trl, crear_fases_para_proyecto, enviar_codigo_verificacion, enviar_solicitud_aprobacion_externa, notificar_creador_fase_completada, notificar_creador_proyecto, notificar_responsables_proyecto, recalcular_avance_por_tareas, sincronizar_avance_simple_desde_objetivos, sincronizar_trl_desde_resultados
+from proyectos.views import calcular_avance_madurez, construir_tablero_trl, crear_fases_para_proyecto, enviar_codigo_verificacion, enviar_solicitud_aprobacion_externa, generar_mesa_trabajo_inicial, notificar_creador_fase_completada, notificar_creador_proyecto, notificar_responsables_proyecto, recalcular_avance_por_tareas, sincronizar_avance_simple_desde_objetivos, sincronizar_trl_desde_resultados
 
 
 TEST_PUBLIC_SITE_URL = "https://example.com"
@@ -304,6 +305,42 @@ class TrlStressLogicTests(TestCase):
 
         self.assertEqual(proyecto.porcentaje_avance, 25)
 
+    @override_settings(GEMINI_API_KEY="", GROQ_API_KEY="")
+    def test_mesa_inicial_por_reglas_crea_tareas_sin_avanzar_trl(self):
+        proyecto = self.crear_proyecto_trl()
+        self.crear_estructura_trl(proyecto)
+
+        tareas_creadas = generar_mesa_trabajo_inicial(proyecto)
+        sincronizar_trl_desde_resultados(proyecto)
+        proyecto.refresh_from_db()
+
+        self.assertGreater(tareas_creadas, 0)
+        self.assertGreater(proyecto.tareas.count(), 0)
+        self.assertTrue(any(fase.evidencias_sugeridas for fase in proyecto.fases.all()))
+        self.assertEqual(proyecto.porcentaje_avance, 0)
+        self.assertEqual(proyecto.nivel_actual, 3)
+
+    @override_settings(GEMINI_API_KEY="", GROQ_API_KEY="")
+    def test_mesa_inicial_simple_no_crea_textos_trl(self):
+        proyecto = self.crear_proyecto_simple()
+        self.crear_estructura_simple(proyecto)
+
+        generar_mesa_trabajo_inicial(proyecto)
+        tablero = construir_tablero_trl(proyecto)
+        textos = " ".join(
+            [
+                tarea.nombre + " " + tarea.descripcion
+                for tarea in proyecto.tareas.all()
+            ]
+            + [
+                " ".join(etapa["evidencias"])
+                for etapa in tablero
+            ]
+        )
+
+        self.assertNotIn("TRL", textos)
+        self.assertGreater(proyecto.tareas.count(), 0)
+
     def test_fases_simples_actualizan_barra_de_avance(self):
         proyecto = self.crear_proyecto_simple()
         fase = proyecto.fases.order_by("trl").first()
@@ -317,6 +354,19 @@ class TrlStressLogicTests(TestCase):
         self.assertEqual(proyecto.total_fases_relevantes, 5)
         self.assertEqual(proyecto.porcentaje_avance, 20)
         self.assertEqual(calcular_avance_madurez(proyecto), 20)
+
+    def test_formulario_evidencia_muestra_tareas_de_la_etapa(self):
+        proyecto = self.crear_proyecto_simple()
+        fase_1 = proyecto.fases.order_by("trl").first()
+        fase_2 = proyecto.fases.order_by("trl")[1]
+        tarea_1 = Tarea.objects.create(proyecto=proyecto, fase=fase_1, nombre="Levantar requisitos")
+        tarea_2 = Tarea.objects.create(proyecto=proyecto, fase=fase_2, nombre="Planificar trabajo")
+
+        form = EvidenciaForm(proyecto=proyecto, fase=fase_1)
+
+        self.assertIn(tarea_1, form.fields["tarea"].queryset)
+        self.assertNotIn(tarea_2, form.fields["tarea"].queryset)
+        self.assertIn("Tarea 1", form.fields["tarea"].label_from_instance(tarea_1))
 
     def test_formulario_simple_guarda_objetivos_sin_exigir_trl(self):
         payload = [{
@@ -640,7 +690,7 @@ class GeminiAssistantTests(TestCase):
             nombre="Usuario IA",
         )
 
-    @override_settings(GEMINI_API_KEY="")
+    @override_settings(GEMINI_API_KEY="", GROQ_API_KEY="")
     def test_servicio_gemini_sin_api_key_entrega_fallback(self):
         respuesta = analizar_borrador_trl({
             "nombre": "Proyecto sensor",
@@ -650,7 +700,35 @@ class GeminiAssistantTests(TestCase):
         self.assertEqual(respuesta["trl_estimado"], "")
         self.assertIn("GEMINI_API_KEY", respuesta["recomendaciones"])
 
-    @override_settings(GEMINI_API_KEY="")
+    @override_settings(GEMINI_API_KEY="", GROQ_API_KEY="clave-de-prueba", GROQ_MODEL="llama-test")
+    @patch("proyectos.gemini_service.urllib.request.urlopen")
+    def test_servicio_usa_groq_si_gemini_no_esta_configurado(self, urlopen_mock):
+        contenido = {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps({
+                            "trl_estimado": "TRL 3",
+                            "justificacion": "Existe una prueba de concepto inicial.",
+                            "recomendaciones": "Documentar la validacion experimental.",
+                            "tareas_sugeridas": ["Registrar resultados de prueba"],
+                        })
+                    }
+                }
+            ]
+        }
+        urlopen_mock.return_value.__enter__.return_value.read.return_value = json.dumps(contenido).encode("utf-8")
+
+        respuesta = analizar_borrador_trl({
+            "nombre": "Proyecto sensor",
+            "descripcion": "Prototipo inicial con sensores.",
+        })
+
+        self.assertEqual(respuesta["trl_estimado"], "TRL 3")
+        self.assertEqual(respuesta["tareas_sugeridas"], ["Registrar resultados de prueba"])
+        self.assertEqual(urlopen_mock.call_count, 1)
+
+    @override_settings(GEMINI_API_KEY="", GROQ_API_KEY="")
     def test_endpoint_asistente_ia_creacion_responde_json(self):
         self.client.force_login(self.usuario)
         response = self.client.post(
@@ -669,7 +747,7 @@ class GeminiAssistantTests(TestCase):
         self.assertIn("analisis", data)
         self.assertIn("GEMINI_API_KEY", data["analisis"]["recomendaciones"])
 
-    @override_settings(GEMINI_API_KEY="")
+    @override_settings(GEMINI_API_KEY="", GROQ_API_KEY="")
     def test_vista_ia_proyecto_renderiza_fallback(self):
         proyecto = Proyecto.objects.create(
             nombre="Proyecto IA TRL",

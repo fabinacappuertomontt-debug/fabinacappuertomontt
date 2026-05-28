@@ -1,4 +1,4 @@
-import json
+﻿import json
 import urllib.error
 import urllib.request
 
@@ -7,8 +7,8 @@ from django.conf import settings
 
 RESPUESTA_FALLBACK = {
     "trl_estimado": "",
-    "justificacion": "El asistente IA no esta disponible porque falta configurar GEMINI_API_KEY.",
-    "recomendaciones": "Agrega la variable GEMINI_API_KEY en Azure o en el archivo .env local.",
+    "justificacion": "El asistente IA no esta disponible porque falta configurar GEMINI_API_KEY o GROQ_API_KEY.",
+    "recomendaciones": "Agrega GEMINI_API_KEY o GROQ_API_KEY en Azure o en el archivo .env local.",
     "tareas_sugeridas": [],
 }
 
@@ -16,9 +16,16 @@ RESPUESTA_ETAPA_FALLBACK = {
     "trl_sugerido": "",
     "recomienda_avanzar": False,
     "confianza": "Sin evaluacion",
-    "justificacion": "La validacion IA no esta disponible porque falta configurar GEMINI_API_KEY.",
-    "faltantes": ["Configurar GEMINI_API_KEY en Azure o en el archivo .env local."],
+    "justificacion": "La validacion IA no esta disponible porque falta configurar GEMINI_API_KEY o GROQ_API_KEY.",
+    "faltantes": ["Configurar GEMINI_API_KEY o GROQ_API_KEY en Azure o en el archivo .env local."],
     "acciones_sugeridas": [],
+}
+
+PLAN_MESA_FALLBACK = {
+    "ok": False,
+    "origen": "fallback",
+    "motivo": "Gemini y Groq no estan disponibles o no devolvieron una mesa valida.",
+    "etapas": [],
 }
 
 
@@ -73,6 +80,35 @@ Responde siempre en JSON valido con estas claves:
 """
 
 
+MESA_TRABAJO_CONTEXTO = """
+Eres un planificador tecnico IA para una plataforma Django de seguimiento de proyectos FAB INACAP Puerto Montt.
+Tu tarea es crear una propuesta inicial para la mesa de trabajo a partir de lo que el usuario escribio al crear el proyecto.
+
+Reglas obligatorias:
+- No marques tareas, criterios, resultados ni etapas como completadas.
+- No inventes TRL fuera del rango entregado por el sistema.
+- Cada etapa debe usar un numero de fase existente en la lista entregada.
+- Las tareas deben ser concretas y accionables.
+- Las evidencias sugeridas deben ser archivos, fotos, capturas, informes, pruebas o registros que el equipo podria subir despues.
+- Si el proyecto es simple, no menciones TRL.
+- Si el proyecto usa TRL, relaciona tareas y evidencias con madurez tecnologica, resultados e indicadores.
+
+Responde siempre en JSON valido con esta forma:
+{
+  "etapas": [
+    {
+      "fase": 1,
+      "criterio": "",
+      "tareas": [
+        {"nombre": "", "descripcion": ""}
+      ],
+      "evidencias_sugeridas": []
+    }
+  ]
+}
+"""
+
+
 def _normalizar_respuesta(datos):
     if not isinstance(datos, dict):
         return RESPUESTA_FALLBACK.copy()
@@ -114,6 +150,58 @@ def _normalizar_respuesta_etapa(datos):
     }
 
 
+def _normalizar_plan_mesa(datos, fases_validas):
+    if not isinstance(datos, dict):
+        return PLAN_MESA_FALLBACK.copy()
+    fases_validas = {int(fase) for fase in fases_validas}
+    etapas = []
+    for etapa in datos.get("etapas", []):
+        if not isinstance(etapa, dict):
+            continue
+        try:
+            fase = int(etapa.get("fase") or etapa.get("trl") or 0)
+        except (TypeError, ValueError):
+            continue
+        if fase not in fases_validas:
+            continue
+        tareas = []
+        for tarea in etapa.get("tareas", []):
+            if isinstance(tarea, str):
+                nombre = tarea.strip()
+                descripcion = ""
+            elif isinstance(tarea, dict):
+                nombre = str(tarea.get("nombre", "")).strip()
+                descripcion = str(tarea.get("descripcion", "")).strip()
+            else:
+                continue
+            if nombre:
+                tareas.append({
+                    "nombre": nombre[:180],
+                    "descripcion": descripcion,
+                })
+        evidencias = etapa.get("evidencias_sugeridas", [])
+        if isinstance(evidencias, str):
+            evidencias = [item.strip() for item in evidencias.split("\n") if item.strip()]
+        elif isinstance(evidencias, list):
+            evidencias = [str(item).strip() for item in evidencias if str(item).strip()]
+        else:
+            evidencias = []
+        etapas.append({
+            "fase": fase,
+            "criterio": str(etapa.get("criterio", "")).strip(),
+            "tareas": tareas[:8],
+            "evidencias_sugeridas": evidencias[:8],
+        })
+    if not etapas:
+        return PLAN_MESA_FALLBACK.copy()
+    return {
+        "ok": True,
+        "origen": "gemini",
+        "motivo": "",
+        "etapas": etapas,
+    }
+
+
 def _extraer_texto_gemini(respuesta):
     candidates = respuesta.get("candidates") or []
     if not candidates:
@@ -121,6 +209,61 @@ def _extraer_texto_gemini(respuesta):
     parts = candidates[0].get("content", {}).get("parts", [])
     textos = [part.get("text", "") for part in parts if part.get("text")]
     return "\n".join(textos).strip()
+
+
+def _extraer_texto_groq(respuesta):
+    choices = respuesta.get("choices") or []
+    if not choices:
+        return ""
+    message = choices[0].get("message") or {}
+    return str(message.get("content") or "").strip()
+
+
+def _limpiar_json_modelo(texto):
+    texto = str(texto or "").strip()
+    if texto.startswith("```"):
+        texto = texto.strip("`").strip()
+        if texto.lower().startswith("json"):
+            texto = texto[4:].strip()
+    return texto
+
+
+def _timeout_ia():
+    return max(5, min(int(getattr(settings, "AI_TIMEOUT_SECONDS", 25)), 60))
+
+
+def _respuesta_fallo_trl(respuesta):
+    contenido = " ".join([
+        str(respuesta.get("justificacion", "")),
+        str(respuesta.get("recomendaciones", "")),
+    ]).lower()
+    return (
+        not respuesta.get("trl_estimado")
+        and (
+            "api_key" in contenido
+            or "no fue posible conectar" in contenido
+            or "json valido" in contenido
+            or "no está disponible" in contenido
+            or "no esta disponible" in contenido
+        )
+    )
+
+
+def _respuesta_fallo_etapa(respuesta):
+    contenido = " ".join([
+        str(respuesta.get("justificacion", "")),
+        " ".join(str(item) for item in respuesta.get("faltantes", [])),
+    ]).lower()
+    return (
+        not respuesta.get("trl_sugerido")
+        and (
+            "api_key" in contenido
+            or "no fue posible conectar" in contenido
+            or "json valido" in contenido
+            or "no está disponible" in contenido
+            or "no esta disponible" in contenido
+        )
+    )
 
 
 def _llamar_gemini(prompt):
@@ -153,7 +296,7 @@ def _llamar_gemini(prompt):
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
+        with urllib.request.urlopen(request, timeout=_timeout_ia()) as response:
             raw = response.read().decode("utf-8")
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
         return {
@@ -166,7 +309,7 @@ def _llamar_gemini(prompt):
     try:
         data = json.loads(raw)
         text = _extraer_texto_gemini(data)
-        return _normalizar_respuesta(json.loads(text))
+        return _normalizar_respuesta(json.loads(_limpiar_json_modelo(text)))
     except (json.JSONDecodeError, TypeError, ValueError):
         return {
             "trl_estimado": "",
@@ -200,7 +343,7 @@ def _llamar_gemini_etapa(prompt):
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=25) as response:
+        with urllib.request.urlopen(request, timeout=_timeout_ia()) as response:
             raw = response.read().decode("utf-8")
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
         return {
@@ -215,7 +358,7 @@ def _llamar_gemini_etapa(prompt):
     try:
         data = json.loads(raw)
         text = _extraer_texto_gemini(data)
-        return _normalizar_respuesta_etapa(json.loads(text))
+        return _normalizar_respuesta_etapa(json.loads(_limpiar_json_modelo(text)))
     except (json.JSONDecodeError, TypeError, ValueError):
         return {
             "trl_sugerido": "",
@@ -226,6 +369,102 @@ def _llamar_gemini_etapa(prompt):
             "acciones_sugeridas": [],
         }
 
+
+def _llamar_gemini_mesa(prompt, fases_validas):
+    api_key = getattr(settings, "GEMINI_API_KEY", "")
+    if not api_key:
+        return PLAN_MESA_FALLBACK.copy()
+
+    model = getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.18,
+            "responseMimeType": "application/json",
+        },
+    }
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "x-goog-api-key": api_key,
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=_timeout_ia()) as response:
+            raw = response.read().decode("utf-8")
+    except (urllib.error.URLError, TimeoutError, ValueError):
+        return PLAN_MESA_FALLBACK.copy()
+
+    try:
+        data = json.loads(raw)
+        text = _extraer_texto_gemini(data)
+        return _normalizar_plan_mesa(json.loads(_limpiar_json_modelo(text)), fases_validas)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return PLAN_MESA_FALLBACK.copy()
+
+
+def _llamar_groq_json(prompt, normalizador, fallback, temperature=0.2):
+    api_key = getattr(settings, "GROQ_API_KEY", "")
+    if not api_key:
+        return fallback.copy()
+
+    model = getattr(settings, "GROQ_MODEL", "llama-3.1-8b-instant")
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": "Responde solo JSON valido. No incluyas markdown ni texto fuera del JSON.",
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+        "temperature": temperature,
+        "response_format": {"type": "json_object"},
+    }
+    request = urllib.request.Request(
+        "https://api.groq.com/openai/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=_timeout_ia()) as response:
+            raw = response.read().decode("utf-8")
+        data = json.loads(raw)
+        text = _extraer_texto_groq(data)
+        return normalizador(json.loads(_limpiar_json_modelo(text)))
+    except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError, TypeError):
+        return fallback.copy()
+
+
+def _llamar_groq(prompt):
+    return _llamar_groq_json(prompt, _normalizar_respuesta, RESPUESTA_FALLBACK, temperature=0.2)
+
+
+def _llamar_groq_etapa(prompt):
+    return _llamar_groq_json(prompt, _normalizar_respuesta_etapa, RESPUESTA_ETAPA_FALLBACK, temperature=0.15)
+
+
+def _llamar_groq_mesa(prompt, fases_validas):
+    plan = _llamar_groq_json(
+        prompt,
+        lambda datos: _normalizar_plan_mesa(datos, fases_validas),
+        PLAN_MESA_FALLBACK,
+        temperature=0.18,
+    )
+    if plan.get("ok"):
+        plan["origen"] = "groq"
+    return plan
 
 def _resumen_proyecto_modelo(proyecto):
     objetivos = []
@@ -282,7 +521,10 @@ def _resumen_proyecto_modelo(proyecto):
 def analizar_trl(proyecto):
     resumen = _resumen_proyecto_modelo(proyecto)
     prompt = f"{TRL_CONTEXTO}\n\nAnaliza este proyecto real del sistema:\n{json.dumps(resumen, ensure_ascii=False, indent=2)}"
-    return _llamar_gemini(prompt)
+    respuesta = _llamar_gemini(prompt)
+    if _respuesta_fallo_trl(respuesta):
+        respuesta = _llamar_groq(prompt)
+    return respuesta
 
 
 def analizar_borrador_trl(datos):
@@ -291,9 +533,26 @@ def analizar_borrador_trl(datos):
     if pregunta:
         instruccion += f"\nPregunta del usuario: {pregunta}"
     prompt = f"{TRL_CONTEXTO}\n\n{instruccion}\n{json.dumps(datos, ensure_ascii=False, indent=2)}"
-    return _llamar_gemini(prompt)
+    respuesta = _llamar_gemini(prompt)
+    if _respuesta_fallo_trl(respuesta):
+        respuesta = _llamar_groq(prompt)
+    return respuesta
 
 
 def analizar_etapa_trl(datos):
     prompt = f"{ETAPA_IA_CONTEXTO}\n\nAnaliza esta etapa real del sistema:\n{json.dumps(datos, ensure_ascii=False, indent=2)}"
-    return _llamar_gemini_etapa(prompt)
+    respuesta = _llamar_gemini_etapa(prompt)
+    if _respuesta_fallo_etapa(respuesta):
+        respuesta = _llamar_groq_etapa(prompt)
+    return respuesta
+
+
+def generar_mesa_trabajo_ia(proyecto, fases_validas):
+    resumen = _resumen_proyecto_modelo(proyecto)
+    resumen["fases_disponibles"] = list(fases_validas)
+    prompt = f"{MESA_TRABAJO_CONTEXTO}\n\nCrea la mesa de trabajo inicial para este proyecto:\n{json.dumps(resumen, ensure_ascii=False, indent=2)}"
+    plan = _llamar_gemini_mesa(prompt, fases_validas)
+    if not plan.get("ok"):
+        plan = _llamar_groq_mesa(prompt, fases_validas)
+    return plan
+

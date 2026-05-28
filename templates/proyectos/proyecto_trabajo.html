@@ -229,7 +229,10 @@
                 <div>
                     <h3>Evidencias</h3>
                     {% for evidencia in proyecto.evidencias.all|slice:":2" %}
-                        <p><strong>{{ evidencia.nombre }}</strong> - {{ evidencia.usuario }}</p>
+                        <p>
+                            <strong>{{ evidencia.nombre }}</strong> - {{ evidencia.usuario }}
+                            {% if evidencia.tarea %}<br><span>Respalda {{ evidencia.tarea.etiqueta_corta }}: {{ evidencia.tarea.nombre }}</span>{% endif %}
+                        </p>
                     {% empty %}
                         <p class="text-muted">Sin evidencias subidas.</p>
                     {% endfor %}
@@ -237,7 +240,7 @@
                 <div>
                     <h3>Tareas</h3>
                     {% for tarea in tareas_pendientes|slice:":2" %}
-                        <p><strong>{{ tarea.nombre }}</strong> - {{ tarea.get_estado_display }}</p>
+                        <p><strong>{{ tarea.etiqueta_corta }}: {{ tarea.nombre }}</strong> - {{ tarea.get_estado_display }}</p>
                     {% empty %}
                         <p class="text-muted">Sin tareas pendientes.</p>
                     {% endfor %}

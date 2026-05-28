@@ -54,6 +54,36 @@ def sumar_meses_y_dias(fecha_base, meses=0, dias=0):
     return fecha_resultado
 
 
+# Definiciones normalizadas para evitar texto mojibake en fases y tarjetas.
+TRL_DEFINICIONES = [
+    (1, "Principios básicos observados"),
+    (2, "Concepto tecnológico formulado"),
+    (3, "Prueba de concepto experimental"),
+    (4, "Validación en laboratorio"),
+    (5, "Validación en entorno relevante"),
+    (6, "Prototipo demostrado en entorno relevante"),
+    (7, "Prototipo demostrado en entorno real"),
+    (8, "Sistema completo y validado"),
+    (9, "Sistema probado con éxito en entorno real"),
+]
+TRL_DESCRIPCIONES = dict(TRL_DEFINICIONES)
+ACTIVIDAD_FASES = [
+    (1, "Planificación"),
+    (2, "Preparación de materiales"),
+    (3, "Coordinación y difusión"),
+    (4, "Ejecución"),
+    (5, "Evaluación"),
+    (6, "Cierre"),
+]
+GENERAL_FASES = [
+    (1, "Levantamiento"),
+    (2, "Planificación"),
+    (3, "Ejecución"),
+    (4, "Validación"),
+    (5, "Cierre"),
+]
+
+
 class Sede(models.TextChoices):
     PUERTO_MONTT = "puerto_montt", "Puerto Montt"
     OSORNO = "osorno", "Osorno"
@@ -182,6 +212,12 @@ class Proyecto(models.Model):
         SIMPLE = "simple", "Proyecto simple"
         TRL = "trl", "Proyecto con TRL"
 
+    class MesaTrabajoEstado(models.TextChoices):
+        PENDIENTE = "pendiente", "Pendiente"
+        GENERANDO = "generando", "Generando con IA"
+        LISTA = "lista", "Lista"
+        ERROR = "error", "Con respaldo por reglas"
+
     nombre = models.CharField(max_length=200)
     organizacion = models.ForeignKey(
         Organizacion,
@@ -237,6 +273,13 @@ class Proyecto(models.Model):
         default=Estado.PENDIENTE,
     )
     porcentaje_avance = models.PositiveSmallIntegerField(default=0)
+    mesa_trabajo_estado = models.CharField(
+        max_length=20,
+        choices=MesaTrabajoEstado.choices,
+        default=MesaTrabajoEstado.PENDIENTE,
+    )
+    mesa_trabajo_mensaje = models.CharField(max_length=240, blank=True)
+    mesa_trabajo_actualizada_en = models.DateTimeField(blank=True, null=True)
     creador = models.ForeignKey(
         Usuario,
         on_delete=models.SET_NULL,
@@ -554,6 +597,7 @@ class FaseProyecto(models.Model):
     trl = models.PositiveSmallIntegerField(choices=TRL_DEFINICIONES)
     nombre = models.CharField(max_length=200)
     objetivo = models.TextField()
+    evidencias_sugeridas = models.JSONField(default=list, blank=True)
     realizado = models.TextField(blank=True)
     estado = models.CharField(
         max_length=20,
@@ -653,6 +697,26 @@ class Tarea(models.Model):
     def completada(self):
         return self.estado == self.Estado.COMPLETADA
 
+    @property
+    def numero_en_proyecto(self):
+        ids = list(
+            Tarea.objects.filter(proyecto=self.proyecto)
+            .order_by("creada_en", "id")
+            .values_list("id", flat=True)
+        )
+        try:
+            return ids.index(self.id) + 1
+        except ValueError:
+            return self.pk
+
+    @property
+    def etiqueta_corta(self):
+        return f"Tarea {self.numero_en_proyecto}"
+
+    @property
+    def etiqueta(self):
+        return f"{self.etiqueta_corta}: {self.nombre}"
+
 
 class Observacion(models.Model):
     proyecto = models.ForeignKey(
@@ -692,6 +756,13 @@ class Evidencia(models.Model):
         FaseProyecto,
         on_delete=models.SET_NULL,
         related_name="evidencias_etapa",
+        blank=True,
+        null=True,
+    )
+    tarea = models.ForeignKey(
+        Tarea,
+        on_delete=models.SET_NULL,
+        related_name="evidencias",
         blank=True,
         null=True,
     )

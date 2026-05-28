@@ -163,7 +163,7 @@
             <div class="workspace-list">
                 {% for tarea in tareas_pendientes %}
                     <div class="workspace-list-item">
-                        <strong>{{ tarea.nombre }}</strong>
+                        <strong><span class="task-number">{{ tarea.etiqueta_corta }}</span> {{ tarea.nombre }}</strong>
                         <span>{{ tarea.get_estado_display }}{% if tarea.responsable %} - {{ tarea.responsable }}{% endif %}</span>
                         {% if tarea.descripcion %}<p>{{ tarea.descripcion }}</p>{% endif %}
                         {% if puede_editar_proyecto %}
@@ -179,7 +179,7 @@
                     <div class="workspace-empty">No hay tareas pendientes.</div>
                 {% endfor %}
                 {% for tarea in tareas_completadas|slice:":3" %}
-                    <div class="workspace-list-item completed"><strong>{{ tarea.nombre }}</strong><span>Completada{% if tarea.responsable %} - {{ tarea.responsable }}{% endif %}</span></div>
+                    <div class="workspace-list-item completed"><strong><span class="task-number">{{ tarea.etiqueta_corta }}</span> {{ tarea.nombre }}</strong><span>Completada{% if tarea.responsable %} - {{ tarea.responsable }}{% endif %}</span></div>
                 {% endfor %}
             </div>
         </article>
@@ -197,6 +197,9 @@
                         {% if evidencia.es_imagen %}<img src="{{ evidencia.obj.archivo.url }}" alt="{{ evidencia.obj.nombre }}">{% endif %}
                         <strong>{{ evidencia.obj.nombre }}</strong>
                         <span>{{ evidencia.obj.fecha_subida }} - {{ evidencia.obj.usuario }}</span>
+                        {% if evidencia.obj.tarea %}
+                            <span class="evidence-task-link">Respalda {{ evidencia.obj.tarea.etiqueta_corta }}: {{ evidencia.obj.tarea.nombre }}</span>
+                        {% endif %}
                         <a class="btn btn-sm btn-outline-primary" href="{{ evidencia.obj.archivo.url }}" download>Descargar</a>
                     </div>
                 {% empty %}

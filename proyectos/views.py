@@ -5,7 +5,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.http import JsonResponse
-from django.db import transaction
+from django.db import close_old_connections, transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Avg, Count, F, Q
 from django.shortcuts import get_object_or_404, redirect, render
@@ -20,6 +20,8 @@ from datetime import datetime, timedelta
 from urllib.parse import urlencode
 import json
 import secrets
+import threading
+import time
 
 from .forms import (
     AjusteStockForm,
@@ -40,7 +42,7 @@ from .forms import (
     UsuarioRegistroForm,
     UsuarioUpdateForm,
 )
-from .gemini_service import analizar_borrador_trl, analizar_etapa_trl, analizar_trl
+from .gemini_service import analizar_borrador_trl, analizar_etapa_trl, analizar_trl, generar_mesa_trabajo_ia
 from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario
 
 
@@ -134,7 +136,7 @@ def estado_presencia(usuario):
     if diferencia <= timedelta(minutes=5):
         return {
             "en_linea": True,
-            "texto": "En lÃ­nea",
+            "texto": "En l?nea",
         }
     minutos = int(diferencia.total_seconds() // 60)
     if minutos < 60:
@@ -243,7 +245,7 @@ def enviar_resultado_aprobacion(usuario, aprobado):
         asunto = "Cuenta aprobada FAB INACAP"
         mensaje = (
             f"Hola {usuario.nombre or usuario.username},\n\n"
-            "Tu cuenta fue aprobada. Ya puedes iniciar sesiÃ³n en el sistema FAB INACAP.\n\n"
+            "Tu cuenta fue aprobada. Ya puedes iniciar sesi?n en el sistema FAB INACAP.\n\n"
             "FAB INACAP"
         )
     else:
@@ -268,9 +270,9 @@ def registro_publico(request):
                 enviar_solicitud_aprobacion_externa(request, usuario)
                 return redirect("registro_pendiente", pk=usuario.pk)
             elif enviar_codigo_verificacion(request, usuario):
-                messages.success(request, "Te enviamos un cÃ³digo de confirmaciÃ³n al correo.")
+                messages.success(request, "Te enviamos un código de confirmación al correo.")
             else:
-                messages.warning(request, "Cuenta creada, pero no se pudo enviar el correo. Revisa la configuraciÃ³n SMTP.")
+                messages.warning(request, "Cuenta creada, pero no se pudo enviar el correo. Revisa la configuración SMTP.")
             return redirect("verificar_correo", pk=usuario.pk)
     return render(request, "registration/register.html", {"form": form})
 
@@ -284,7 +286,7 @@ def registro_resolver(request, token):
     try:
         datos = signing.loads(token, salt="aprobacion-usuario", max_age=60 * 60 * 24 * 7)
     except signing.BadSignature:
-        messages.error(request, "El enlace de aprobaciÃ³n no es vÃ¡lido o venciÃ³.")
+        messages.error(request, "El enlace de aprobación no es válido o venció.")
         return redirect("login")
 
     usuario = get_object_or_404(Usuario, pk=datos.get("usuario_id"))
@@ -307,7 +309,7 @@ def registro_resolver(request, token):
         enviar_resultado_aprobacion(usuario, False)
         messages.warning(request, f"Solicitud rechazada: {usuario.email}")
     else:
-        messages.error(request, "AcciÃ³n no vÃ¡lida.")
+        messages.error(request, "Acción no válida.")
     return redirect("login")
 
 
@@ -317,9 +319,9 @@ def verificar_correo(request, pk):
     if request.method == "POST":
         if "reenviar" in request.POST:
             if enviar_codigo_verificacion(request, usuario):
-                messages.success(request, "Te enviamos un nuevo cÃ³digo.")
+                messages.success(request, "Te enviamos un nuevo código.")
             else:
-                messages.error(request, "No se pudo enviar el cÃ³digo. Revisa la configuraciÃ³n del correo.")
+                messages.error(request, "No se pudo enviar el código. Revisa la configuración del correo.")
             return redirect("verificar_correo", pk=usuario.pk)
 
         form = CodigoVerificacionForm(request.POST)
@@ -327,9 +329,9 @@ def verificar_correo(request, pk):
             codigo = form.cleaned_data["codigo"]
             expira = usuario.codigo_verificacion_expira
             if not usuario.codigo_verificacion or not expira or timezone.now() > expira:
-                form.add_error("codigo", "El cÃ³digo venciÃ³. Solicita uno nuevo.")
+                form.add_error("codigo", "El código venció. Solicita uno nuevo.")
             elif codigo != usuario.codigo_verificacion:
-                form.add_error("codigo", "El cÃ³digo no coincide.")
+                form.add_error("codigo", "El código no coincide.")
             else:
                 usuario.correo_verificado = True
                 usuario.is_active = True
@@ -804,7 +806,7 @@ def usuario_eliminar(request, pk):
 
     usuario = get_object_or_404(usuarios_de_sede(request.user), pk=pk)
     if usuario.pk == request.user.pk:
-        messages.error(request, "No puedes eliminar el usuario con el que estÃ¡s conectado.")
+        messages.error(request, "No puedes eliminar el usuario con el que est?s conectado.")
         return redirect("usuario_lista")
 
     if request.method == "POST":
@@ -827,17 +829,17 @@ def usuario_eliminar(request, pk):
 
 
 PALABRAS_ACTIVIDAD = {
-    "charla", "reunion", "reuniÃ³n", "conversacion", "conversaciÃ³n",
-    "presentacion", "presentaciÃ³n", "capacitacion", "capacitaciÃ³n",
-    "evento", "coordinacion", "coordinaciÃ³n", "jornada", "taller",
-    "seminario", "clase", "induccion", "inducciÃ³n",
+    "charla", "reunion", "reunión", "conversacion", "conversación",
+    "presentacion", "presentación", "capacitacion", "capacitación",
+    "evento", "coordinacion", "coordinación", "jornada", "taller",
+    "seminario", "clase", "induccion", "inducción",
 }
 
 PALABRAS_TECNOLOGIA = {
-    "sistema", "web", "app", "movil", "mÃ³vil", "software", "plataforma",
+    "sistema", "web", "app", "movil", "móvil", "software", "plataforma",
     "prototipo", "sensor", "hardware", "ia", "inteligencia artificial",
-    "dispositivo", "tecnologia", "tecnologÃ­a", "herramienta digital",
-    "validar", "automatizacion", "automatizaciÃ³n", "producto innovador",
+    "dispositivo", "tecnologia", "tecnología", "herramienta digital",
+    "validar", "automatizacion", "automatización", "producto innovador",
 }
 
 
@@ -858,12 +860,12 @@ def fases_por_tipo(tipo_proyecto):
         ]
     if tipo_proyecto == Proyecto.TipoProyecto.ACTIVIDAD:
         objetivos = {
-            1: "Definir objetivo, pÃºblico, fecha tentativa y responsables de la actividad.",
-            2: "Preparar presentaciÃ³n, pauta, recursos y materiales necesarios.",
-            3: "Coordinar sala, participantes, difusiÃ³n y confirmaciones.",
+            1: "Definir objetivo, público, fecha tentativa y responsables de la actividad.",
+            2: "Preparar presentación, pauta, recursos y materiales necesarios.",
+            3: "Coordinar sala, participantes, difusión y confirmaciones.",
             4: "Realizar la actividad y dejar registro de asistencia o evidencia.",
             5: "Registrar resultados, comentarios, aprendizajes y mejoras detectadas.",
-            6: "Cerrar la actividad con evidencias, conclusiones y prÃ³ximos pasos.",
+            6: "Cerrar la actividad con evidencias, conclusiones y próximos pasos.",
         }
         return [(numero, nombre, objetivos[numero]) for numero, nombre in ACTIVIDAD_FASES]
     objetivos = {
@@ -891,6 +893,205 @@ def crear_fases_para_proyecto(proyecto):
             fase.nombre = nombre
             fase.objetivo = objetivo
             fase.save(update_fields=["nombre", "objetivo"])
+
+
+def fases_validas_para_mesa(proyecto):
+    if proyecto.usa_trl:
+        return list(range(proyecto.trl_inicial_efectivo + 1, proyecto.trl_objetivo_efectivo + 1))
+    return [numero for numero, _, _ in fases_por_tipo(Proyecto.TipoProyecto.GENERAL)]
+
+
+def plan_mesa_por_reglas(proyecto):
+    objetivos = list(proyecto.objetivos.prefetch_related("resultados__indicadores"))
+    resultados = list(ResultadoEsperado.objects.filter(objetivo__proyecto=proyecto).prefetch_related("indicadores").order_by("objetivo__orden", "orden"))
+    etapas = []
+
+    if proyecto.usa_trl:
+        for fase_numero in fases_validas_para_mesa(proyecto):
+            resultados_fase = [resultado for resultado in resultados if resultado.trl_objetivo == fase_numero]
+            tareas = []
+            evidencias = []
+            for resultado in resultados_fase:
+                tareas.append({
+                    "nombre": f"Trabajar resultado: {resultado.descripcion[:120]}",
+                    "descripcion": f"Completar el resultado esperado asociado a TRL {fase_numero}. Plazo: {resultado.plazo_texto}.",
+                })
+                evidencias.append(f"Evidencia del resultado: {resultado.descripcion[:140]}")
+                for indicador in resultado.indicadores.all():
+                    tareas.append({
+                        "nombre": f"Validar indicador: {indicador.descripcion[:120]}",
+                        "descripcion": "Registrar avance, evidencia y valor actual antes de marcar el indicador como cumplido.",
+                    })
+                    evidencias.append(f"Registro que respalde indicador: {indicador.descripcion[:140]}")
+            if not tareas:
+                tareas.append({
+                    "nombre": f"Preparar evidencia para TRL {fase_numero}",
+                    "descripcion": "Registrar tareas, avances y archivos que demuestren el cumplimiento de este nivel.",
+                })
+                evidencias.append(f"Informe o captura que demuestre avance hacia TRL {fase_numero}")
+            etapas.append({
+                "fase": fase_numero,
+                "criterio": resumen_objetivo_de_fase(proyecto, fase_numero),
+                "tareas": tareas[:8],
+                "evidencias_sugeridas": evidencias[:8],
+            })
+        return {"ok": True, "origen": "reglas", "etapas": etapas}
+
+    tareas_por_fase = {
+        1: [
+            {"nombre": "Revisar necesidad y alcance del proyecto", "descripcion": proyecto.objetivo_principal or proyecto.descripcion},
+            *[
+                {"nombre": f"Precisar objetivo especifico {objetivo.orden}", "descripcion": objetivo.descripcion}
+                for objetivo in objetivos[:4]
+            ],
+        ],
+        2: [
+            {"nombre": "Ordenar resultados esperados y plazos", "descripcion": "Revisar que cada resultado tenga plazo, responsable y forma de validacion."},
+            *[
+                {"nombre": f"Planificar resultado {resultado.orden}", "descripcion": f"{resultado.descripcion} Plazo: {resultado.plazo_texto}."}
+                for resultado in resultados[:5]
+            ],
+        ],
+        3: [
+            {"nombre": "Ejecutar actividades principales", "descripcion": "Registrar avances escritos y tareas realizadas por el equipo."},
+            *[
+                {"nombre": f"Desarrollar resultado: {resultado.descripcion[:100]}", "descripcion": "Subir avances y evidencias cuando corresponda."}
+                for resultado in resultados[:5]
+            ],
+        ],
+        4: [
+            {"nombre": "Validar indicadores del proyecto", "descripcion": "Comprobar que los indicadores demuestren el cumplimiento de los resultados."},
+            *[
+                {"nombre": f"Validar indicador: {indicador.descripcion[:100]}", "descripcion": "Registrar valor actual, evidencia y conclusion de validacion."}
+                for resultado in resultados[:5]
+                for indicador in resultado.indicadores.all()[:1]
+            ],
+        ],
+        5: [
+            {"nombre": "Cerrar proyecto con evidencias y conclusiones", "descripcion": "Documentar resultados logrados, pendientes y aprendizaje final."},
+        ],
+    }
+    evidencias_por_fase = {
+        1: ["Necesidad levantada", "Objetivos especificos revisados", "Alcance inicial documentado"],
+        2: ["Plan de trabajo", "Cronograma o plazos por resultado", "Recursos requeridos"],
+        3: ["Capturas, fotos o registros de ejecucion", "Avances escritos del equipo"],
+        4: ["Evidencia de indicadores cumplidos", "Validacion de resultados esperados"],
+        5: ["Informe de cierre", "Conclusiones y pendientes documentados"],
+    }
+    for fase_numero in fases_validas_para_mesa(proyecto):
+        etapas.append({
+            "fase": fase_numero,
+            "criterio": "",
+            "tareas": tareas_por_fase.get(fase_numero, [])[:8],
+            "evidencias_sugeridas": evidencias_por_fase.get(fase_numero, [])[:8],
+        })
+    return {"ok": True, "origen": "reglas", "etapas": etapas}
+
+
+def aplicar_plan_mesa_trabajo(proyecto, plan):
+    fases = {fase.trl: fase for fase in proyecto.fases.all()}
+    responsable = proyecto.responsables.order_by("nombre", "username").first() or proyecto.creador
+    tareas_creadas = 0
+    for etapa in plan.get("etapas", []):
+        try:
+            fase_numero = int(etapa.get("fase") or 0)
+        except (TypeError, ValueError):
+            continue
+        fase = fases.get(fase_numero)
+        if not fase:
+            continue
+        evidencias = [str(item).strip() for item in etapa.get("evidencias_sugeridas", []) if str(item).strip()]
+        criterio = str(etapa.get("criterio", "")).strip()
+        cambios = []
+        if evidencias and fase.evidencias_sugeridas != evidencias[:8]:
+            fase.evidencias_sugeridas = evidencias[:8]
+            cambios.append("evidencias_sugeridas")
+        if criterio and not proyecto.usa_trl and fase.objetivo != criterio:
+            fase.objetivo = criterio
+            cambios.append("objetivo")
+        if cambios:
+            fase.save(update_fields=[*cambios, "fecha_actualizacion"])
+        for tarea_data in etapa.get("tareas", [])[:8]:
+            nombre = str(tarea_data.get("nombre", "") if isinstance(tarea_data, dict) else tarea_data).strip()
+            if not nombre:
+                continue
+            descripcion = str(tarea_data.get("descripcion", "") if isinstance(tarea_data, dict) else "").strip()
+            _, creada = Tarea.objects.get_or_create(
+                proyecto=proyecto,
+                fase=fase,
+                nombre=nombre[:200],
+                defaults={
+                    "descripcion": descripcion,
+                    "estado": Tarea.Estado.PENDIENTE,
+                    "responsable": responsable,
+                },
+            )
+            if creada:
+                tareas_creadas += 1
+    return tareas_creadas
+
+
+def actualizar_estado_mesa_trabajo(proyecto, estado, mensaje):
+    proyecto.mesa_trabajo_estado = estado
+    proyecto.mesa_trabajo_mensaje = mensaje[:240]
+    proyecto.mesa_trabajo_actualizada_en = timezone.now()
+    proyecto.save(update_fields=["mesa_trabajo_estado", "mesa_trabajo_mensaje", "mesa_trabajo_actualizada_en", "actualizado_en"])
+
+
+def generar_mesa_trabajo_base(proyecto):
+    return aplicar_plan_mesa_trabajo(proyecto, plan_mesa_por_reglas(proyecto))
+
+
+def generar_mesa_trabajo_ia_async(proyecto_id):
+    close_old_connections()
+    inicio = time.monotonic()
+    try:
+        proyecto = Proyecto.objects.prefetch_related("fases", "responsables", "objetivos__resultados__indicadores").get(pk=proyecto_id)
+        fases_validas = fases_validas_para_mesa(proyecto)
+        plan = generar_mesa_trabajo_ia(proyecto, fases_validas)
+        if not plan.get("ok") or (time.monotonic() - inicio) > 60:
+            tareas = aplicar_plan_mesa_trabajo(proyecto, plan_mesa_por_reglas(proyecto))
+            actualizar_estado_mesa_trabajo(
+                proyecto,
+                Proyecto.MesaTrabajoEstado.ERROR,
+                f"La IA no alcanzo a responder correctamente. Se dejo una mesa base por reglas con {tareas} tareas.",
+            )
+            return
+        tareas = aplicar_plan_mesa_trabajo(proyecto, plan)
+        actualizar_estado_mesa_trabajo(
+            proyecto,
+            Proyecto.MesaTrabajoEstado.LISTA,
+            f"Mesa de trabajo generada con IA. Se agregaron {tareas} tareas sugeridas.",
+        )
+    except Exception:
+        try:
+            proyecto = Proyecto.objects.prefetch_related("fases", "responsables", "objetivos__resultados__indicadores").get(pk=proyecto_id)
+            tareas = aplicar_plan_mesa_trabajo(proyecto, plan_mesa_por_reglas(proyecto))
+            actualizar_estado_mesa_trabajo(
+                proyecto,
+                Proyecto.MesaTrabajoEstado.ERROR,
+                f"Ocurrio un problema con la IA. Se dejo una mesa base por reglas con {tareas} tareas.",
+            )
+        except Exception:
+            pass
+    finally:
+        close_old_connections()
+
+
+def iniciar_generacion_mesa_trabajo_ia(proyecto):
+    actualizar_estado_mesa_trabajo(
+        proyecto,
+        Proyecto.MesaTrabajoEstado.GENERANDO,
+        "Se esta generando con IA la mesa de trabajo. Si tarda mas de un minuto, se usara la mesa base por reglas.",
+    )
+    hilo = threading.Thread(target=generar_mesa_trabajo_ia_async, args=(proyecto.pk,), daemon=True)
+    hilo.start()
+
+
+def generar_mesa_trabajo_inicial(proyecto):
+    tareas = generar_mesa_trabajo_base(proyecto)
+    iniciar_generacion_mesa_trabajo_ia(proyecto)
+    return tareas
 
 
 
@@ -1039,7 +1240,7 @@ def notificar_creador_proyecto(request, proyecto):
     )
     contenido = f"""
         <p style="margin:0 0 16px 0;">Hola {escape(proyecto.creador.nombre or proyecto.creador.username)},</p>
-        <p style="margin:0 0 18px 0;">Se registrÃ³ correctamente el proyecto que creaste en la plataforma.</p>
+        <p style="margin:0 0 18px 0;">Se registr? correctamente el proyecto que creaste en la plataforma.</p>
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:5px solid #cf3f4f;border-radius:10px;padding:18px 20px;margin:0 0 20px 0;">
             <div style="font-size:18px;font-weight:800;color:#142033;line-height:1.3;">{escape(proyecto.nombre)}</div>
             <div style="font-size:13px;color:#64748b;margin-top:8px;">{escape(proyecto.descripcion[:260])}</div>
@@ -1053,7 +1254,7 @@ def notificar_creador_proyecto(request, proyecto):
         f"Proyecto creado: {proyecto.nombre}",
         [proyecto.creador.email],
         mensaje,
-        correo_html_inacap("Proyecto creado", "Resumen de creaciÃ³n y responsables", contenido, "Revisar proyecto", url),
+        correo_html_inacap("Proyecto creado", "Resumen de creaci?n y responsables", contenido, "Revisar proyecto", url),
     )
 
 
@@ -1072,14 +1273,14 @@ def notificar_creador_fase_completada(request, fase):
     url = url_etapa_para_fase(request, fase)
     mensaje = (
         f"Hola {proyecto.creador.nombre or proyecto.creador.username},\n\n"
-        f"Se completÃ³ la etapa '{fase.etiqueta}: {fase.nombre}' del proyecto '{proyecto.nombre}'.\n\n"
+        f"Se complet? la etapa '{fase.etiqueta}: {fase.nombre}' del proyecto '{proyecto.nombre}'.\n\n"
         f"Trabajo registrado:\n{fase.realizado or 'Sin detalle registrado'}\n\n"
         f"Revisar etapa: {url}\n\n"
         f"FAB INACAP Puerto Montt"
     )
     contenido = f"""
         <p style="margin:0 0 16px 0;">Hola {escape(proyecto.creador.nombre or proyecto.creador.username)},</p>
-        <p style="margin:0 0 18px 0;">Se completÃ³ una etapa del proyecto que creaste.</p>
+        <p style="margin:0 0 18px 0;">Se complet? una etapa del proyecto que creaste.</p>
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-left:5px solid #16a34a;border-radius:10px;padding:18px 20px;margin:0 0 20px 0;">
             <div style="font-size:13px;color:#166534;font-weight:800;text-transform:uppercase;">Etapa completada</div>
             <div style="font-size:18px;font-weight:800;color:#142033;line-height:1.3;margin-top:4px;">{escape(fase.etiqueta)}: {escape(fase.nombre)}</div>
@@ -1103,7 +1304,7 @@ def notificar_tarea_asignada(request, tarea):
     url = url_publica(request, tarea.proyecto.get_absolute_url())
     mensaje = (
         f"Hola {tarea.responsable.nombre or tarea.responsable.username},\n\n"
-        f"Se te asignÃ³ la tarea '{tarea.nombre}' en el proyecto '{tarea.proyecto.nombre}'.\n\n"
+        f"Se te asign? la tarea '{tarea.nombre}' en el proyecto '{tarea.proyecto.nombre}'.\n\n"
         f"Estado: {tarea.get_estado_display()}\n"
         f"Revisar proyecto: {url}\n\n"
         f"FAB INACAP Puerto Montt"
@@ -1120,13 +1321,13 @@ def notificar_observacion(request, observacion):
     destinatarios = [usuario.email for usuario in observacion.proyecto.responsables.all()]
     mensaje = (
         f"Hola,\n\n"
-        f"{observacion.usuario} agregÃ³ una observaciÃ³n al proyecto '{observacion.proyecto.nombre}'.\n\n"
-        f"ObservaciÃ³n:\n{observacion.comentario}\n\n"
+        f"{observacion.usuario} agreg? una observaci?n al proyecto '{observacion.proyecto.nombre}'.\n\n"
+        f"Observaci?n:\n{observacion.comentario}\n\n"
         f"Revisar proyecto: {url}\n\n"
         f"FAB INACAP Puerto Montt"
     )
     return enviar_correo_simple(
-        f"Nueva observaciÃ³n en {observacion.proyecto.nombre}",
+        f"Nueva observaci?n en {observacion.proyecto.nombre}",
         destinatarios,
         mensaje,
     )
@@ -1137,15 +1338,15 @@ TRL_ETAPAS = [
         "slug": "inicio",
         "nombre": "Inicio",
         "rango": range(1, 4),
-        "resumen": "Ideas, necesidad, planificaciÃ³n y prueba de concepto inicial.",
+        "resumen": "Ideas, necesidad, planificaci?n y prueba de concepto inicial.",
         "evidencias": ["Problema definido", "Objetivo claro", "Plan de trabajo", "Concepto o prueba inicial"],
     },
     {
         "slug": "validacion",
-        "nombre": "ValidaciÃ³n",
+        "nombre": "Validaci?n",
         "rango": range(4, 6),
-        "resumen": "ValidaciÃ³n tÃ©cnica en laboratorio y revisiÃ³n en entorno relevante.",
-        "evidencias": ["Ensayos de laboratorio", "Resultados medibles", "Ajustes tÃ©cnicos", "ValidaciÃ³n del funcionamiento"],
+        "resumen": "Validaci?n t?cnica en laboratorio y revisi?n en entorno relevante.",
+        "evidencias": ["Ensayos de laboratorio", "Resultados medibles", "Ajustes t?cnicos", "Validaci?n del funcionamiento"],
     },
     {
         "slug": "pruebas",
@@ -1156,13 +1357,43 @@ TRL_ETAPAS = [
     },
     {
         "slug": "finalizacion",
-        "nombre": "FinalizaciÃ³n",
+        "nombre": "Finalizaci?n",
         "rango": range(8, 10),
-        "resumen": "Sistema completo, validado y probado con Ã©xito en entorno real.",
-        "evidencias": ["SoluciÃ³n completa", "DocumentaciÃ³n final", "ValidaciÃ³n real", "Cierre tÃ©cnico"],
+        "resumen": "Sistema completo, validado y probado con ?xito en entorno real.",
+        "evidencias": ["Soluci?n completa", "Documentaci?n final", "Validaci?n real", "Cierre t?cnico"],
     },
 ]
 
+TRL_ETAPAS = [
+    {
+        "slug": "inicio",
+        "nombre": "Inicio",
+        "rango": range(1, 4),
+        "resumen": "Ideas, necesidad, planificación y prueba de concepto inicial.",
+        "evidencias": ["Problema definido", "Objetivo claro", "Plan de trabajo", "Concepto o prueba inicial"],
+    },
+    {
+        "slug": "validacion",
+        "nombre": "Validación",
+        "rango": range(4, 6),
+        "resumen": "Validación técnica en laboratorio y revisión en entorno relevante.",
+        "evidencias": ["Ensayos de laboratorio", "Resultados medibles", "Ajustes técnicos", "Validación del funcionamiento"],
+    },
+    {
+        "slug": "pruebas",
+        "nombre": "Pruebas",
+        "rango": range(6, 8),
+        "resumen": "Prototipo demostrado y probado fuera del escenario controlado.",
+        "evidencias": ["Prototipo operativo", "Pruebas con usuarios o entorno real", "Registro de fallas", "Mejoras aplicadas"],
+    },
+    {
+        "slug": "finalizacion",
+        "nombre": "Finalización",
+        "rango": range(8, 10),
+        "resumen": "Sistema completo, validado y probado con éxito en entorno real.",
+        "evidencias": ["Solución completa", "Documentación final", "Validación real", "Cierre técnico"],
+    },
+]
 
 
 def trl_estimado_por_porcentaje(porcentaje):
@@ -1520,7 +1751,7 @@ def construir_tablero_trl(proyecto):
                 "slug": slugify(f"fase-{fase.trl}-{fase.nombre}"),
                 "nombre": fase.nombre,
                 "resumen": fase.objetivo,
-                "evidencias": [fase.objetivo],
+                "evidencias": fase.evidencias_sugeridas or [fase.objetivo],
                 "inicio": fase.trl,
                 "fin": fase.trl,
                 "completadas": 1 if completa else 0,
@@ -1570,8 +1801,10 @@ def construir_tablero_trl(proyecto):
             estado_visual = "disponible"
 
         pasos = []
+        evidencias_sugeridas = []
         for fase in fases_etapa:
             desbloqueada = fase_desbloqueada(fase) and not bloqueada
+            evidencias_sugeridas.extend(fase.evidencias_sugeridas or [])
             pasos.append({
                 "fase": fase,
                 "desbloqueada": desbloqueada,
@@ -1582,7 +1815,7 @@ def construir_tablero_trl(proyecto):
             "slug": etapa["slug"],
             "nombre": etapa["nombre"],
             "resumen": etapa["resumen"],
-            "evidencias": etapa["evidencias"],
+            "evidencias": evidencias_sugeridas[:10] or etapa["evidencias"],
             "inicio": fases_etapa[0].trl,
             "fin": fases_etapa[-1].trl,
             "completadas": completadas,
@@ -1624,12 +1857,13 @@ class ProyectoCreateView(LoginRequiredMixin, CreateView):
         crear_fases_para_proyecto(self.object)
         sincronizar_trl_desde_resultados(self.object)
         sincronizar_avance_simple_desde_objetivos(self.object)
+        tareas_base = generar_mesa_trabajo_inicial(self.object)
         notificar_creador_proyecto(self.request, self.object)
-        correo_enviado = notificar_responsables_proyecto(self.request, self.object)
-        if correo_enviado:
-            messages.success(self.request, "Proyecto creado correctamente.")
+        notificar_responsables_proyecto(self.request, self.object)
+        if tareas_base:
+            messages.success(self.request, f"Proyecto creado correctamente. Se dejo una base de trabajo con {tareas_base} tareas y la IA esta preparando una mesa mas detallada.")
         else:
-            messages.success(self.request, "Proyecto creado correctamente.")
+            messages.success(self.request, "Proyecto creado correctamente. La IA esta preparando la mesa de trabajo.")
         return response
 
 class ProyectoUpdateView(LoginRequiredMixin, UpdateView):
@@ -1698,6 +1932,40 @@ def proyecto_detalle(request, pk):
         "puede_editar_proyecto": usuario_puede_editar_proyecto(request.user, proyecto),
     }
     return render(request, "proyectos/proyecto_detalle.html", contexto)
+
+
+@login_required
+def proyecto_mesa_estado(request, pk):
+    proyecto = get_object_or_404(proyectos_de_sede(request.user), pk=pk)
+    if (
+        proyecto.mesa_trabajo_estado in {
+            Proyecto.MesaTrabajoEstado.PENDIENTE,
+            Proyecto.MesaTrabajoEstado.GENERANDO,
+        }
+        and proyecto.mesa_trabajo_actualizada_en
+        and (timezone.now() - proyecto.mesa_trabajo_actualizada_en).total_seconds() > 60
+    ):
+        generar_mesa_trabajo_base(proyecto)
+        actualizar_estado_mesa_trabajo(
+            proyecto,
+            Proyecto.MesaTrabajoEstado.ERROR,
+            "La IA tardo mas de un minuto. Se dejo activa la mesa base por reglas para que puedas trabajar.",
+        )
+        proyecto.refresh_from_db(fields=[
+            "mesa_trabajo_estado",
+            "mesa_trabajo_mensaje",
+            "mesa_trabajo_actualizada_en",
+        ])
+    listo = proyecto.mesa_trabajo_estado in {
+        Proyecto.MesaTrabajoEstado.LISTA,
+        Proyecto.MesaTrabajoEstado.ERROR,
+    }
+    return JsonResponse({
+        "estado": proyecto.mesa_trabajo_estado,
+        "mensaje": proyecto.mesa_trabajo_mensaje,
+        "listo": listo,
+        "trabajo_url": reverse("proyecto_trabajo", kwargs={"pk": proyecto.pk}),
+    })
 
 
 @login_required
@@ -1960,7 +2228,7 @@ def construir_linea_temporal(proyecto):
     for observacion in proyecto.observaciones.all():
         items.append({
             "fecha": observacion.fecha.date(),
-            "tipo": "ObservaciÃ³n",
+            "tipo": "Observaci?n",
             "titulo": observacion.usuario,
             "descripcion": observacion.comentario,
         })
@@ -1969,7 +2237,7 @@ def construir_linea_temporal(proyecto):
         items.append({
             "fecha": proyecto.fecha_fin,
             "tipo": "Cierre",
-            "titulo": "Fecha de tÃ©rmino",
+            "titulo": "Fecha de t?rmino",
             "descripcion": proyecto.get_estado_display(),
         })
 
@@ -2138,7 +2406,7 @@ def inventario_lector(request):
                     item_encontrado.save(update_fields=["cantidad", "observacion", "actualizado_en"])
                     messages.success(request, f"Stock actualizado: {item_encontrado.nombre}.")
                     return redirect("inventario_lector")
-            messages.warning(request, "No existe un Ã­tem activo con ese cÃ³digo. Completa el alta para dejarlo registrado.")
+            messages.warning(request, "No existe un ítem activo con ese código. Completa el alta para dejarlo registrado.")
             parametros = urlencode({"codigo_barra": codigo, "cantidad": cantidad})
             return redirect(f"{reverse('inventario_crear')}?{parametros}")
     return render(
@@ -2147,7 +2415,7 @@ def inventario_lector(request):
         {
             "form": form,
             "titulo": "Agregar con lector de barra",
-            "descripcion": "Escanea el cÃ³digo del Ã­tem y suma la cantidad ingresada al stock existente.",
+            "descripcion": "Escanea el código del ítem y suma la cantidad ingresada al stock existente.",
             "boton": "Agregar al stock",
             "volver_url": "inventario_lista",
             "modo_lector": True,
@@ -2216,7 +2484,7 @@ def registrar_uso_inventario(request, pk):
             "proyecto": proyecto,
             "form": form,
             "titulo": "Registrar uso de inventario",
-            "descripcion": "Indica quÃ© material, equipo o insumo usÃ³ este proyecto.",
+            "descripcion": "Indica qu? material, equipo o insumo us? este proyecto.",
             "boton": "Registrar uso",
         },
     )
@@ -2242,7 +2510,7 @@ def actualizar_estado(request, pk):
             "titulo": "Actualizar estado",
             "descripcion": "Modifica el estado del proyecto.",
             "boton": "Guardar estado",
-            "confirmacion": "Â¿Actualizar el estado y avance del proyecto?",
+            "confirmacion": "?Actualizar el estado y avance del proyecto?",
         },
     )
 
@@ -2313,13 +2581,14 @@ def subir_evidencia(request, pk):
     proyecto = get_object_or_404(proyectos_de_sede(request.user), pk=pk)
     if not exigir_permiso_edicion_proyecto(request, proyecto):
         return redirect("proyecto_trabajo", pk=proyecto.pk)
-    form = EvidenciaForm()
+    fase = fase_desde_request(request, proyecto)
+    form = EvidenciaForm(proyecto=proyecto, fase=fase)
     if request.method == "POST":
-        form = EvidenciaForm(request.POST, request.FILES)
+        form = EvidenciaForm(request.POST, request.FILES, proyecto=proyecto, fase=fase)
         if form.is_valid():
             evidencia = form.save(commit=False)
             evidencia.proyecto = proyecto
-            evidencia.fase = fase_desde_request(request, proyecto)
+            evidencia.fase = fase
             evidencia.usuario = request.user
             evidencia.save()
             messages.success(request, "Evidencia subida correctamente.")
@@ -2331,7 +2600,7 @@ def subir_evidencia(request, pk):
             "proyecto": proyecto,
             "form": form,
             "titulo": "Subir evidencia",
-            "descripcion": "Adjunta un archivo, presentaciÃ³n, documento o respaldo del proyecto.",
+            "descripcion": "Adjunta un archivo, presentación, documento o respaldo del proyecto.",
             "boton": "Subir evidencia",
             "multipart": True,
         },
@@ -2367,9 +2636,9 @@ def crear_observacion(request, pk):
             observacion.save()
             correo_enviado = notificar_observacion(request, observacion)
             if correo_enviado:
-                messages.success(request, "ObservaciÃ³n agregada correctamente. Responsables notificados por correo.")
+                messages.success(request, "Observaci?n agregada correctamente. Responsables notificados por correo.")
             else:
-                messages.success(request, "ObservaciÃ³n agregada correctamente.")
+                messages.success(request, "Observaci?n agregada correctamente.")
             return redirect(url_retorno_segura(request, proyecto.get_absolute_url().replace(f"/proyectos/{proyecto.pk}/", f"/proyectos/{proyecto.pk}/trabajo/")))
     return render(
         request,
@@ -2377,9 +2646,9 @@ def crear_observacion(request, pk):
         {
             "proyecto": proyecto,
             "form": form,
-            "titulo": "Agregar observaciÃ³n",
-            "descripcion": "Registra una recomendaciÃ³n, comentario o seguimiento del proyecto.",
-            "boton": "Guardar observaciÃ³n",
+            "titulo": "Agregar observaci?n",
+            "descripcion": "Registra una recomendaci?n, comentario o seguimiento del proyecto.",
+            "boton": "Guardar observaci?n",
         },
     )
 

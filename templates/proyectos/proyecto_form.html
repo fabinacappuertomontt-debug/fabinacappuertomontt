@@ -93,7 +93,7 @@
                             <input type="hidden" name="{{ field.name }}" id="{{ field.id_for_label }}" value="{{ field.value|default_if_none:''|escape }}" data-structured-field="objetivos">
                             <input type="hidden" name="{{ form.resultados_esperados.name }}" id="{{ form.resultados_esperados.id_for_label }}" value="{{ form.resultados_esperados.value|default_if_none:''|escape }}" data-structured-field="resultados">
                             <input type="hidden" name="{{ form.indicadores.name }}" id="{{ form.indicadores.id_for_label }}" value="{{ form.indicadores.value|default_if_none:''|escape }}" data-structured-field="indicadores">
-                            <div class="form-text mb-3" data-objective-structure-help>Usa el boton + para agregar objetivos especificos. Abajo editas el resultado, indicador y plazo del objetivo seleccionado.</div>
+                            <div class="form-text mb-3" data-objective-structure-help>Usa el boton + para agregar objetivos especificos. Dentro de cada objetivo puedes agregar uno o mas resultados esperados, con su indicador y plazo.</div>
                             <div class="trl-structure-list" data-trl-structure-list></div>
                         </div>
                     {% elif field.name == "resultados_esperados" %}
@@ -176,8 +176,8 @@
             trl: "Proyecto con TRL: cada resultado queda asociado al nivel esperado del proyecto y el avance sube cuando se cumplen sus indicadores.",
         };
         const objectiveStructureMessages = {
-            simple: "Usa el boton + para agregar objetivos especificos. Abajo editas el resultado, indicador y plazo del objetivo seleccionado.",
-            trl: "Usa el boton + para agregar objetivos especificos. Abajo editas el resultado, indicador, plazo y TRL del objetivo seleccionado.",
+            simple: "Usa el boton + para agregar objetivos especificos. Dentro de cada objetivo puedes agregar uno o mas resultados esperados, con su indicador y plazo.",
+            trl: "Usa el boton + para agregar objetivos especificos. Dentro de cada objetivo puedes agregar uno o mas resultados esperados, con su indicador, plazo y nivel TRL.",
         };
         const selectedMethodology = () => {
             if (!methodology) {
@@ -427,7 +427,7 @@
 
             const parseResultLine = (line) => {
                 const clean = line.replace(/^\s*\d+[\.\)]\s*/, "").trim();
-                const match = clean.match(/^(.*?)\s*\(plazo:\s*(?:(\d+)\s*mes(?:es)?)?\s*(?:,?\s*(\d+)\s*d[iÃ­]a(?:s)?)?\s*\)\s*$/i);
+                const match = clean.match(/^(.*?)\s*\(plazo:\s*(?:(\d+)\s*mes(?:es)?)?\s*(?:,?\s*(\d+)\s*d[ií]a(?:s)?)?\s*\)\s*$/i);
                 if (!match) {
                     return { texto: clean, meses: "", dias: "" };
                 }
@@ -631,7 +631,7 @@
             date.setDate(date.getDate() + Number(days || 0));
             return formatDate(date);
         };
-        const emptyModeState = () => ({ payload: [emptyObjective()], activeObjectiveIndex: 0 });
+        const emptyModeState = () => ({ payload: [emptyObjective()], activeObjectiveIndex: 0, activeResultIndex: 0 });
         const activeMode = () => usesTrlMethodology() ? "trl" : "simple";
         const modeStates = {
             simple: emptyModeState(),
@@ -666,24 +666,26 @@
         const normalizePayload = (source) => {
             const normalized = Array.isArray(source) ? source : [];
             return normalized.map((objective) => {
-                const result = Array.isArray(objective.resultados) && objective.resultados.length ? objective.resultados[0] : emptyResult();
-                const indicator = Array.isArray(result.indicadores) && result.indicadores.length ? result.indicadores[0] : emptyIndicator();
+                const results = Array.isArray(objective.resultados) && objective.resultados.length ? objective.resultados : [emptyResult()];
                 return {
                     descripcion: objective.descripcion || "",
-                    resultados: [{
-                        descripcion: result.descripcion || "",
-                        trl: result.trl || "",
-                        meses: result.meses || 0,
-                        dias: result.dias || 0,
-                        fecha_cumplimiento: result.fecha_cumplimiento || "",
-                        observaciones: result.observaciones || "",
-                        indicadores: [{
-                            descripcion: indicator.descripcion || "",
-                            meta: indicator.meta || "",
-                            valor_actual: indicator.valor_actual || "",
-                            cumplido: Boolean(indicator.cumplido),
-                        }],
-                    }],
+                    resultados: results.map((result) => {
+                        const indicator = Array.isArray(result.indicadores) && result.indicadores.length ? result.indicadores[0] : emptyIndicator();
+                        return {
+                            descripcion: result.descripcion || "",
+                            trl: result.trl || "",
+                            meses: result.meses || 0,
+                            dias: result.dias || 0,
+                            fecha_cumplimiento: result.fecha_cumplimiento || "",
+                            observaciones: result.observaciones || "",
+                            indicadores: [{
+                                descripcion: indicator.descripcion || "",
+                                meta: indicator.meta || "",
+                                valor_actual: indicator.valor_actual || "",
+                                cumplido: Boolean(indicator.cumplido),
+                            }],
+                        };
+                    }),
                 };
             });
         };
@@ -731,12 +733,24 @@
             }
             const activeObjectiveIndex = state.activeObjectiveIndex;
             const activeObjective = payload[activeObjectiveIndex] || emptyObjective();
-            const activeResult = activeObjective.resultados[0] || emptyResult();
+            if (!Array.isArray(activeObjective.resultados) || !activeObjective.resultados.length) {
+                activeObjective.resultados = [emptyResult()];
+            }
+            if (state.activeResultIndex >= activeObjective.resultados.length) {
+                state.activeResultIndex = Math.max(activeObjective.resultados.length - 1, 0);
+            }
+            const activeResultIndex = state.activeResultIndex;
+            const activeResult = activeObjective.resultados[activeResultIndex] || emptyResult();
             const activeIndicator = activeResult.indicadores[0] || emptyIndicator();
             const objectiveOptions = payload.map((objective, index) => `
                 <option value="${index}" ${index === activeObjectiveIndex ? "selected" : ""}>
                     Objetivo ${index + 1}${objective.descripcion ? ` - ${escapeHtml(objective.descripcion)}` : ""}
                 </option>
+            `).join("");
+            const resultOptions = activeObjective.resultados.map((result, index) => `
+                <button class="trl-result-pill ${index === activeResultIndex ? "is-active" : ""}" type="button" data-select-result="${index}">
+                    Resultado ${index + 1}${result.descripcion ? ` - ${escapeHtml(result.descripcion).slice(0, 80)}` : ""}
+                </button>
             `).join("");
             list.innerHTML = `
                 <div class="trl-objective-editor">
@@ -763,11 +777,20 @@
                         <input class="form-control" type="text" value="${escapeHtml(activeObjective.descripcion || "")}" data-objective-description="${activeObjectiveIndex}" placeholder="Describe el objetivo especifico">
                     </div>
                     <div class="trl-result-editor">
-                        <div class="trl-result-editor__title">Resultado esperado</div>
+                        <div class="trl-result-editor__head">
+                            <div class="trl-result-editor__title">Resultados esperados del objetivo ${activeObjectiveIndex + 1}</div>
+                            <button class="btn btn-sm btn-outline-primary" type="button" data-add-result>
+                                <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                                Agregar resultado esperado
+                            </button>
+                        </div>
+                        <div class="trl-result-list">
+                            ${resultOptions}
+                        </div>
                         <div class="row g-3">
                             <div class="col-md-7 trl-result-editor__field">
-                                <label class="form-label">Resultado esperado</label>
-                                <input class="form-control" type="text" value="${escapeHtml(activeResult.descripcion || "")}" data-result-description="${activeObjectiveIndex}" data-result-index="0" placeholder="Resultado esperado">
+                                <label class="form-label">Resultado esperado ${activeResultIndex + 1}</label>
+                                <input class="form-control" type="text" value="${escapeHtml(activeResult.descripcion || "")}" data-result-description="${activeObjectiveIndex}" data-result-index="${activeResultIndex}" placeholder="Resultado esperado">
                             </div>
                             <div class="col-md-5 trl-result-editor__field">
                                 <label class="form-label">Asociado a objetivo especifico</label>
@@ -777,15 +800,15 @@
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label">Meses</label>
-                                <input class="form-control" type="number" min="0" value="${escapeHtml(activeResult.meses || 0)}" data-result-months="${activeObjectiveIndex}" data-result-index="0">
+                                <input class="form-control" type="number" min="0" value="${escapeHtml(activeResult.meses || 0)}" data-result-months="${activeObjectiveIndex}" data-result-index="${activeResultIndex}">
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label">Dias</label>
-                                <input class="form-control" type="number" min="0" value="${escapeHtml(activeResult.dias || 0)}" data-result-days="${activeObjectiveIndex}" data-result-index="0">
+                                <input class="form-control" type="number" min="0" value="${escapeHtml(activeResult.dias || 0)}" data-result-days="${activeObjectiveIndex}" data-result-index="${activeResultIndex}">
                             </div>
                             <div class="col-md-5 trl-result-editor__field">
                                 <label class="form-label">Resumen o referencia del resultado</label>
-                                <textarea class="form-control" rows="2" data-result-notes="${activeObjectiveIndex}" data-result-index="0" placeholder="Observaciones del resultado">${escapeHtml(activeResult.observaciones || "")}</textarea>
+                                <textarea class="form-control" rows="2" data-result-notes="${activeObjectiveIndex}" data-result-index="${activeResultIndex}" placeholder="Observaciones del resultado">${escapeHtml(activeResult.observaciones || "")}</textarea>
                             </div>
                         </div>
                         <div class="trl-indicator-editor">
@@ -795,10 +818,11 @@
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label">Indicador</label>
-                                    <input class="form-control" type="text" value="${escapeHtml(activeIndicator.descripcion || "")}" data-indicator-description="${activeObjectiveIndex}" data-result-index="0" data-indicator-index="0">
+                                    <input class="form-control" type="text" value="${escapeHtml(activeIndicator.descripcion || "")}" data-indicator-description="${activeObjectiveIndex}" data-result-index="${activeResultIndex}" data-indicator-index="0">
                                 </div>
                             </div>
                         </div>
+                        ${activeObjective.resultados.length > 1 ? `<button class="btn btn-sm btn-outline-danger mt-3" type="button" data-remove-result="${activeResultIndex}">Quitar este resultado</button>` : ""}
                     </div>
                 </div>
             `;
@@ -858,7 +882,23 @@
             const target = event.target;
             const payload = activePayload();
             if (target.dataset.selectResultObjective !== undefined) {
-                activeState().activeObjectiveIndex = Number(target.value || 0);
+                const state = activeState();
+                const sourceObjectiveIndex = state.activeObjectiveIndex;
+                const targetObjectiveIndex = Number(target.value || 0);
+                const sourceObjective = payload[sourceObjectiveIndex];
+                const resultIndex = state.activeResultIndex;
+                if (targetObjectiveIndex !== sourceObjectiveIndex && sourceObjective?.resultados?.[resultIndex]) {
+                    const [movedResult] = sourceObjective.resultados.splice(resultIndex, 1);
+                    if (!sourceObjective.resultados.length) {
+                        sourceObjective.resultados.push(emptyResult());
+                    }
+                    payload[targetObjectiveIndex].resultados.push(movedResult);
+                    state.activeObjectiveIndex = targetObjectiveIndex;
+                    state.activeResultIndex = payload[targetObjectiveIndex].resultados.length - 1;
+                } else {
+                    state.activeObjectiveIndex = targetObjectiveIndex;
+                    state.activeResultIndex = 0;
+                }
                 render();
                 return;
             }
@@ -942,6 +982,32 @@
             const selectObjective = event.target.closest("[data-select-objective]");
             if (selectObjective) {
                 state.activeObjectiveIndex = Number(selectObjective.dataset.selectObjective);
+                state.activeResultIndex = 0;
+                render();
+                return;
+            }
+            const addResult = event.target.closest("[data-add-result]");
+            if (addResult) {
+                const objective = payload[state.activeObjectiveIndex];
+                objective.resultados.push(emptyResult());
+                state.activeResultIndex = objective.resultados.length - 1;
+                render();
+                return;
+            }
+            const selectResult = event.target.closest("[data-select-result]");
+            if (selectResult) {
+                state.activeResultIndex = Number(selectResult.dataset.selectResult);
+                render();
+                return;
+            }
+            const removeResult = event.target.closest("[data-remove-result]");
+            if (removeResult) {
+                const objective = payload[state.activeObjectiveIndex];
+                objective.resultados.splice(Number(removeResult.dataset.removeResult), 1);
+                if (!objective.resultados.length) {
+                    objective.resultados.push(emptyResult());
+                }
+                state.activeResultIndex = Math.min(state.activeResultIndex, objective.resultados.length - 1);
                 render();
                 return;
             }
@@ -966,6 +1032,7 @@
     })();
 </script>
 {% endblock %}
+
 
 
 

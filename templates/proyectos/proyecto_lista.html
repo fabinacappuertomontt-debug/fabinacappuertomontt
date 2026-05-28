@@ -98,10 +98,38 @@
 
                     <div class="project-course-owners">
                         {% if proyecto.creador %}
-                            <span class="person-chip">Creador: {{ proyecto.creador }}</span>
+                            <span class="person-chip person-chip-with-info">
+                                Creador: {{ proyecto.creador }}
+                                <button class="person-info-button" type="button" aria-label="Ver contacto de {{ proyecto.creador }}">
+                                    <i class="bi bi-info-circle" aria-hidden="true"></i>
+                                </button>
+                                <span class="person-info-popover" role="tooltip">
+                                    <strong>{{ proyecto.creador }}</strong>
+                                    <small>Creador del proyecto</small>
+                                    <span><i class="bi bi-envelope" aria-hidden="true"></i>{{ proyecto.creador.email|default:"Sin correo" }}</span>
+                                    <span><i class="bi bi-telephone" aria-hidden="true"></i>{{ proyecto.creador.telefono|default:"Sin teléfono" }}</span>
+                                    <span><i class="bi bi-person-badge" aria-hidden="true"></i>{{ proyecto.creador.cargo|default:proyecto.creador.get_rol_display }}</span>
+                                    <span><i class="bi bi-diagram-3" aria-hidden="true"></i>{% if proyecto.creador.area %}{{ proyecto.creador.area.nombre }}{% else %}Sin área{% endif %}</span>
+                                    <span><i class="bi bi-building" aria-hidden="true"></i>{{ proyecto.creador.get_sede_display }}</span>
+                                </span>
+                            </span>
                         {% endif %}
                         {% for responsable in proyecto.responsables.all|slice:":3" %}
-                            <span class="person-chip">{{ responsable }}</span>
+                            <span class="person-chip person-chip-with-info">
+                                {{ responsable }}
+                                <button class="person-info-button" type="button" aria-label="Ver contacto de {{ responsable }}">
+                                    <i class="bi bi-info-circle" aria-hidden="true"></i>
+                                </button>
+                                <span class="person-info-popover" role="tooltip">
+                                    <strong>{{ responsable }}</strong>
+                                    <small>Responsable del proyecto</small>
+                                    <span><i class="bi bi-envelope" aria-hidden="true"></i>{{ responsable.email|default:"Sin correo" }}</span>
+                                    <span><i class="bi bi-telephone" aria-hidden="true"></i>{{ responsable.telefono|default:"Sin teléfono" }}</span>
+                                    <span><i class="bi bi-person-badge" aria-hidden="true"></i>{{ responsable.cargo|default:responsable.get_rol_display }}</span>
+                                    <span><i class="bi bi-diagram-3" aria-hidden="true"></i>{% if responsable.area %}{{ responsable.area.nombre }}{% else %}Sin área{% endif %}</span>
+                                    <span><i class="bi bi-building" aria-hidden="true"></i>{{ responsable.get_sede_display }}</span>
+                                </span>
+                            </span>
                         {% empty %}
                             <span class="text-muted">Sin responsables</span>
                         {% endfor %}

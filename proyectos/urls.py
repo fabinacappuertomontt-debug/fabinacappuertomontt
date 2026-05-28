@@ -26,6 +26,7 @@ urlpatterns = [
     path("proyectos/asistente-ia/", views.asistente_ia_proyecto, name="proyecto_asistente_ia"),
     path("proyectos/nuevo/", views.ProyectoCreateView.as_view(), name="proyecto_crear"),
     path("proyectos/<int:pk>/", views.proyecto_detalle, name="proyecto_detalle"),
+    path("proyectos/<int:pk>/mesa-estado/", views.proyecto_mesa_estado, name="proyecto_mesa_estado"),
     path("proyectos/<int:pk>/ia/", views.proyecto_ia_trl, name="proyecto_ia_trl"),
     path("proyectos/<int:pk>/trabajo/", views.proyecto_trabajo, name="proyecto_trabajo"),
     path("proyectos/<int:pk>/etapas/<slug:slug>/", views.etapa_trabajo, name="etapa_trabajo"),

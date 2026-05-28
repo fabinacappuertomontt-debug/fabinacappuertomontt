@@ -415,8 +415,26 @@ class ObservacionForm(BootstrapFormMixin, forms.ModelForm):
 class EvidenciaForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Evidencia
-        fields = ["nombre", "descripcion", "archivo"]
+        fields = ["nombre", "descripcion", "tarea", "archivo"]
+        labels = {
+            "tarea": "Tarea relacionada",
+        }
+        help_texts = {
+            "tarea": "Opcional. Indica a que tarea respalda esta evidencia.",
+        }
         widgets = {"descripcion": forms.Textarea(attrs={"rows": 3})}
+
+    def __init__(self, *args, proyecto=None, fase=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        tareas = Tarea.objects.none()
+        if proyecto:
+            tareas = Tarea.objects.filter(proyecto=proyecto).order_by("creada_en", "id")
+            if fase:
+                tareas = tareas.filter(fase=fase)
+        self.fields["tarea"].queryset = tareas
+        self.fields["tarea"].required = False
+        self.fields["tarea"].empty_label = "Sin tarea específica"
+        self.fields["tarea"].label_from_instance = lambda tarea: tarea.etiqueta
 
 
 class ItemInventarioForm(BootstrapFormMixin, forms.ModelForm):

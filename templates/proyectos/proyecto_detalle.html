@@ -33,6 +33,19 @@
         </div>
     </header>
 
+    {% if proyecto.mesa_trabajo_estado == "generando" or proyecto.mesa_trabajo_estado == "pendiente" %}
+        <section class="ai-workbench-status" data-mesa-status data-status-url="{% url 'proyecto_mesa_estado' proyecto.pk %}">
+            <div>
+                <span class="ai-workbench-spinner" aria-hidden="true"></span>
+                <div>
+                    <strong>Se está generando con IA la mesa de trabajo</strong>
+                    <p>{{ proyecto.mesa_trabajo_mensaje|default:"La base del proyecto ya fue creada. La IA está preparando tareas y evidencias más detalladas." }}</p>
+                </div>
+            </div>
+            <small>Al terminar se abrirá la mesa automáticamente.</small>
+        </section>
+    {% endif %}
+
     <section class="workspace-summary-strip overview-summary-strip" aria-label="Resumen ejecutivo del proyecto">
         <article>
             <span>Avance</span>
@@ -71,6 +84,38 @@
             <p>{{ proyecto.evidencias.all|length }} evidencias y {{ proyecto.observaciones.all|length }} observaciones</p>
         </article>
     </section>
+
+    {% if proyecto.mesa_trabajo_estado == "generando" or proyecto.mesa_trabajo_estado == "pendiente" %}
+        <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const box = document.querySelector("[data-mesa-status]");
+            if (!box) return;
+            const url = box.dataset.statusUrl;
+            const startedAt = Date.now();
+            const maxMs = 65000;
+            async function pollMesa() {
+                try {
+                    const response = await fetch(url, {headers: {"X-Requested-With": "XMLHttpRequest"}});
+                    const data = await response.json();
+                    if (data.mensaje) {
+                        const message = box.querySelector("p");
+                        if (message) message.textContent = data.mensaje;
+                    }
+                    if (data.listo && data.trabajo_url) {
+                        window.location.href = data.trabajo_url;
+                        return;
+                    }
+                } catch (error) {
+                    // Si la consulta falla, el usuario queda en detalle con la base creada.
+                }
+                if (Date.now() - startedAt < maxMs) {
+                    window.setTimeout(pollMesa, 2500);
+                }
+            }
+            window.setTimeout(pollMesa, 1000);
+        });
+        </script>
+    {% endif %}
 
     {% if proyecto.empresa_externa %}
         <section class="external-company-summary" aria-label="Empresa externa vinculada">
@@ -317,7 +362,7 @@
                             <div class="workspace-list compact-list">
                                 {% for tarea in etapa.tareas %}
                                     <div class="workspace-list-item {% if tarea.completada %}completed{% endif %}">
-                                        <strong>{{ tarea.nombre }}</strong>
+                                        <strong><span class="task-number">{{ tarea.etiqueta_corta }}</span> {{ tarea.nombre }}</strong>
                                         <span>{{ tarea.get_estado_display }}{% if tarea.responsable %} - {{ tarea.responsable }}{% endif %}</span>
                                         {% if tarea.descripcion %}<p>{{ tarea.descripcion }}</p>{% endif %}
                                     </div>
@@ -351,6 +396,9 @@
                                         <div class="overview-file-preview compact-preview">{% if evidencia.es_imagen %}Foto{% else %}Archivo{% endif %}</div>
                                         <strong>{{ evidencia.obj.nombre }}</strong>
                                         <span>{{ evidencia.obj.fecha_subida }} - {{ evidencia.obj.usuario }}</span>
+                                        {% if evidencia.obj.tarea %}
+                                            <span class="evidence-task-link">Respalda {{ evidencia.obj.tarea.etiqueta_corta }}: {{ evidencia.obj.tarea.nombre }}</span>
+                                        {% endif %}
                                         {% if evidencia.obj.descripcion %}<p>{{ evidencia.obj.descripcion }}</p>{% endif %}
                                         <div class="evidence-actions">
                                             {% if evidencia.es_imagen %}
