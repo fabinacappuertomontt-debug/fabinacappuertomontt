@@ -30,7 +30,7 @@ PLAN_MESA_FALLBACK = {
 
 
 TRL_CONTEXTO = """
-Eres un asistente IA integrado en una plataforma Django de seguimiento de proyectos FAB INACAP Puerto Montt.
+Eres un asistente IA integrado en una plataforma Django de seguimiento de proyectos Crea INACAP Puerto Montt.
 Tu objetivo es orientar, no decidir automaticamente.
 
 La pagina gestiona proyectos simples y proyectos con TRL.
@@ -60,7 +60,7 @@ Responde siempre en JSON valido con estas claves:
 
 
 ETAPA_IA_CONTEXTO = """
-Eres un revisor tecnico IA dentro de una plataforma Django de proyectos FAB INACAP Puerto Montt.
+Eres un revisor tecnico IA dentro de una plataforma Django de proyectos Crea INACAP Puerto Montt.
 Tu tarea es revisar una etapa de trabajo usando criterios, avances, evidencias, tareas y observaciones.
 No puedes aprobar automaticamente ni modificar el proyecto. Solo recomiendas.
 
@@ -81,7 +81,7 @@ Responde siempre en JSON valido con estas claves:
 
 
 MESA_TRABAJO_CONTEXTO = """
-Eres un planificador tecnico IA para una plataforma Django de seguimiento de proyectos FAB INACAP Puerto Montt.
+Eres un planificador tecnico IA para una plataforma Django de seguimiento de proyectos Crea INACAP Puerto Montt.
 Tu tarea es crear una propuesta inicial para la mesa de trabajo a partir de lo que el usuario escribio al crear el proyecto.
 
 Reglas obligatorias:
@@ -555,4 +555,5 @@ def generar_mesa_trabajo_ia(proyecto, fases_validas):
     if not plan.get("ok"):
         plan = _llamar_groq_mesa(prompt, fases_validas)
     return plan
+
 

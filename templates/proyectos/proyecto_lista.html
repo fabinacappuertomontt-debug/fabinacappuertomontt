@@ -96,6 +96,7 @@
                         {% endif %}
                     </div>
 
+                    {% if not user.organizacion or user.organizacion.mostrar_usuarios %}
                     <div class="project-course-owners">
                         {% if proyecto.creador %}
                             <span class="person-chip person-chip-with-info">
@@ -134,6 +135,7 @@
                             <span class="text-muted">Sin responsables</span>
                         {% endfor %}
                     </div>
+                    {% endif %}
                 </div>
 
                 <div class="project-course-actions">
@@ -180,4 +182,64 @@
         </nav>
     {% endif %}
 </div>
+
+<script>
+(function () {
+    // Popover de personas: usa position:fixed con coordenadas reales del viewport
+    // para que no quede cortado por el overflow de las tarjetas
+    document.querySelectorAll('.person-chip-with-info').forEach(function (chip) {
+        var popover = chip.querySelector('.person-info-popover');
+        if (!popover) return;
+
+        function posicionar() {
+            var rect = chip.getBoundingClientRect();
+            var pw = popover.offsetWidth || 230;
+            var ph = popover.offsetHeight || 140;
+            var margen = 8;
+
+            // Intentar arriba del chip
+            var top = rect.top - ph - 10;
+            if (top < margen) {
+                // No cabe arriba → ponerlo abajo
+                top = rect.bottom + 8;
+                popover.classList.add('popover-abajo');
+            } else {
+                popover.classList.remove('popover-abajo');
+            }
+
+            // Centrar horizontalmente, sin salirse del viewport
+            var left = rect.left + rect.width / 2 - pw / 2;
+            left = Math.max(margen, Math.min(left, window.innerWidth - pw - margen));
+
+            popover.style.top = top + 'px';
+            popover.style.left = left + 'px';
+            popover.style.width = pw + 'px';
+        }
+
+        chip.addEventListener('mouseenter', function () {
+            popover.style.display = 'grid';
+            posicionar();
+        });
+        chip.addEventListener('mouseleave', function () {
+            popover.style.display = '';
+        });
+        chip.addEventListener('focusin', function () {
+            popover.style.display = 'grid';
+            posicionar();
+        });
+        chip.addEventListener('focusout', function () {
+            popover.style.display = '';
+        });
+    });
+
+    // Reposicionar si el usuario hace scroll
+    window.addEventListener('scroll', function () {
+        document.querySelectorAll('.person-info-popover').forEach(function (p) {
+            if (p.style.display === 'grid') {
+                p.style.display = '';
+            }
+        });
+    }, { passive: true });
+})();
+</script>
 {% endblock %}

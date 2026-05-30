@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}Registro{% endblock %}
 {% block body_class %}login-page{% endblock %}
@@ -8,7 +8,7 @@
     <section class="login-intro">
         <div class="login-brand-row">
             <span class="login-logo-mark">F</span>
-            <span>FAB INACAP</span>
+            <span>Crea INACAP</span>
         </div>
         <span class="eyebrow">Registro institucional</span>
         <h1>Crear acceso por sede y área</h1>
@@ -22,7 +22,7 @@
         </figure>
         <div class="login-feature-grid">
             <article><strong>@</strong><span>Correo laboral</span></article>
-            <article><strong>FAB</strong><span>Aprobacion externa</span></article>
+            <article><strong>Crea INACAP</strong><span>Aprobacion externa</span></article>
             <article><strong>ÁREA</strong><span>Equipo asignado</span></article>
         </div>
     </section>
@@ -31,7 +31,7 @@
             <div class="card-body">
                 <span class="eyebrow">Nuevo usuario</span>
                 <h2>Registrarse</h2>
-                <p>Si tu correo no es INACAP, el equipo FAB revisara la solicitud antes de activar tu cuenta.</p>
+                <p>Si tu correo no es INACAP, el equipo Crea INACAP revisara la solicitud antes de activar tu cuenta.</p>
                 <form method="post">
                     {% csrf_token %}
                     {{ form.non_field_errors }}
@@ -59,3 +59,4 @@
     </section>
 </div>
 {% endblock %}
+

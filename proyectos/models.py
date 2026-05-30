@@ -90,11 +90,27 @@ class Sede(models.TextChoices):
 
 
 class Organizacion(models.Model):
+    class TamanoLetra(models.TextChoices):
+        COMPACTA = "compacta", "Compacta"
+        NORMAL = "normal", "Normal"
+        AMPLIA = "amplia", "Amplia"
+
+    class PaletaVisual(models.TextChoices):
+        INACAP = "inacap", "INACAP"
+        PACIFICO = "pacifico", "Azul pacifico"
+        BOSQUE = "bosque", "Verde bosque"
+        COBALTO = "cobalto", "Cobalto"
+        CORAL = "coral", "Coral profesional"
+
     nombre = models.CharField(max_length=180)
     slug = models.SlugField(max_length=80, unique=True)
     logo = models.ImageField(upload_to="organizaciones/logos/%Y/%m/", blank=True, null=True)
     color_principal = models.CharField(max_length=7, default="#cf3f4f")
     color_secundario = models.CharField(max_length=7, default="#1f334d")
+    paleta_visual = models.CharField(max_length=20, choices=PaletaVisual.choices, default=PaletaVisual.INACAP)
+    tamano_letra = models.CharField(max_length=20, choices=TamanoLetra.choices, default=TamanoLetra.NORMAL)
+    mostrar_usuarios = models.BooleanField(default=True)
+    modo_oscuro = models.BooleanField(default=False)
     dominio_correo = models.CharField(
         max_length=100,
         blank=True,

@@ -1,42 +1,264 @@
 {% extends "base.html" %}
 
-{% block title %}Mi organización{% endblock %}
+{% block title %}Configuración{% endblock %}
 
 {% block content %}
 <div class="page-header">
     <div>
-        <span class="eyebrow">Organización</span>
-        <h1>{{ organizacion.nombre }}</h1>
-        <p>Configura el nombre visible, logo, dominio y colores del espacio.</p>
+        <span class="eyebrow">Configuración</span>
+        <h1>Mi configuración</h1>
+        <p>Ajusta tu experiencia personal y, si eres administrador, la identidad de la organización.</p>
     </div>
+    {% if es_admin %}
     <a class="btn btn-primary" href="{% url 'usuario_crear' %}">
         <i class="bi bi-person-plus" aria-hidden="true"></i>
         Agregar usuario
     </a>
+    {% endif %}
 </div>
 
-<div class="row justify-content-center">
-    <div class="col-xl-8 col-lg-9">
-        <form method="post" enctype="multipart/form-data" class="form-panel">
-            {% csrf_token %}
-            {{ form.non_field_errors }}
-            <div class="row g-3">
-                {% for field in form %}
-                    <div class="{% if field.name == 'logo' or field.name == 'nombre' %}col-12{% else %}col-md-6{% endif %}">
-                        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                        {{ field }}
-                        {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-                        {% for error in field.errors %}
-                            <div class="text-danger small">{{ error }}</div>
-                        {% endfor %}
-                    </div>
-                {% endfor %}
-            </div>
-            <div class="d-flex gap-2 mt-4">
-                <button class="btn btn-primary" type="submit">Guardar identidad</button>
-                <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}">Volver</a>
-            </div>
-        </form>
-    </div>
+<div class="config-tabs" id="configTabs">
+    <button class="config-tab is-active" data-target="tab-personal" type="button">
+        <i class="bi bi-person-gear"></i> Mi perfil y preferencias
+    </button>
+    {% if es_admin %}
+    <button class="config-tab" data-target="tab-organizacion" type="button">
+        <i class="bi bi-building-gear"></i> Organización
+    </button>
+    {% endif %}
 </div>
+
+<!-- ============================================================
+     PANEL 1 — Preferencias personales (TODOS los usuarios)
+     ============================================================ -->
+<div class="config-panel is-active" id="tab-personal">
+
+    <form method="post" enctype="multipart/form-data" class="org-settings-panel" action="{% url 'perfil_editar' %}">
+        {% csrf_token %}
+
+        <section class="org-settings-section">
+            <div>
+                <span class="eyebrow">Perfil</span>
+                <h2>Información personal</h2>
+                <p>Tu nombre, foto, cargo y datos de contacto visibles para el equipo.</p>
+            </div>
+            <div class="org-settings-grid">
+                <div class="org-field org-field-wide">
+                    <label class="form-label" for="{{ perfil_form.nombre.id_for_label }}">Nombre completo</label>
+                    {{ perfil_form.nombre }}
+                    {% for error in perfil_form.nombre.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="org-field">
+                    <label class="form-label" for="{{ perfil_form.cargo.id_for_label }}">Cargo / Rol</label>
+                    {{ perfil_form.cargo }}
+                    {% for error in perfil_form.cargo.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="org-field">
+                    <label class="form-label" for="{{ perfil_form.telefono.id_for_label }}">Teléfono</label>
+                    {{ perfil_form.telefono }}
+                    {% for error in perfil_form.telefono.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="org-field org-field-wide">
+                    <label class="form-label" for="{{ perfil_form.biografia.id_for_label }}">Sobre mí</label>
+                    {{ perfil_form.biografia }}
+                    {% for error in perfil_form.biografia.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="org-field">
+                    <label class="form-label" for="{{ perfil_form.foto.id_for_label }}">Foto de perfil</label>
+                    {% if request.user.foto %}
+                        <img src="{{ request.user.foto.url }}" alt="Foto actual" style="width:52px;height:52px;border-radius:50%;object-fit:cover;margin-bottom:.5rem;border:2px solid var(--line);">
+                    {% endif %}
+                    {{ perfil_form.foto }}
+                    {% for error in perfil_form.foto.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+            </div>
+        </section>
+
+        <section class="org-settings-section">
+            <div>
+                <span class="eyebrow">Cuenta</span>
+                <h2>Acceso</h2>
+                <p>Tu correo electrónico de acceso al sistema.</p>
+            </div>
+            <div class="org-settings-grid">
+                <div class="org-field org-field-wide">
+                    <label class="form-label">Correo electrónico</label>
+                    <input class="form-control" type="text" value="{{ request.user.email }}" disabled>
+                    <div class="form-text">Para cambiar tu correo, contacta al administrador.</div>
+                </div>
+                <div class="org-field">
+                    <label class="form-label">Rol en el sistema</label>
+                    <input class="form-control" type="text" value="{{ request.user.get_rol_display }}" disabled>
+                </div>
+                <div class="org-field">
+                    <label class="form-label">Sede</label>
+                    <input class="form-control" type="text" value="{{ request.user.get_sede_display }}" disabled>
+                </div>
+            </div>
+        </section>
+
+        <div class="org-settings-actions">
+            <button class="btn btn-primary" type="submit">Guardar perfil</button>
+            <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}">Volver</a>
+        </div>
+    </form>
+
+</div>
+
+<!-- ============================================================
+     PANEL 2 — Organización (solo ADMIN)
+     ============================================================ -->
+{% if es_admin %}
+<div class="config-panel" id="tab-organizacion">
+
+    <form method="post" enctype="multipart/form-data" class="org-settings-panel">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+
+        <section class="org-settings-section">
+            <div>
+                <span class="eyebrow">Identidad</span>
+                <h2>Datos de la organización</h2>
+                <p>Estos datos se muestran en el sidebar, correos y encabezados principales.</p>
+            </div>
+            <div class="org-settings-grid">
+                <div class="org-field org-field-wide">
+                    <label class="form-label" for="{{ form.nombre.id_for_label }}">{{ form.nombre.label }}</label>
+                    {{ form.nombre }}
+                    {% for error in form.nombre.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="org-field">
+                    <label class="form-label" for="{{ form.logo.id_for_label }}">{{ form.logo.label }}</label>
+                    {% if organizacion.logo %}
+                        <img src="{{ organizacion.logo.url }}" alt="Logo actual" style="height:38px;object-fit:contain;margin-bottom:.5rem;border-radius:6px;border:1px solid var(--line);padding:4px;">
+                    {% endif %}
+                    {{ form.logo }}
+                    {% if form.logo.help_text %}<div class="form-text">{{ form.logo.help_text }}</div>{% endif %}
+                    {% for error in form.logo.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="org-field">
+                    <label class="form-label" for="{{ form.dominio_correo.id_for_label }}">{{ form.dominio_correo.label }}</label>
+                    {{ form.dominio_correo }}
+                    {% if form.dominio_correo.help_text %}<div class="form-text">{{ form.dominio_correo.help_text }}</div>{% endif %}
+                    {% for error in form.dominio_correo.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+            </div>
+        </section>
+
+        <section class="org-settings-section">
+            <div>
+                <span class="eyebrow">Apariencia</span>
+                <h2>Configuración visual</h2>
+                <p>Paleta de colores y tamaño de letra para toda la organización.</p>
+            </div>
+            <div class="org-settings-grid">
+                <div class="org-field org-field-wide">
+                    <label class="form-label" for="{{ form.paleta_visual.id_for_label }}">{{ form.paleta_visual.label }}</label>
+                    {{ form.paleta_visual }}
+                    <div class="palette-preview-row" aria-hidden="true">
+                        <span style="--palette-main:#cf3f4f; --palette-alt:#1f334d;">INACAP</span>
+                        <span style="--palette-main:#2563eb; --palette-alt:#0f766e;">Pacífico</span>
+                        <span style="--palette-main:#059669; --palette-alt:#14532d;">Bosque</span>
+                        <span style="--palette-main:#4f46e5; --palette-alt:#0f172a;">Cobalto</span>
+                        <span style="--palette-main:#f97316; --palette-alt:#334155;">Coral</span>
+                    </div>
+                    {% for error in form.paleta_visual.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="org-field">
+                    <label class="form-label" for="{{ form.tamano_letra.id_for_label }}">{{ form.tamano_letra.label }}</label>
+                    {{ form.tamano_letra }}
+                    {% if form.tamano_letra.help_text %}<div class="form-text">{{ form.tamano_letra.help_text }}</div>{% endif %}
+                    {% for error in form.tamano_letra.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="org-field">
+                    <label class="form-label" for="{{ form.color_principal.id_for_label }}">{{ form.color_principal.label }}</label>
+                    {{ form.color_principal }}
+                    {% for error in form.color_principal.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="org-field">
+                    <label class="form-label" for="{{ form.color_secundario.id_for_label }}">{{ form.color_secundario.label }}</label>
+                    {{ form.color_secundario }}
+                    {% for error in form.color_secundario.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+            </div>
+        </section>
+
+        <section class="org-settings-section">
+            <div>
+                <span class="eyebrow">Preferencias</span>
+                <h2>Controles del panel</h2>
+                <p>Opciones rápidas para reducir ruido visual en el uso diario.</p>
+            </div>
+            <div class="org-switch-list">
+                <label class="org-switch-card" for="{{ form.mostrar_usuarios.id_for_label }}">
+                    <span>
+                        <strong>{{ form.mostrar_usuarios.label }}</strong>
+                        <small>{{ form.mostrar_usuarios.help_text }}</small>
+                    </span>
+                    {{ form.mostrar_usuarios }}
+                    <i aria-hidden="true"></i>
+                </label>
+                <label class="org-switch-card" for="{{ form.modo_oscuro.id_for_label }}">
+                    <span>
+                        <strong>{{ form.modo_oscuro.label }}</strong>
+                        <small>{{ form.modo_oscuro.help_text }}</small>
+                    </span>
+                    {{ form.modo_oscuro }}
+                    <i aria-hidden="true"></i>
+                </label>
+            </div>
+        </section>
+
+        <div class="org-settings-actions">
+            <button class="btn btn-primary" type="submit">Guardar organización</button>
+            <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}">Volver</a>
+        </div>
+    </form>
+
+</div>
+{% endif %}
+
+<style>
+.config-tabs {
+    display: flex;
+    gap: .5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid var(--line);
+    padding-bottom: 0;
+}
+.config-tab {
+    align-items: center;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--muted);
+    cursor: pointer;
+    display: inline-flex;
+    font-size: .9rem;
+    font-weight: 700;
+    gap: .45rem;
+    margin-bottom: -2px;
+    padding: .65rem 1rem;
+    transition: color .15s ease, border-color .15s ease;
+}
+.config-tab:hover { color: var(--inacap-red); }
+.config-tab.is-active {
+    border-bottom-color: var(--inacap-red);
+    color: var(--inacap-red);
+}
+.config-panel { display: none; }
+.config-panel.is-active { display: block; }
+</style>
+
+<script>
+document.querySelectorAll('.config-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+        document.querySelectorAll('.config-tab').forEach(function(t) { t.classList.remove('is-active'); });
+        document.querySelectorAll('.config-panel').forEach(function(p) { p.classList.remove('is-active'); });
+        tab.classList.add('is-active');
+        var target = document.getElementById(tab.dataset.target);
+        if (target) target.classList.add('is-active');
+    });
+});
+</script>
 {% endblock %}

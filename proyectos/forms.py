@@ -598,18 +598,45 @@ class SuperadminLoginForm(forms.Form):
     )
 
 
+PALETAS_ORGANIZACION = {
+    "inacap": ("#cf3f4f", "#1f334d"),
+    "pacifico": ("#2563eb", "#0f766e"),
+    "bosque": ("#059669", "#14532d"),
+    "cobalto": ("#4f46e5", "#0f172a"),
+    "coral": ("#f97316", "#334155"),
+}
+
+
 class OrganizacionAdminForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Organizacion
-        fields = ["nombre", "logo", "color_principal", "color_secundario", "dominio_correo"]
+        fields = [
+            "nombre",
+            "logo",
+            "paleta_visual",
+            "tamano_letra",
+            "mostrar_usuarios",
+            "modo_oscuro",
+            "color_principal",
+            "color_secundario",
+            "dominio_correo",
+        ]
         labels = {
             "nombre": "Nombre visible",
             "logo": "Logo",
+            "paleta_visual": "Paleta de colores",
+            "tamano_letra": "Tamaño de letra",
+            "mostrar_usuarios": "Mostrar usuarios",
+            "modo_oscuro": "Modo oscuro",
             "color_principal": "Color principal",
             "color_secundario": "Color secundario",
             "dominio_correo": "Dominio institucional",
         }
         help_texts = {
+            "paleta_visual": "Elige una combinacion visual limpia para el espacio.",
+            "tamano_letra": "Ajusta la lectura general de la plataforma.",
+            "mostrar_usuarios": "Activa o desactiva el acceso visible al modulo de usuarios.",
+            "modo_oscuro": "Aplica una base visual oscura para el panel.",
             "dominio_correo": "Ejemplo: inacapmail.cl. Se usa para validar accesos por organización.",
         }
 
@@ -617,9 +644,20 @@ class OrganizacionAdminForm(BootstrapFormMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field_name in ["color_principal", "color_secundario"]:
             self.fields[field_name].widget = forms.TextInput(attrs={"type": "color", "class": "form-control form-control-color"})
+        for field_name in ["mostrar_usuarios", "modo_oscuro"]:
+            self.fields[field_name].widget.attrs["class"] = "org-switch-input"
 
     def clean_dominio_correo(self):
         return (self.cleaned_data.get("dominio_correo") or "").strip().lower().lstrip("@")
+
+    def save(self, commit=True):
+        organizacion = super().save(commit=False)
+        colores = PALETAS_ORGANIZACION.get(organizacion.paleta_visual)
+        if colores:
+            organizacion.color_principal, organizacion.color_secundario = colores
+        if commit:
+            organizacion.save()
+        return organizacion
 
 
 class UsuarioRegistroForm(BootstrapFormMixin, UserCreationForm):
@@ -747,11 +785,10 @@ class RegistroPublicoForm(BootstrapFormMixin, UserCreationForm):
         choices=[
             (Usuario.Rol.ALUMNO, "Alumno"),
             (Usuario.Rol.PRACTICANTE, "Practicante"),
-            (Usuario.Rol.PROFESOR, "Profesor / Líder"),
         ],
         initial=Usuario.Rol.ALUMNO,
         label="Tipo de usuario",
-        help_text="El rol Administrador lo asigna un administrador desde el panel interno.",
+        help_text="Los administradores y lideres de proyecto se asignan desde el panel interno.",
     )
 
     class Meta:

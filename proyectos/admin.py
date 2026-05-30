@@ -6,8 +6,8 @@ from .models import Area, Avance, Evidencia, FaseProyecto, ItemInventario, Mensa
 
 @admin.register(Organizacion)
 class OrganizacionAdmin(admin.ModelAdmin):
-    list_display = ("nombre", "slug", "dominio_correo", "encargado", "activa", "fecha_creacion")
-    list_filter = ("activa",)
+    list_display = ("nombre", "slug", "dominio_correo", "encargado", "paleta_visual", "modo_oscuro", "mostrar_usuarios", "activa", "fecha_creacion")
+    list_filter = ("activa", "paleta_visual", "modo_oscuro", "mostrar_usuarios")
     search_fields = ("nombre", "slug", "dominio_correo", "encargado__email", "encargado__nombre")
 
 

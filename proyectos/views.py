@@ -1,4 +1,4 @@
-﻿from django.contrib import messages
+from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
@@ -84,6 +84,32 @@ def usuario_es_admin_organizacion(user):
     )
 
 
+def usuario_puede_gestionar_usuarios(user):
+    return bool(
+        user.is_authenticated
+        and (
+            getattr(user, "rol", "") in {
+                Usuario.Rol.ADMIN_ORGANIZACION,
+                Usuario.Rol.ADMINISTRADOR,
+                Usuario.Rol.SUPERADMIN,
+            }
+            or user.is_superuser
+            or (user.email and user.email.lower() in correos_admin_laboratorio())
+        )
+    )
+
+
+def usuario_es_rol_trabajo(user):
+    return bool(
+        user.is_authenticated
+        and getattr(user, "rol", "") in {
+            Usuario.Rol.ALUMNO,
+            Usuario.Rol.PRACTICANTE,
+            Usuario.Rol.INTEGRANTE,
+        }
+    )
+
+
 def usuario_puede_gestionar_inventario(user):
     return bool(user.is_authenticated)
 
@@ -95,6 +121,7 @@ def usuario_puede_eliminar_proyecto(user):
 def usuario_puede_editar_proyecto(user, proyecto):
     return bool(
         usuario_es_admin_laboratorio(user)
+        or proyecto.creador_id == user.pk
         or proyecto.responsables.filter(pk=user.pk).exists()
     )
 
@@ -130,6 +157,8 @@ def proyectos_de_sede(user):
         queryset = queryset.filter(organizacion=organizacion_usuario(user))
     if area_usuario(user) and not usuario_es_admin_organizacion(user):
         queryset = queryset.filter(area=area_usuario(user))
+    if usuario_es_rol_trabajo(user) and not usuario_es_admin_laboratorio(user):
+        queryset = queryset.filter(Q(creador=user) | Q(responsables=user)).distinct()
     return queryset
 
 
@@ -203,7 +232,7 @@ def estado_presencia(usuario):
     if diferencia <= timedelta(minutes=5):
         return {
             "en_linea": True,
-            "texto": "En l?nea",
+            "texto": "En línea",
         }
     minutos = int(diferencia.total_seconds() // 60)
     if minutos < 60:
@@ -245,7 +274,7 @@ def enviar_codigo_verificacion(request, usuario):
         f"Tu codigo de confirmacion es: {usuario.codigo_verificacion}\n\n"
         f"Este codigo vence en 10 minutos.\n"
         f"Confirmar correo: {verificar_url}\n\n"
-        f"FAB INACAP"
+        f"Crea INACAP"
     )
     contenido = f"""
         <p style="margin:0 0 16px 0;">Hola {escape(usuario.nombre or usuario.username)},</p>
@@ -258,10 +287,10 @@ def enviar_codigo_verificacion(request, usuario):
         <p style="margin:0;color:#64748b;">Tambien puedes abrir el boton inferior para ir directamente a la pantalla de verificacion.</p>
     """
     return enviar_correo_simple(
-        "Codigo de confirmacion FAB INACAP",
+        "Codigo de confirmacion Crea INACAP",
         [usuario.email],
         mensaje,
-        correo_html_inacap("Codigo de confirmacion", "Verificacion de cuenta FAB INACAP", contenido, "Confirmar correo", verificar_url),
+        correo_html_inacap("Codigo de confirmacion", "Verificacion de cuenta Crea INACAP", contenido, "Confirmar correo", verificar_url),
     )
 
 
@@ -287,7 +316,7 @@ def enviar_solicitud_aprobacion_externa(request, usuario):
         f"Rechazar: {rechazar_url}\n"
     )
     contenido = f"""
-        <p style="margin:0 0 16px 0;">Se recibio una solicitud de acceso externo para la plataforma FAB INACAP.</p>
+        <p style="margin:0 0 16px 0;">Se recibio una solicitud de acceso externo para la plataforma Crea INACAP.</p>
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden;margin:0 0 20px 0;">
             <tr><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:700;">Nombre</td><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#142033;">{escape(usuario.nombre)}</td></tr>
             <tr><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:700;">Correo</td><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#142033;">{escape(usuario.email)}</td></tr>
@@ -300,7 +329,7 @@ def enviar_solicitud_aprobacion_externa(request, usuario):
         <p style="margin:10px 0 0 0;"><a href="{escape(rechazar_url)}" style="color:#cf3f4f;font-weight:700;">Rechazar solicitud</a></p>
     """
     return enviar_correo_simple(
-        "Solicitud de acceso externo FAB INACAP",
+        "Solicitud de acceso externo Crea INACAP",
         [admin_email],
         mensaje,
         correo_html_inacap("Solicitud de acceso externo", "Revision de cuenta pendiente", contenido, "Aprobar solicitud", aprobar_url),
@@ -309,18 +338,18 @@ def enviar_solicitud_aprobacion_externa(request, usuario):
 
 def enviar_resultado_aprobacion(usuario, aprobado):
     if aprobado:
-        asunto = "Cuenta aprobada FAB INACAP"
+        asunto = "Cuenta aprobada Crea INACAP"
         mensaje = (
             f"Hola {usuario.nombre or usuario.username},\n\n"
-            "Tu cuenta fue aprobada. Ya puedes iniciar sesi?n en el sistema FAB INACAP.\n\n"
-            "FAB INACAP"
+            "Tu cuenta fue aprobada. Ya puedes iniciar sesión en el sistema Crea INACAP.\n\n"
+            "Crea INACAP"
         )
     else:
-        asunto = "Solicitud de cuenta rechazada FAB INACAP"
+        asunto = "Solicitud de cuenta rechazada Crea INACAP"
         mensaje = (
             f"Hola {usuario.nombre or usuario.username},\n\n"
-            "Tu solicitud de acceso fue rechazada. Si crees que es un error, contacta al equipo FAB INACAP.\n\n"
-            "FAB INACAP"
+            "Tu solicitud de acceso fue rechazada. Si crees que es un error, contacta al equipo Crea INACAP.\n\n"
+            "Crea INACAP"
         )
     return enviar_correo_simple(asunto, [usuario.email], mensaje)
 
@@ -811,22 +840,35 @@ def organizacion_login(request, organizacion_slug):
 
 @login_required
 def organizacion_configuracion(request):
-    if not usuario_es_admin_organizacion(request.user):
-        messages.error(request, "Solo el encargado de organización puede modificar este espacio.")
-        return redirect("dashboard")
+    es_admin = usuario_es_admin_organizacion(request.user)
     organizacion = organizacion_usuario(request.user)
-    if not organizacion:
-        messages.error(request, "Tu usuario no tiene una organización asociada.")
-        return redirect("dashboard")
 
-    form = OrganizacionAdminForm(instance=organizacion)
-    if request.method == "POST":
-        form = OrganizacionAdminForm(request.POST, request.FILES, instance=organizacion)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Organización actualizada correctamente.")
+    # Formulario de organización (solo admins con organización)
+    form = None
+    if es_admin and organizacion:
+        form = OrganizacionAdminForm(instance=organizacion)
+        if request.method == "POST" and "nombre" in request.POST:
+            form = OrganizacionAdminForm(request.POST, request.FILES, instance=organizacion)
+            if form.is_valid():
+                form.save()
+                messages.success(request, "Organización actualizada correctamente.")
+                return redirect("organizacion_configuracion")
+
+    # Formulario de perfil personal (todos los usuarios)
+    perfil_form = PerfilUsuarioForm(instance=request.user)
+    if request.method == "POST" and "nombre" not in request.POST:
+        perfil_form = PerfilUsuarioForm(request.POST, request.FILES, instance=request.user)
+        if perfil_form.is_valid():
+            perfil_form.save()
+            messages.success(request, "Perfil actualizado correctamente.")
             return redirect("organizacion_configuracion")
-    return render(request, "proyectos/organizacion_configuracion.html", {"form": form, "organizacion": organizacion})
+
+    return render(request, "proyectos/organizacion_configuracion.html", {
+        "form": form,
+        "perfil_form": perfil_form,
+        "organizacion": organizacion,
+        "es_admin": es_admin,
+    })
 
 
 class ProyectoListView(LoginRequiredMixin, ListView):
@@ -874,6 +916,12 @@ class UsuarioListView(LoginRequiredMixin, ListView):
     template_name = "proyectos/usuario_lista.html"
     context_object_name = "usuarios"
 
+    def dispatch(self, request, *args, **kwargs):
+        if not usuario_puede_gestionar_usuarios(request.user):
+            messages.error(request, "Solo un administrador puede gestionar usuarios.")
+            return redirect("dashboard")
+        return super().dispatch(request, *args, **kwargs)
+
     def get_queryset(self):
         return usuarios_de_sede(self.request.user).annotate(
             total_proyectos=Count("proyectos_responsable", distinct=True),
@@ -893,9 +941,9 @@ class UsuarioCreateView(LoginRequiredMixin, CreateView):
     success_url = "/usuarios/"
 
     def dispatch(self, request, *args, **kwargs):
-        if not (request.user.is_staff or usuario_es_admin_organizacion(request.user)):
+        if not usuario_puede_gestionar_usuarios(request.user):
             messages.error(request, "Solo un usuario administrador puede crear usuarios.")
-            return redirect("usuario_lista")
+            return redirect("dashboard")
         return super().dispatch(request, *args, **kwargs)
 
     def get_form_kwargs(self):
@@ -916,6 +964,13 @@ class UsuarioCreateView(LoginRequiredMixin, CreateView):
                 (Usuario.Rol.ALUMNO, "Alumno"),
                 (Usuario.Rol.PRACTICANTE, "Practicante"),
                 (Usuario.Rol.PROFESOR, "Profesor / Líder"),
+            ]
+        if "rol" in form.fields and not usuario_es_superadmin(self.request.user):
+            form.fields["rol"].choices = [
+                (Usuario.Rol.ADMIN_ORGANIZACION, "Administrador de organizacion"),
+                (Usuario.Rol.PROFESOR, "Profesor / lider de proyecto"),
+                (Usuario.Rol.ALUMNO, "Alumno"),
+                (Usuario.Rol.PRACTICANTE, "Practicante"),
             ]
         return form
 
@@ -945,9 +1000,9 @@ class UsuarioUpdateView(LoginRequiredMixin, UpdateView):
     success_url = "/usuarios/"
 
     def dispatch(self, request, *args, **kwargs):
-        if not (usuario_es_admin_laboratorio(request.user) or usuario_es_admin_organizacion(request.user)):
+        if not usuario_puede_gestionar_usuarios(request.user):
             messages.error(request, "Solo un administrador puede editar usuarios.")
-            return redirect("usuario_lista")
+            return redirect("dashboard")
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
@@ -1078,7 +1133,7 @@ def usuario_eliminar(request, pk):
 
     usuario = get_object_or_404(usuarios_de_sede(request.user), pk=pk)
     if usuario.pk == request.user.pk:
-        messages.error(request, "No puedes eliminar el usuario con el que est?s conectado.")
+        messages.error(request, "No puedes eliminar el usuario con el que estás conectado.")
         return redirect("usuario_lista")
 
     if request.method == "POST":
@@ -1407,7 +1462,7 @@ def correo_html_inacap(titulo, subtitulo, contenido, boton_texto=None, boton_url
                         {boton}
                         <tr>
                             <td style="background:#f7fafc;padding:18px 32px;color:#64748b;font-size:12px;border-top:1px solid #e2e8f0;">
-                                <strong style="color:#1f2937;">FAB INACAP Puerto Montt</strong><br>
+                                <strong style="color:#1f2937;">Crea INACAP Puerto Montt</strong><br>
                                 Gestion, avance y seguimiento academico.
                             </td>
                         </tr>
@@ -1441,7 +1496,11 @@ def enviar_correo_simple(asunto, destinatarios, mensaje, html=None):
 
 def notificar_responsables_proyecto(request, proyecto):
     url = url_publica(request, proyecto.get_absolute_url())
-    destinatarios = [usuario.email for usuario in proyecto.responsables.all()]
+    destinatarios = [
+        usuario.email
+        for usuario in proyecto.responsables.all()
+        if usuario.email and usuario.pk != proyecto.creador_id
+    ]
     subtitulo = f"Nuevo proyecto asignado | {proyecto.get_estado_display()} | Avance {proyecto.porcentaje_avance}%"
     mensaje = (
         f"Hola,\n\n"
@@ -1449,7 +1508,7 @@ def notificar_responsables_proyecto(request, proyecto):
         f"Estado: {proyecto.get_estado_display()}\n"
         f"Avance: {proyecto.porcentaje_avance}%\n"
         f"Revisar proyecto: {url}\n\n"
-        f"FAB INACAP Puerto Montt"
+        f"Crea INACAP Puerto Montt"
     )
     contenido = f"""
         <p style="margin:0 0 16px 0;">Hola,</p>
@@ -1508,11 +1567,11 @@ def notificar_creador_proyecto(request, proyecto):
         f"Tipo de seguimiento: {proyecto.get_metodologia_display()}\n"
         f"Responsables: {responsables_texto}\n"
         f"Revisar proyecto: {url}\n\n"
-        f"FAB INACAP Puerto Montt"
+        f"Crea INACAP Puerto Montt"
     )
     contenido = f"""
         <p style="margin:0 0 16px 0;">Hola {escape(proyecto.creador.nombre or proyecto.creador.username)},</p>
-        <p style="margin:0 0 18px 0;">Se registr? correctamente el proyecto que creaste en la plataforma.</p>
+        <p style="margin:0 0 18px 0;">Se registró correctamente el proyecto que creaste en la plataforma.</p>
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:5px solid #cf3f4f;border-radius:10px;padding:18px 20px;margin:0 0 20px 0;">
             <div style="font-size:18px;font-weight:800;color:#142033;line-height:1.3;">{escape(proyecto.nombre)}</div>
             <div style="font-size:13px;color:#64748b;margin-top:8px;">{escape(proyecto.descripcion[:260])}</div>
@@ -1526,7 +1585,7 @@ def notificar_creador_proyecto(request, proyecto):
         f"Proyecto creado: {proyecto.nombre}",
         [proyecto.creador.email],
         mensaje,
-        correo_html_inacap("Proyecto creado", "Resumen de creaci?n y responsables", contenido, "Revisar proyecto", url),
+        correo_html_inacap("Proyecto creado", "Resumen de creación y responsables", contenido, "Revisar proyecto", url),
     )
 
 
@@ -1545,14 +1604,14 @@ def notificar_creador_fase_completada(request, fase):
     url = url_etapa_para_fase(request, fase)
     mensaje = (
         f"Hola {proyecto.creador.nombre or proyecto.creador.username},\n\n"
-        f"Se complet? la etapa '{fase.etiqueta}: {fase.nombre}' del proyecto '{proyecto.nombre}'.\n\n"
+        f"Se completó la etapa '{fase.etiqueta}: {fase.nombre}' del proyecto '{proyecto.nombre}'.\n\n"
         f"Trabajo registrado:\n{fase.realizado or 'Sin detalle registrado'}\n\n"
         f"Revisar etapa: {url}\n\n"
-        f"FAB INACAP Puerto Montt"
+        f"Crea INACAP Puerto Montt"
     )
     contenido = f"""
         <p style="margin:0 0 16px 0;">Hola {escape(proyecto.creador.nombre or proyecto.creador.username)},</p>
-        <p style="margin:0 0 18px 0;">Se complet? una etapa del proyecto que creaste.</p>
+        <p style="margin:0 0 18px 0;">Se completó una etapa del proyecto que creaste.</p>
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-left:5px solid #16a34a;border-radius:10px;padding:18px 20px;margin:0 0 20px 0;">
             <div style="font-size:13px;color:#166534;font-weight:800;text-transform:uppercase;">Etapa completada</div>
             <div style="font-size:18px;font-weight:800;color:#142033;line-height:1.3;margin-top:4px;">{escape(fase.etiqueta)}: {escape(fase.nombre)}</div>
@@ -1570,16 +1629,49 @@ def notificar_creador_fase_completada(request, fase):
     )
 
 
+def notificar_creador_movimiento(request, proyecto, titulo, descripcion, fase=None):
+    if not proyecto.creador or not proyecto.creador.email or proyecto.creador_id == request.user.pk:
+        return False
+    url = url_etapa_para_fase(request, fase) if fase else url_publica(request, proyecto.get_absolute_url())
+    fase_texto = f"{fase.etiqueta}: {fase.nombre}" if fase else "Proyecto general"
+    mensaje = (
+        f"Hola {proyecto.creador.nombre or proyecto.creador.username},\n\n"
+        f"{request.user} registró un movimiento en el proyecto '{proyecto.nombre}'.\n\n"
+        f"Tipo: {titulo}\n"
+        f"Etapa: {fase_texto}\n"
+        f"Detalle: {descripcion}\n"
+        f"Revisar: {url}\n\n"
+        f"Crea INACAP Puerto Montt"
+    )
+    contenido = f"""
+        <p style="margin:0 0 16px 0;">Hola {escape(proyecto.creador.nombre or proyecto.creador.username)},</p>
+        <p style="margin:0 0 18px 0;">Se registró un nuevo movimiento en el proyecto que creaste.</p>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:5px solid #cf3f4f;border-radius:10px;padding:18px 20px;margin:0 0 20px 0;">
+            <div style="font-size:13px;color:#cf3f4f;font-weight:800;text-transform:uppercase;">{escape(titulo)}</div>
+            <div style="font-size:18px;font-weight:800;color:#142033;line-height:1.3;margin-top:4px;">{escape(proyecto.nombre)}</div>
+            <div style="font-size:13px;color:#64748b;margin-top:8px;">Etapa: {escape(fase_texto)}</div>
+        </div>
+        <p style="margin:0 0 8px 0;"><strong>Detalle:</strong></p>
+        <p style="margin:0;color:#475569;">{escape(descripcion or "Sin detalle registrado")}</p>
+    """
+    return enviar_correo_simple(
+        f"{titulo}: {proyecto.nombre}",
+        [proyecto.creador.email],
+        mensaje,
+        correo_html_inacap(titulo, proyecto.nombre, contenido, "Revisar proyecto", url),
+    )
+
+
 def notificar_tarea_asignada(request, tarea):
     if not tarea.responsable or not tarea.responsable.email:
         return False
     url = url_publica(request, tarea.proyecto.get_absolute_url())
     mensaje = (
         f"Hola {tarea.responsable.nombre or tarea.responsable.username},\n\n"
-        f"Se te asign? la tarea '{tarea.nombre}' en el proyecto '{tarea.proyecto.nombre}'.\n\n"
+        f"Se te asignó la tarea '{tarea.nombre}' en el proyecto '{tarea.proyecto.nombre}'.\n\n"
         f"Estado: {tarea.get_estado_display()}\n"
         f"Revisar proyecto: {url}\n\n"
-        f"FAB INACAP Puerto Montt"
+        f"Crea INACAP Puerto Montt"
     )
     return enviar_correo_simple(
         f"Nueva tarea asignada: {tarea.nombre}",
@@ -1593,13 +1685,13 @@ def notificar_observacion(request, observacion):
     destinatarios = [usuario.email for usuario in observacion.proyecto.responsables.all()]
     mensaje = (
         f"Hola,\n\n"
-        f"{observacion.usuario} agreg? una observaci?n al proyecto '{observacion.proyecto.nombre}'.\n\n"
-        f"Observaci?n:\n{observacion.comentario}\n\n"
+        f"{observacion.usuario} agregó una observación al proyecto '{observacion.proyecto.nombre}'.\n\n"
+        f"Observación:\n{observacion.comentario}\n\n"
         f"Revisar proyecto: {url}\n\n"
-        f"FAB INACAP Puerto Montt"
+        f"Crea INACAP Puerto Montt"
     )
     return enviar_correo_simple(
-        f"Nueva observaci?n en {observacion.proyecto.nombre}",
+        f"Nueva observación en {observacion.proyecto.nombre}",
         destinatarios,
         mensaje,
     )
@@ -1610,15 +1702,15 @@ TRL_ETAPAS = [
         "slug": "inicio",
         "nombre": "Inicio",
         "rango": range(1, 4),
-        "resumen": "Ideas, necesidad, planificaci?n y prueba de concepto inicial.",
+        "resumen": "Ideas, necesidad, planificación y prueba de concepto inicial.",
         "evidencias": ["Problema definido", "Objetivo claro", "Plan de trabajo", "Concepto o prueba inicial"],
     },
     {
         "slug": "validacion",
-        "nombre": "Validaci?n",
+        "nombre": "Validación",
         "rango": range(4, 6),
-        "resumen": "Validaci?n t?cnica en laboratorio y revisi?n en entorno relevante.",
-        "evidencias": ["Ensayos de laboratorio", "Resultados medibles", "Ajustes t?cnicos", "Validaci?n del funcionamiento"],
+        "resumen": "Validación técnica en laboratorio y revisión en entorno relevante.",
+        "evidencias": ["Ensayos de laboratorio", "Resultados medibles", "Ajustes técnicos", "Validación del funcionamiento"],
     },
     {
         "slug": "pruebas",
@@ -1629,10 +1721,10 @@ TRL_ETAPAS = [
     },
     {
         "slug": "finalizacion",
-        "nombre": "Finalizaci?n",
+        "nombre": "Finalización",
         "rango": range(8, 10),
-        "resumen": "Sistema completo, validado y probado con ?xito en entorno real.",
-        "evidencias": ["Soluci?n completa", "Documentaci?n final", "Validaci?n real", "Cierre t?cnico"],
+        "resumen": "Sistema completo, validado y probado con éxito en entorno real.",
+        "evidencias": ["Solución completa", "Documentación final", "Validación real", "Cierre técnico"],
     },
 ]
 
@@ -2126,6 +2218,7 @@ class ProyectoCreateView(LoginRequiredMixin, CreateView):
         form.instance.creador = self.request.user
         form.instance.estado = Proyecto.Estado.EN_PROCESO
         response = super().form_valid(form)
+        self.object.responsables.add(self.request.user)
         crear_fases_para_proyecto(self.object)
         sincronizar_trl_desde_resultados(self.object)
         sincronizar_avance_simple_desde_objetivos(self.object)
@@ -2500,7 +2593,7 @@ def construir_linea_temporal(proyecto):
     for observacion in proyecto.observaciones.all():
         items.append({
             "fecha": observacion.fecha.date(),
-            "tipo": "Observaci?n",
+            "tipo": "Observación",
             "titulo": observacion.usuario,
             "descripcion": observacion.comentario,
         })
@@ -2509,7 +2602,7 @@ def construir_linea_temporal(proyecto):
         items.append({
             "fecha": proyecto.fecha_fin,
             "tipo": "Cierre",
-            "titulo": "Fecha de t?rmino",
+            "titulo": "Fecha de término",
             "descripcion": proyecto.get_estado_display(),
         })
 
@@ -2552,7 +2645,7 @@ def fase_detalle(request, pk):
 @login_required
 def proyecto_eliminar(request, pk):
     if not usuario_puede_eliminar_proyecto(request.user):
-        messages.error(request, "Solo la cuenta FAB autorizada puede eliminar proyectos.")
+        messages.error(request, "Solo la cuenta Crea INACAP autorizada puede eliminar proyectos.")
         return redirect("proyecto_detalle", pk=pk)
 
     proyecto = get_object_or_404(proyectos_de_sede(request.user), pk=pk)
@@ -2756,7 +2849,7 @@ def registrar_uso_inventario(request, pk):
             "proyecto": proyecto,
             "form": form,
             "titulo": "Registrar uso de inventario",
-            "descripcion": "Indica qu? material, equipo o insumo us? este proyecto.",
+            "descripcion": "Indica qué material, equipo o insumo usó este proyecto.",
             "boton": "Registrar uso",
         },
     )
@@ -2782,7 +2875,7 @@ def actualizar_estado(request, pk):
             "titulo": "Actualizar estado",
             "descripcion": "Modifica el estado del proyecto.",
             "boton": "Guardar estado",
-            "confirmacion": "?Actualizar el estado y avance del proyecto?",
+            "confirmacion": "¿Actualizar el estado y avance del proyecto?",
         },
     )
 
@@ -2800,6 +2893,7 @@ def crear_avance(request, pk):
             avance.proyecto = proyecto
             avance.fase = fase_desde_request(request, proyecto)
             avance.save()
+            notificar_creador_movimiento(request, proyecto, "Avance registrado", avance.descripcion, avance.fase)
             messages.success(request, "Avance registrado correctamente.")
             return redirect(url_retorno_segura(request, proyecto.get_absolute_url().replace(f"/proyectos/{proyecto.pk}/", f"/proyectos/{proyecto.pk}/trabajo/")))
     return render(
@@ -2863,6 +2957,7 @@ def subir_evidencia(request, pk):
             evidencia.fase = fase
             evidencia.usuario = request.user
             evidencia.save()
+            notificar_creador_movimiento(request, proyecto, "Evidencia subida", f"{evidencia.nombre}: {evidencia.descripcion}", evidencia.fase)
             messages.success(request, "Evidencia subida correctamente.")
             return redirect(url_retorno_segura(request, proyecto.get_absolute_url().replace(f"/proyectos/{proyecto.pk}/", f"/proyectos/{proyecto.pk}/trabajo/")))
     return render(
@@ -2888,6 +2983,7 @@ def completar_tarea(request, pk):
         tarea.estado = Tarea.Estado.COMPLETADA
         tarea.save(update_fields=["estado", "actualizada_en"])
         recalcular_avance_por_tareas(tarea.proyecto)
+        notificar_creador_movimiento(request, tarea.proyecto, "Tarea completada", tarea.nombre, tarea.fase)
         messages.success(request, "Tarea marcada como completada.")
     return redirect(url_retorno_segura(request, f"/proyectos/{tarea.proyecto_id}/trabajo/"))
 
@@ -2908,9 +3004,9 @@ def crear_observacion(request, pk):
             observacion.save()
             correo_enviado = notificar_observacion(request, observacion)
             if correo_enviado:
-                messages.success(request, "Observaci?n agregada correctamente. Responsables notificados por correo.")
+                messages.success(request, "Observación agregada correctamente. Responsables notificados por correo.")
             else:
-                messages.success(request, "Observaci?n agregada correctamente.")
+                messages.success(request, "Observación agregada correctamente.")
             return redirect(url_retorno_segura(request, proyecto.get_absolute_url().replace(f"/proyectos/{proyecto.pk}/", f"/proyectos/{proyecto.pk}/trabajo/")))
     return render(
         request,
@@ -2918,9 +3014,9 @@ def crear_observacion(request, pk):
         {
             "proyecto": proyecto,
             "form": form,
-            "titulo": "Agregar observaci?n",
-            "descripcion": "Registra una recomendaci?n, comentario o seguimiento del proyecto.",
-            "boton": "Guardar observaci?n",
+            "titulo": "Agregar observación",
+            "descripcion": "Registra una recomendación, comentario o seguimiento del proyecto.",
+            "boton": "Guardar observación",
         },
     )
 

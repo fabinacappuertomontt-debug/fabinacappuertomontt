@@ -1,58 +1,88 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}Ingresar{% endblock %}
 {% block body_class %}login-page{% endblock %}
 
 {% block content %}
-<div class="login-layout">
-    <section class="login-intro">
+<div class="login-layout login-layout-modern">
+    <section class="login-intro login-intro-modern">
         <div class="login-brand-row">
             <img class="login-brand-logo" src="https://portal.inacap.cl/documents/d/guest/logofooter60a" alt="INACAP">
-            <span>FAB INACAP</span>
+            <span>Crea INACAP</span>
             {% if organizacion %}
                 <span class="status-pill">{{ organizacion.nombre }}</span>
             {% endif %}
         </div>
-        <span class="eyebrow">Puerto Montt · Osorno</span>
-        <h1>Proyectos, evidencia y decisiones para el aprendizaje aplicado</h1>
-        <p>Seguimiento interno para equipos INACAP: avances, evidencias, inventario, TRL e inteligencia artificial al servicio de la gestión académica.</p>
-        <figure class="login-campus">
-            <img src="https://portal.inacap.cl/documents/76264/1932753/1200.400.jpg/cfe417eb-fce8-f0c3-d3cb-4bbb189c5f06?t=1744301023067&version=1.0" alt="INACAP lidera observatorio laboral">
-            <figcaption>
-                <strong>Gestión con evidencia</strong>
-                <span>Proyectos, datos y seguimiento académico</span>
-            </figcaption>
-        </figure>
+
+        <div class="login-hero-copy">
+            <span class="eyebrow">Puerto Montt · Aprender Haciendo</span>
+            <h1>Gestiona proyectos, evidencias y avances en un solo lugar.</h1>
+            <p>Plataforma interna para seguimiento de proyectos simples y TRL, con tareas, evidencias, inventario e inteligencia artificial de apoyo.</p>
+        </div>
+
+        <div class="login-hero-panel">
+            <div class="login-hero-icon">
+                <i class="bi bi-kanban" aria-hidden="true"></i>
+            </div>
+            <div>
+                <strong>Semana de prueba</strong>
+                <span>Usa la plataforma, registra avances y reporta cualquier detalle para afinar el sistema.</span>
+            </div>
+        </div>
+
         <div class="login-feature-grid">
-            <article><strong>TRL</strong><span>Madurez tecnológica</span></article>
-            <article><strong>IA</strong><span>Revisión orientativa</span></article>
-            <article><strong>FAB</strong><span>Puerto Montt</span></article>
+            <article>
+                <i class="bi bi-layers" aria-hidden="true"></i>
+                <strong>TRL</strong>
+                <span>Madurez tecnologica</span>
+            </article>
+            <article>
+                <i class="bi bi-stars" aria-hidden="true"></i>
+                <strong>IA</strong>
+                <span>Revision orientativa</span>
+            </article>
+            <article>
+                <i class="bi bi-folder-check" aria-hidden="true"></i>
+                <strong>Evidencia</strong>
+                <span>Registro ordenado</span>
+            </article>
         </div>
     </section>
-    <section class="login-card">
+
+    <section class="login-card login-card-modern">
         <div class="card login-access-card">
             <div class="card-body">
-                <span class="eyebrow">Área personal</span>
-                <h2>Ingresar</h2>
-                <p>Usa tu correo institucional para acceder al sistema{% if organizacion %} de {{ organizacion.nombre }}{% endif %}.</p>
-                <form method="post">
+                <div class="login-form-heading">
+                    <span class="eyebrow">Area personal</span>
+                    <h2>Ingresar</h2>
+                    <p>Usa tu correo institucional para acceder{% if organizacion %} a {{ organizacion.nombre }}{% endif %}.</p>
+                </div>
+
+                <form method="post" class="login-form">
                     {% csrf_token %}
                     {% if form.errors %}
-                        <div class="alert alert-danger">Usuario o contraseña incorrectos.</div>
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                            Usuario o contraseña incorrectos.
+                        </div>
                     {% endif %}
                     <div class="mb-3">
                         <label class="form-label" for="{{ form.username.id_for_label }}">Correo institucional</label>
                         {{ form.username }}
                     </div>
-                    <div class="mb-3">
+                    <div class="mb-2">
                         <label class="form-label" for="{{ form.password.id_for_label }}">Contraseña</label>
                         {{ form.password }}
+                    </div>
+                    <div class="login-help-row">
+                        <span>Acceso seguro Crea INACAP</span>
+                        <a href="{% url 'password_reset' %}">Olvidé mi contraseña</a>
                     </div>
                     <button class="btn btn-primary w-100" type="submit">
                         <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>
                         Entrar
                     </button>
-                    <a class="btn btn-outline-secondary w-100 mt-2" href="{% url 'registro' %}">
+                    <a class="btn btn-outline-secondary w-100" href="{% url 'registro' %}">
                         <i class="bi bi-person-plus" aria-hidden="true"></i>
                         Registrarse
                     </a>
@@ -62,3 +92,4 @@
     </section>
 </div>
 {% endblock %}
+

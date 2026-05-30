@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}Solicitud enviada{% endblock %}
 {% block body_class %}login-page{% endblock %}
@@ -8,11 +8,11 @@
     <section class="login-intro">
         <div class="login-brand-row">
             <span class="login-logo-mark">F</span>
-            <span>FAB INACAP</span>
+            <span>Crea INACAP</span>
         </div>
         <span class="eyebrow">Solicitud recibida</span>
         <h1>Tu cuenta quedó pendiente</h1>
-        <p>El equipo FAB revisará tu solicitud. Cuando aprueben o rechacen la cuenta, recibirás un correo.</p>
+        <p>El equipo Crea INACAP revisará tu solicitud. Cuando aprueben o rechacen la cuenta, recibirás un correo.</p>
         <figure class="login-campus">
             <img src="https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1200&q=80" alt="Equipo revisando planificación de proyecto">
             <figcaption>
@@ -22,7 +22,7 @@
         </figure>
         <div class="login-feature-grid">
             <article><strong>1</strong><span>Solicitud enviada</span></article>
-            <article><strong>FAB</strong><span>Revision admin</span></article>
+            <article><strong>Crea INACAP</strong><span>Revision admin</span></article>
             <article><strong>@</strong><span>Aviso por correo</span></article>
         </div>
     </section>
@@ -30,7 +30,7 @@
         <div class="card login-access-card">
             <div class="card-body">
                 <span class="eyebrow">Pendiente</span>
-                <h2>Revisión del FAB</h2>
+                <h2>Revisión de Crea INACAP</h2>
                 <p>Tu solicitud fue enviada correctamente. No podrás iniciar sesión hasta que el administrador apruebe la cuenta.</p>
                 <div class="external-request-summary">
                     <span>{{ usuario.nombre }}</span>
@@ -46,3 +46,4 @@
     </section>
 </div>
 {% endblock %}
+

@@ -1,4 +1,4 @@
-{% load static %}
+﻿{% load static %}
 <!doctype html>
 <html lang="es">
 <head>
@@ -11,18 +11,26 @@
     <link rel="icon" type="image/svg+xml" href="{% static 'img/inacap-favicon.svg' %}">
     <link rel="shortcut icon" type="image/svg+xml" href="{% static 'img/inacap-favicon.svg' %}">
     {% endif %}
-    <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=20260524-ai-chat">
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=20260528-org-settings">
     {% if request.tema == 'pro' %}<link rel="stylesheet" href="{% static 'css/tema_pro.css' %}">{% endif %}
     {% if user.is_authenticated and user.organizacion %}
     <style>
         :root {
             --inacap-red: {{ user.organizacion.color_principal|default:'#c53a43' }};
             --inacap-red-dark: {{ user.organizacion.color_secundario|default:'#9f2f37' }};
+            {% if user.organizacion.modo_oscuro %}
+            --soft: #101826;
+            --panel: #162235;
+            --ink: #eef4ff;
+            --muted: #b6c3d5;
+            --line: #304156;
+            --inacap-blue-soft: #20324a;
+            {% endif %}
         }
     </style>
     {% endif %}
 </head>
-<body class="{% block body_class %}{% endblock %}">
+<body class="{% block body_class %}{% endblock %}{% if user.is_authenticated and user.organizacion %} org-font-{{ user.organizacion.tamano_letra }}{% if user.organizacion.modo_oscuro %} org-theme-dark{% endif %}{% endif %}">
     {% if user.is_authenticated %}
         <div class="app-layout">
             <aside class="app-sidebar">
@@ -49,7 +57,7 @@
                             <strong>{{ user.organizacion.nombre }}</strong>
                             <span>Seguimiento de proyectos</span>
                         {% else %}
-                            <strong>FAB {{ user.get_sede_display|default:"Puerto Montt" }}</strong>
+                            <strong>Crea INACAP {{ user.get_sede_display|default:"Puerto Montt" }}</strong>
                             <span>Seguimiento de proyectos</span>
                         {% endif %}
                     </div>
@@ -74,10 +82,12 @@
                             <i class="bi bi-box-seam-fill"></i>
                             <span>Inventario</span>
                         </a>
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'usuario_lista' or request.resolver_match.url_name == 'usuario_crear' %}is-active{% endif %}" href="{% url 'usuario_lista' %}">
-                            <i class="bi bi-people-fill"></i>
-                            <span>Usuarios</span>
-                        </a>
+                        {% if user.is_superuser or user.rol == 'superadmin' or user.rol == 'admin_organizacion' or user.rol == 'administrador' %}
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'usuario_lista' or request.resolver_match.url_name == 'usuario_crear' %}is-active{% endif %}" href="{% url 'usuario_lista' %}">
+                                <i class="bi bi-people-fill"></i>
+                                <span>Usuarios</span>
+                            </a>
+                        {% endif %}
                         <a class="sidebar-link {% if request.resolver_match.url_name == 'chat_lista' or request.resolver_match.url_name == 'chat_privado' %}is-active{% endif %}" href="{% url 'chat_lista' %}">
                             <i class="bi bi-chat-dots-fill"></i>
                             <span>Chat</span>
@@ -93,6 +103,11 @@
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'organizacion_configuracion' %}is-active{% endif %}" href="{% url 'organizacion_configuracion' %}">
                                 <i class="bi bi-sliders"></i>
                                 <span>Mi organización</span>
+                            </a>
+                        {% else %}
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'organizacion_configuracion' %}is-active{% endif %}" href="{% url 'organizacion_configuracion' %}">
+                                <i class="bi bi-person-gear"></i>
+                                <span>Configuración</span>
                             </a>
                         {% endif %}
                     </nav>
@@ -157,7 +172,7 @@
                             {% elif request.resolver_match.url_name == 'chat_lista' or request.resolver_match.url_name == 'chat_privado' %}
                                 Chat
                             {% else %}
-                                {% if request.tema == 'pro' %}TrackFlow{% elif user.organizacion %}{{ user.organizacion.nombre }}{% else %}FAB INACAP {{ user.get_sede_display|default:"Puerto Montt" }}{% endif %}
+                                {% if request.tema == 'pro' %}TrackFlow{% elif user.organizacion %}{{ user.organizacion.nombre }}{% else %}Crea INACAP {{ user.get_sede_display|default:"Puerto Montt" }}{% endif %}
                             {% endif %}
                         </strong>
                     </div>
@@ -256,6 +271,7 @@
     </script>
 </body>
 </html>
+
 
 
 
