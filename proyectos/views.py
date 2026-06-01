@@ -46,7 +46,7 @@ from .forms import (
     UsuarioRegistroForm,
     UsuarioUpdateForm,
 )
-from .gemini_service import analizar_borrador_trl, analizar_etapa_trl, analizar_trl, generar_mesa_trabajo_ia
+from .gemini_service import analizar_borrador_trl, analizar_etapa_trl, analizar_trl, generar_mesa_trabajo_ia, generar_estructura_proyecto_ia
 from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario
 
 
@@ -1421,6 +1421,65 @@ def generar_mesa_trabajo_inicial(proyecto):
     return tareas
 
 
+def _crear_estructura_desde_plan_ia(proyecto, resultado):
+    """Crea en DB los objetivos, resultados e indicadores generados por IA."""
+    from .models import ObjetivoEspecifico, ResultadoEsperado, IndicadorResultado
+    creados = 0
+    for i, obj_data in enumerate(resultado.get("objetivos", []), start=1):
+        objetivo = ObjetivoEspecifico.objects.create(
+            proyecto=proyecto,
+            descripcion=obj_data["descripcion"],
+            orden=i,
+        )
+        for j, res_data in enumerate(obj_data.get("resultados", []), start=1):
+            resultado_obj = ResultadoEsperado.objects.create(
+                objetivo=objetivo,
+                descripcion=res_data["descripcion"],
+                orden=j,
+                trl_objetivo=res_data["trl_objetivo"],
+                plazo_meses=res_data["plazo_meses"],
+            )
+            creados += 1
+            for k, ind_data in enumerate(res_data.get("indicadores", []), start=1):
+                IndicadorResultado.objects.create(
+                    resultado=resultado_obj,
+                    descripcion=ind_data["descripcion"],
+                    meta=ind_data.get("meta", ""),
+                    orden=k,
+                )
+    return creados
+
+
+def _generar_estructura_proyecto_ia_async(proyecto_id):
+    """Hilo: genera y guarda objetivos+resultados+indicadores con IA."""
+    close_old_connections()
+    try:
+        proyecto = Proyecto.objects.prefetch_related("objetivos").get(pk=proyecto_id)
+        # Solo si el proyecto no tiene objetivos todavía
+        if proyecto.objetivos.exists():
+            return
+        resultado = generar_estructura_proyecto_ia(proyecto)
+        if not resultado.get("ok"):
+            return
+        _crear_estructura_desde_plan_ia(proyecto, resultado)
+        sincronizar_trl_desde_resultados(proyecto)
+        sincronizar_avance_simple_desde_objetivos(proyecto)
+    except Exception:
+        pass
+    finally:
+        close_old_connections()
+
+
+def iniciar_generacion_estructura_proyecto_ia(proyecto):
+    """Arranca en segundo plano la generación IA de objetivos/resultados/indicadores."""
+    hilo = threading.Thread(
+        target=_generar_estructura_proyecto_ia_async,
+        args=(proyecto.pk,),
+        daemon=True,
+    )
+    hilo.start()
+
+
 
 
 def url_publica(request, path):
@@ -2185,6 +2244,11 @@ def construir_tablero_trl(proyecto):
             "completadas": completadas,
             "total": total,
             "bloqueada": bloqueada,
+            "inicio": fases_etapa[0].trl,
+            "fin": fases_etapa[-1].trl,
+            "completadas": completadas,
+            "total": total,
+            "bloqueada": bloqueada,
             "completa": etapa_completa,
             "actual": actual,
             "estado_visual": estado_visual,
@@ -2223,13 +2287,24 @@ class ProyectoCreateView(LoginRequiredMixin, CreateView):
         sincronizar_trl_desde_resultados(self.object)
         sincronizar_avance_simple_desde_objetivos(self.object)
         tareas_base = generar_mesa_trabajo_inicial(self.object)
+        # IA genera objetivos, resultados e indicadores en segundo plano
+        iniciar_generacion_estructura_proyecto_ia(self.object)
         notificar_creador_proyecto(self.request, self.object)
         notificar_responsables_proyecto(self.request, self.object)
         if tareas_base:
-            messages.success(self.request, f"Proyecto creado correctamente. Se dejo una base de trabajo con {tareas_base} tareas y la IA esta preparando una mesa mas detallada.")
+            messages.success(
+                self.request,
+                f"Proyecto creado. Se preparó una base con {tareas_base} tareas y la IA está generando "
+                f"la estructura completa (objetivos, resultados, indicadores y mesa de trabajo). "
+                f"Aparecerá en unos segundos al recargar."
+            )
         else:
-            messages.success(self.request, "Proyecto creado correctamente. La IA esta preparando la mesa de trabajo.")
+            messages.success(
+                self.request,
+                "Proyecto creado. La IA está generando la estructura completa. Aparecerá en unos segundos al recargar."
+            )
         return response
+
 
 class ProyectoUpdateView(LoginRequiredMixin, UpdateView):
     model = Proyecto
@@ -2238,13 +2313,6 @@ class ProyectoUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_queryset(self):
         return proyectos_de_sede(self.request.user)
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs["sede"] = self.object.sede
-        kwargs["organizacion"] = self.object.organizacion
-        kwargs["area"] = self.object.area
-        return kwargs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

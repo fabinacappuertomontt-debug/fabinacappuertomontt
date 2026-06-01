@@ -1,4 +1,4 @@
-﻿import json
+import json
 import urllib.error
 import urllib.request
 
@@ -555,5 +555,154 @@ def generar_mesa_trabajo_ia(proyecto, fases_validas):
     if not plan.get("ok"):
         plan = _llamar_groq_mesa(prompt, fases_validas)
     return plan
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GENERACIÓN IA: OBJETIVOS, RESULTADOS E INDICADORES DESDE FORMULARIO
+# ──────────────────────────────────────────────────────────────────────────────
+
+ESTRUCTURA_PROYECTO_CONTEXTO = """
+Eres un planificador académico IA para la plataforma Crea INACAP Puerto Montt.
+Tu tarea es crear la estructura de objetivos específicos, resultados esperados e indicadores
+para un proyecto que acaba de ser registrado en el sistema.
+
+Reglas obligatorias:
+- Crea entre 1 y 3 objetivos específicos concretos y relevantes al proyecto.
+- Cada objetivo debe tener entre 1 y 3 resultados esperados verificables.
+- Cada resultado debe tener entre 1 y 2 indicadores medibles con una meta concreta.
+- plazo_meses debe ser coherente con la duración total del proyecto (distribúyelo).
+- Para proyectos con TRL: trl_objetivo de cada resultado debe ser un número entero
+  entre trl_inicial y trl_objetivo del proyecto, distribuido progresivamente.
+- Para proyectos simples (sin TRL): usa números de fase del 1 al 5 en trl_objetivo
+  (1=Levantamiento, 2=Planificación, 3=Ejecución, 4=Validación, 5=Cierre).
+- No inventes datos ni uses información fuera del contexto del proyecto.
+- Si el proyecto es simple, NO menciones TRL en las descripciones.
+
+Responde SOLO en JSON válido con esta estructura exacta:
+{
+  "objetivos": [
+    {
+      "descripcion": "texto del objetivo específico",
+      "resultados": [
+        {
+          "descripcion": "texto del resultado esperado",
+          "trl_objetivo": 3,
+          "plazo_meses": 2,
+          "indicadores": [
+            {"descripcion": "texto del indicador", "meta": "valor o meta concreta medible"}
+          ]
+        }
+      ]
+    }
+  ]
+}
+"""
+
+
+def _normalizar_estructura_proyecto(datos):
+    """Valida y normaliza la respuesta IA de estructura de proyecto."""
+    if not isinstance(datos, dict):
+        return {"ok": False, "objetivos": []}
+    objetivos_out = []
+    for obj_data in (datos.get("objetivos") or [])[:3]:
+        if not isinstance(obj_data, dict):
+            continue
+        desc_obj = str(obj_data.get("descripcion") or "").strip()
+        if not desc_obj:
+            continue
+        resultados_out = []
+        for res_data in (obj_data.get("resultados") or [])[:3]:
+            if not isinstance(res_data, dict):
+                continue
+            desc_res = str(res_data.get("descripcion") or "").strip()
+            if not desc_res:
+                continue
+            try:
+                trl_obj = max(1, min(9, int(res_data.get("trl_objetivo") or 1)))
+            except (TypeError, ValueError):
+                trl_obj = 1
+            try:
+                plazo_meses = max(0, min(36, int(res_data.get("plazo_meses") or 1)))
+            except (TypeError, ValueError):
+                plazo_meses = 1
+            indicadores_out = []
+            for ind_data in (res_data.get("indicadores") or [])[:3]:
+                if isinstance(ind_data, str):
+                    desc_ind, meta = ind_data.strip(), ""
+                elif isinstance(ind_data, dict):
+                    desc_ind = str(ind_data.get("descripcion") or "").strip()
+                    meta = str(ind_data.get("meta") or "").strip()
+                else:
+                    continue
+                if desc_ind:
+                    indicadores_out.append({"descripcion": desc_ind[:400], "meta": meta[:200]})
+            resultados_out.append({
+                "descripcion": desc_res[:600],
+                "trl_objetivo": trl_obj,
+                "plazo_meses": plazo_meses,
+                "indicadores": indicadores_out,
+            })
+        if resultados_out:
+            objetivos_out.append({"descripcion": desc_obj[:600], "resultados": resultados_out})
+    if not objetivos_out:
+        return {"ok": False, "objetivos": []}
+    return {"ok": True, "objetivos": objetivos_out}
+
+
+def generar_estructura_proyecto_ia(proyecto):
+    """Genera objetivos, resultados e indicadores con IA para un proyecto recién creado."""
+    # Duracion en meses aproximada
+    duracion_meses = 6
+    if getattr(proyecto, "fecha_inicio", None) and getattr(proyecto, "fecha_fin", None):
+        delta = (proyecto.fecha_fin - proyecto.fecha_inicio).days
+        duracion_meses = max(1, round(delta / 30))
+
+    resumen = {
+        "nombre": proyecto.nombre,
+        "descripcion": proyecto.descripcion,
+        "objetivo_principal": getattr(proyecto, "objetivo_principal", ""),
+        "metodologia": proyecto.get_metodologia_display(),
+        "usa_trl": proyecto.usa_trl,
+        "trl_inicial": proyecto.trl_inicial if proyecto.usa_trl else None,
+        "trl_objetivo": proyecto.trl_objetivo if proyecto.usa_trl else None,
+        "duracion_meses_estimada": duracion_meses,
+    }
+    prompt = (
+        f"{ESTRUCTURA_PROYECTO_CONTEXTO}\n\n"
+        f"Proyecto a estructurar:\n{json.dumps(resumen, ensure_ascii=False, indent=2)}"
+    )
+
+    # Intentar con Gemini
+    api_key = getattr(settings, "GEMINI_API_KEY", "")
+    if api_key:
+        model = getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.22, "responseMimeType": "application/json"},
+        }
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=_timeout_ia()) as resp:
+                raw = resp.read().decode("utf-8")
+            text = _extraer_texto_gemini(json.loads(raw))
+            resultado = _normalizar_estructura_proyecto(json.loads(_limpiar_json_modelo(text)))
+            if resultado.get("ok"):
+                return resultado
+        except Exception:
+            pass
+
+    # Fallback a Groq
+    return _llamar_groq_json(
+        prompt,
+        _normalizar_estructura_proyecto,
+        {"ok": False, "objetivos": []},
+        temperature=0.22,
+    )
 
 
