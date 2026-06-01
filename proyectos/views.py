@@ -2286,23 +2286,15 @@ class ProyectoCreateView(LoginRequiredMixin, CreateView):
         crear_fases_para_proyecto(self.object)
         sincronizar_trl_desde_resultados(self.object)
         sincronizar_avance_simple_desde_objetivos(self.object)
-        tareas_base = generar_mesa_trabajo_inicial(self.object)
-        # IA genera objetivos, resultados e indicadores en segundo plano
-        iniciar_generacion_estructura_proyecto_ia(self.object)
+        # IA lee todo lo que el usuario escribio y genera la ruta y mesa de trabajo
+        generar_mesa_trabajo_inicial(self.object)
         notificar_creador_proyecto(self.request, self.object)
         notificar_responsables_proyecto(self.request, self.object)
-        if tareas_base:
-            messages.success(
-                self.request,
-                f"Proyecto creado. Se preparó una base con {tareas_base} tareas y la IA está generando "
-                f"la estructura completa (objetivos, resultados, indicadores y mesa de trabajo). "
-                f"Aparecerá en unos segundos al recargar."
-            )
-        else:
-            messages.success(
-                self.request,
-                "Proyecto creado. La IA está generando la estructura completa. Aparecerá en unos segundos al recargar."
-            )
+        messages.success(
+            self.request,
+            "Proyecto creado. La IA está leyendo tu proyecto y preparando la ruta de trabajo y mesa de tareas. "
+            "Recarga en unos segundos para ver la mesa completa."
+        )
         return response
 
 

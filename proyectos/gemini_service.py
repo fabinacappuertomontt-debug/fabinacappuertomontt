@@ -82,27 +82,32 @@ Responde siempre en JSON valido con estas claves:
 
 MESA_TRABAJO_CONTEXTO = """
 Eres un planificador tecnico IA para una plataforma Django de seguimiento de proyectos Crea INACAP Puerto Montt.
-Tu tarea es crear una propuesta inicial para la mesa de trabajo a partir de lo que el usuario escribio al crear el proyecto.
+El usuario ya completo el proyecto con nombre, descripcion, objetivo principal, objetivos especificos,
+resultados esperados e indicadores. Tu tarea es leer TODO eso y generar la ruta de trabajo y la mesa de tareas.
 
 Reglas obligatorias:
+- Lee y usa directamente los objetivos especificos, resultados esperados e indicadores que ya escribio el usuario.
+- Cada tarea debe estar directamente relacionada con al menos uno de los objetivos o resultados del proyecto.
+- No inventes objetivos ni resultados nuevos; trabaja solo con lo que el usuario definio.
 - No marques tareas, criterios, resultados ni etapas como completadas.
-- No inventes TRL fuera del rango entregado por el sistema.
-- Cada etapa debe usar un numero de fase existente en la lista entregada.
-- Las tareas deben ser concretas y accionables.
-- Las evidencias sugeridas deben ser archivos, fotos, capturas, informes, pruebas o registros que el equipo podria subir despues.
-- Si el proyecto es simple, no menciones TRL.
-- Si el proyecto usa TRL, relaciona tareas y evidencias con madurez tecnologica, resultados e indicadores.
+- No inventes fases fuera de la lista entregada por el sistema.
+- Las tareas deben ser concretas y accionables, no genericas.
+- El criterio de cada fase debe resumir que debe demostrarse para avanzar, basado en los resultados de esa etapa.
+- Las evidencias sugeridas deben ser archivos, fotos, capturas, informes, pruebas o registros reales del proyecto.
+- Si el proyecto es simple: distribuye tareas por fases sin mencionar TRL.
+- Si el proyecto usa TRL: relaciona cada fase con el TRL correspondiente, sus resultados e indicadores especificos.
+- Genera entre 3 y 6 tareas por fase, concretas y vinculadas al trabajo real del equipo.
 
 Responde siempre en JSON valido con esta forma:
 {
   "etapas": [
     {
       "fase": 1,
-      "criterio": "",
+      "criterio": "descripcion de que debe cumplirse en esta fase segun los resultados del proyecto",
       "tareas": [
-        {"nombre": "", "descripcion": ""}
+        {"nombre": "nombre corto de la tarea", "descripcion": "descripcion concreta de que hay que hacer"}
       ],
-      "evidencias_sugeridas": []
+      "evidencias_sugeridas": ["tipo de archivo o registro que el equipo debe subir"]
     }
   ]
 }
