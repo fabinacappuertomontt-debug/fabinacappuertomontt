@@ -185,61 +185,81 @@
 
 <script>
 (function () {
-    // Popover de personas: usa position:fixed con coordenadas reales del viewport
-    // para que no quede cortado por el overflow de las tarjetas
+    var popoverActivo  = null;
+    var chipActivo     = null;
+
+    function ocultarActivo() {
+        if (popoverActivo && chipActivo) {
+            // Devolver el popover a su chip original
+            popoverActivo.style.display     = '';
+            popoverActivo.style.visibility  = '';
+            popoverActivo.style.top         = '';
+            popoverActivo.style.left        = '';
+            chipActivo.appendChild(popoverActivo);
+            popoverActivo = null;
+            chipActivo    = null;
+        }
+    }
+
     document.querySelectorAll('.person-chip-with-info').forEach(function (chip) {
         var popover = chip.querySelector('.person-info-popover');
         if (!popover) return;
 
         function posicionar() {
             var rect = chip.getBoundingClientRect();
-            var pw = popover.offsetWidth || 230;
-            var ph = popover.offsetHeight || 140;
-            var margen = 8;
+            var pw   = popover.offsetWidth;
+            var ph   = popover.offsetHeight;
+            var m    = 10;
+            var top, left;
 
-            // Intentar arriba del chip
-            var top = rect.top - ph - 10;
-            if (top < margen) {
-                // No cabe arriba → ponerlo abajo
-                top = rect.bottom + 8;
-                popover.classList.add('popover-abajo');
-            } else {
-                popover.classList.remove('popover-abajo');
-            }
+            // Arriba si cabe, si no → abajo
+            top = (rect.top - ph - 12 >= m)
+                ? rect.top - ph - 12
+                : rect.bottom + 8;
 
-            // Centrar horizontalmente, sin salirse del viewport
-            var left = rect.left + rect.width / 2 - pw / 2;
-            left = Math.max(margen, Math.min(left, window.innerWidth - pw - margen));
+            // Centrar sobre el chip sin salirse del viewport
+            left = rect.left + rect.width / 2 - pw / 2;
+            left = Math.max(m, Math.min(left, window.innerWidth - pw - m));
 
-            popover.style.top = top + 'px';
+            popover.style.top  = top  + 'px';
             popover.style.left = left + 'px';
-            popover.style.width = pw + 'px';
         }
 
-        chip.addEventListener('mouseenter', function () {
-            popover.style.display = 'grid';
-            posicionar();
-        });
-        chip.addEventListener('mouseleave', function () {
-            popover.style.display = '';
-        });
-        chip.addEventListener('focusin', function () {
-            popover.style.display = 'grid';
-            posicionar();
-        });
-        chip.addEventListener('focusout', function () {
-            popover.style.display = '';
-        });
+        function mostrar() {
+            if (popoverActivo === popover) return; // ya visible
+            ocultarActivo();
+
+            // Mover el popover al body (portal) para evitar stacking contexts
+            document.body.appendChild(popover);
+            popover.style.visibility = 'hidden';
+            popover.style.display    = 'grid';
+            popoverActivo = popover;
+            chipActivo    = chip;
+
+            // Medir y posicionar en el siguiente frame (real dimensions)
+            requestAnimationFrame(function () {
+                posicionar();
+                popover.style.visibility = 'visible';
+            });
+        }
+
+        function ocultar() {
+            if (popoverActivo === popover) {
+                ocultarActivo();
+            }
+        }
+
+        chip.addEventListener('mouseenter', mostrar);
+        chip.addEventListener('mouseleave', ocultar);
+        chip.addEventListener('focusin',   mostrar);
+        chip.addEventListener('focusout',  ocultar);
     });
 
-    // Reposicionar si el usuario hace scroll
-    window.addEventListener('scroll', function () {
-        document.querySelectorAll('.person-info-popover').forEach(function (p) {
-            if (p.style.display === 'grid') {
-                p.style.display = '';
-            }
-        });
-    }, { passive: true });
+    // Cerrar con scroll o click fuera
+    window.addEventListener('scroll',  ocultarActivo, { passive: true });
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('.person-chip-with-info')) ocultarActivo();
+    });
 })();
 </script>
 {% endblock %}
