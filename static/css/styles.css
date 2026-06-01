@@ -797,6 +797,13 @@ a {
     position: relative;
 }
 
+.chip-label {
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .person-info-button {
     align-items: center;
     background: rgba(255, 255, 255, .14);
@@ -875,10 +882,7 @@ a {
     margin-top: .28rem;
 }
 
-.person-chip-with-info:hover .person-info-popover,
-.person-chip-with-info:focus-within .person-info-popover {
-    display: grid;
-}
+/* El JS maneja el show/hide del popover con position:fixed correctamente posicionado */
 
 .alert-dot {
     align-items: center;
@@ -2871,6 +2875,8 @@ a {
     flex-wrap: wrap;
     gap: .35rem;
     min-height: 30px;
+    overflow: visible;
+    position: relative;
 }
 
 .project-course-actions {
