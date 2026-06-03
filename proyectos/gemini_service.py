@@ -1,8 +1,11 @@
 import json
+import logging
 import urllib.error
 import urllib.request
 
 from django.conf import settings
+
+logger = logging.getLogger("proyectos.ia")
 
 
 RESPUESTA_FALLBACK = {
@@ -401,14 +404,16 @@ def _llamar_gemini_mesa(prompt, fases_validas):
     try:
         with urllib.request.urlopen(request, timeout=_timeout_ia()) as response:
             raw = response.read().decode("utf-8")
-    except (urllib.error.URLError, TimeoutError, ValueError):
+    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        logger.warning("Gemini mesa: error de red o timeout: %s", exc)
         return PLAN_MESA_FALLBACK.copy()
 
     try:
         data = json.loads(raw)
         text = _extraer_texto_gemini(data)
         return _normalizar_plan_mesa(json.loads(_limpiar_json_modelo(text)), fases_validas)
-    except (json.JSONDecodeError, TypeError, ValueError):
+    except (json.JSONDecodeError, TypeError, ValueError) as exc:
+        logger.warning("Gemini mesa: respuesta invalida: %s", exc)
         return PLAN_MESA_FALLBACK.copy()
 
 
@@ -556,9 +561,17 @@ def generar_mesa_trabajo_ia(proyecto, fases_validas):
     resumen = _resumen_proyecto_modelo(proyecto)
     resumen["fases_disponibles"] = list(fases_validas)
     prompt = f"{MESA_TRABAJO_CONTEXTO}\n\nCrea la mesa de trabajo inicial para este proyecto:\n{json.dumps(resumen, ensure_ascii=False, indent=2)}"
+    logger.info("[IA] Generando mesa para proyecto %s (fases: %s)", proyecto.pk, fases_validas)
     plan = _llamar_gemini_mesa(prompt, fases_validas)
     if not plan.get("ok"):
+        logger.warning("[IA] Gemini fallo para proyecto %s, intentando Groq...", proyecto.pk)
         plan = _llamar_groq_mesa(prompt, fases_validas)
+        if not plan.get("ok"):
+            logger.error("[IA] Groq tambien fallo para proyecto %s. Ambas IAs no respondieron.", proyecto.pk)
+        else:
+            logger.info("[IA] Groq exitoso para proyecto %s", proyecto.pk)
+    else:
+        logger.info("[IA] Gemini exitoso para proyecto %s", proyecto.pk)
     return plan
 
 

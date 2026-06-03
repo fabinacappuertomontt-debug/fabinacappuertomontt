@@ -20,6 +20,7 @@ from django.views.generic import CreateView, ListView, UpdateView
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 import json
+import logging
 import secrets
 import threading
 import time
@@ -49,6 +50,7 @@ from .forms import (
 from .gemini_service import analizar_borrador_trl, analizar_etapa_trl, analizar_trl, generar_mesa_trabajo_ia, generar_estructura_proyecto_ia
 from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario
 
+logger = logging.getLogger("proyectos.views")
 
 def correos_admin_laboratorio():
     return getattr(settings, "LAB_ADMIN_EMAILS", set())
@@ -1377,31 +1379,53 @@ def generar_mesa_trabajo_ia_async(proyecto_id):
         proyecto = Proyecto.objects.prefetch_related("fases", "responsables", "objetivos__resultados__indicadores").get(pk=proyecto_id)
         fases_validas = fases_validas_para_mesa(proyecto)
         plan = generar_mesa_trabajo_ia(proyecto, fases_validas)
-        if not plan.get("ok") or (time.monotonic() - inicio) > 60:
-            tareas = aplicar_plan_mesa_trabajo(proyecto, plan_mesa_por_reglas(proyecto))
-            actualizar_estado_mesa_trabajo(
-                proyecto,
-                Proyecto.MesaTrabajoEstado.ERROR,
-                f"La IA no alcanzo a responder correctamente. Se dejo una mesa base por reglas con {tareas} tareas.",
+        tiempo_total = time.monotonic() - inicio
+
+        if not plan.get("ok") or tiempo_total > 60:
+            # Ambas IAs fallaron o tardaron demasiado
+            # Aplicar reglas (puede dar 0 si las tareas base ya existen)
+            aplicar_plan_mesa_trabajo(proyecto, plan_mesa_por_reglas(proyecto))
+            total_tareas = proyecto.tareas.count()
+            logger.warning(
+                "[IA] Ambas IAs fallaron para proyecto %s (%.1fs). Tareas en BD: %s.",
+                proyecto_id, tiempo_total, total_tareas
             )
+            if total_tareas > 0:
+                # Ya hay tareas base — dejar como LISTA para que el usuario pueda trabajar
+                actualizar_estado_mesa_trabajo(
+                    proyecto,
+                    Proyecto.MesaTrabajoEstado.LISTA,
+                    f"La IA no respondio a tiempo. Se usa la mesa base preparada con {total_tareas} tareas. Puedes editar el proyecto para regenerarla.",
+                )
+            else:
+                actualizar_estado_mesa_trabajo(
+                    proyecto,
+                    Proyecto.MesaTrabajoEstado.ERROR,
+                    "La IA no respondio y no se pudieron crear tareas. Edita y guarda el proyecto para intentarlo nuevamente.",
+                )
             return
+
         tareas = aplicar_plan_mesa_trabajo(proyecto, plan)
+        total_tareas = proyecto.tareas.count()
+        logger.info("[IA] Mesa generada con IA para proyecto %s. Tareas nuevas: %s, total: %s.", proyecto_id, tareas, total_tareas)
         actualizar_estado_mesa_trabajo(
             proyecto,
             Proyecto.MesaTrabajoEstado.LISTA,
-            f"Mesa de trabajo generada con IA. Se agregaron {tareas} tareas sugeridas.",
+            f"Mesa de trabajo generada con IA ({plan.get('origen','ia')}). {total_tareas} tareas en total.",
         )
-    except Exception:
+    except Exception as exc:
+        logger.exception("[IA] Error inesperado en hilo IA para proyecto %s: %s", proyecto_id, exc)
         try:
             proyecto = Proyecto.objects.prefetch_related("fases", "responsables", "objetivos__resultados__indicadores").get(pk=proyecto_id)
-            tareas = aplicar_plan_mesa_trabajo(proyecto, plan_mesa_por_reglas(proyecto))
+            aplicar_plan_mesa_trabajo(proyecto, plan_mesa_por_reglas(proyecto))
+            total_tareas = proyecto.tareas.count()
             actualizar_estado_mesa_trabajo(
                 proyecto,
-                Proyecto.MesaTrabajoEstado.ERROR,
-                f"Ocurrio un problema con la IA. Se dejo una mesa base por reglas con {tareas} tareas.",
+                Proyecto.MesaTrabajoEstado.LISTA if total_tareas > 0 else Proyecto.MesaTrabajoEstado.ERROR,
+                f"Ocurrio un error con la IA. Mesa base disponible con {total_tareas} tareas.",
             )
-        except Exception:
-            pass
+        except Exception as exc2:
+            logger.exception("[IA] Error en fallback de reglas para proyecto %s: %s", proyecto_id, exc2)
     finally:
         close_old_connections()
 
