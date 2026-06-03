@@ -1224,7 +1224,8 @@ def crear_fases_para_proyecto(proyecto):
 
 def fases_validas_para_mesa(proyecto):
     if proyecto.usa_trl:
-        return list(range(proyecto.trl_inicial_efectivo + 1, proyecto.trl_objetivo_efectivo + 1))
+        # Incluye trl_inicial para que resultados ligados al nivel de partida tambien tengan tareas
+        return list(range(proyecto.trl_inicial_efectivo, proyecto.trl_objetivo_efectivo + 1))
     return [numero for numero, _, _ in fases_por_tipo(Proyecto.TipoProyecto.GENERAL)]
 
 
@@ -1259,8 +1260,8 @@ def plan_mesa_por_reglas(proyecto):
             etapas.append({
                 "fase": fase_numero,
                 "criterio": resumen_objetivo_de_fase(proyecto, fase_numero),
-                "tareas": tareas[:8],
-                "evidencias_sugeridas": evidencias[:8],
+                "tareas": tareas[:12],
+                "evidencias_sugeridas": evidencias[:12],
             })
         return {"ok": True, "origen": "reglas", "etapas": etapas}
 
@@ -1330,10 +1331,10 @@ def aplicar_plan_mesa_trabajo(proyecto, plan):
         evidencias = [str(item).strip() for item in etapa.get("evidencias_sugeridas", []) if str(item).strip()]
         criterio = str(etapa.get("criterio", "")).strip()
         cambios = []
-        if evidencias and fase.evidencias_sugeridas != evidencias[:8]:
-            fase.evidencias_sugeridas = evidencias[:8]
+        if evidencias and fase.evidencias_sugeridas != evidencias[:12]:
+            fase.evidencias_sugeridas = evidencias[:12]
             cambios.append("evidencias_sugeridas")
-        if criterio and not proyecto.usa_trl and fase.objetivo != criterio:
+        if criterio and fase.objetivo != criterio:
             fase.objetivo = criterio
             cambios.append("objetivo")
         if cambios:

@@ -194,8 +194,8 @@ def _normalizar_plan_mesa(datos, fases_validas):
         etapas.append({
             "fase": fase,
             "criterio": str(etapa.get("criterio", "")).strip(),
-            "tareas": tareas[:8],
-            "evidencias_sugeridas": evidencias[:8],
+            "tareas": tareas[:12],
+            "evidencias_sugeridas": evidencias[:12],
         })
     if not etapas:
         return PLAN_MESA_FALLBACK.copy()
@@ -234,7 +234,7 @@ def _limpiar_json_modelo(texto):
 
 
 def _timeout_ia():
-    return max(5, min(int(getattr(settings, "AI_TIMEOUT_SECONDS", 25)), 60))
+    return max(5, min(int(getattr(settings, "AI_TIMEOUT_SECONDS", 45)), 90))
 
 
 def _respuesta_fallo_trl(respuesta):
