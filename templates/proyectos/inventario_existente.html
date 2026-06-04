@@ -1,0 +1,398 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ titulo }} — Inventario{% endblock %}
+
+{% block content %}
+<div class="inv-form-page">
+
+    <header class="workspace-hero">
+        <div>
+            <span class="eyebrow">Inventario del laboratorio</span>
+            <h1>{{ titulo }}</h1>
+            <p>{{ descripcion }}</p>
+        </div>
+        <a class="btn btn-outline-secondary" href="{% url 'inventario_lista' %}">Volver</a>
+    </header>
+
+    <div class="row g-4">
+        <!-- Columna de búsqueda y preview del ítem -->
+        <div class="col-lg-6">
+            <!-- Buscar ítem existente -->
+            <div class="inv-card">
+                <div class="inv-card-header">
+                    <i class="bi bi-search"></i>
+                    <span>1. Seleccionar ítem existente</span>
+                </div>
+                <div class="inv-card-body">
+                    <!-- Selector de modo de búsqueda -->
+                    <div class="d-flex gap-2 mb-3">
+                        <button type="button" class="btn btn-outline-primary active w-50" id="btn-modo-nombre">
+                            <i class="bi bi-keyboard me-2"></i> Buscar por nombre
+                        </button>
+                        <button type="button" class="btn btn-outline-primary w-50" id="btn-modo-escaner">
+                            <i class="bi bi-upc-scan me-2"></i> Escanear código
+                        </button>
+                    </div>
+
+                    <!-- Input de búsqueda por nombre -->
+                    <div id="wrapper-buscar-nombre">
+                        <div class="inv-field">
+                            <label class="form-label" for="input-search-name">Nombre, código o ubicación</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="text" id="input-search-name" class="form-control" placeholder="Escribe para buscar..." autocomplete="off">
+                            </div>
+                        </div>
+                        
+                        <!-- Lista de resultados -->
+                        <div class="list-group mt-2 border shadow-sm" id="search-results-list" style="max-height: 250px; overflow-y: auto; display: none;">
+                            <!-- Items via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Input de escaneo con pistola -->
+                    <div id="wrapper-buscar-escaner" style="display: none;">
+                        <div class="inv-lector-hint mb-3">
+                            <i class="bi bi-upc-scan animate-pulse"></i>
+                            <div>
+                                <strong>Lector de pistola activo</strong>
+                                <span>Escanea directamente el código de barras. El sistema cargará los detalles automáticamente.</span>
+                            </div>
+                        </div>
+                        <div class="inv-field">
+                            <label class="form-label" for="input-search-barcode">Código de barras</label>
+                            <input type="text" id="input-search-barcode" class="form-control" placeholder="Esperando escaneo..." autocomplete="off">
+                        </div>
+                    </div>
+
+                    <!-- Alerta de no encontrado -->
+                    <div class="alert alert-warning mt-3" id="alert-not-found" style="display: none;">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <span>No se encontró ningún ítem con ese código.</span>
+                        <div class="mt-2">
+                            <a href="{% url 'inventario_crear' %}" id="link-crear-nuevo-item" class="btn btn-sm btn-warning text-dark">
+                                <i class="bi bi-plus-circle me-1"></i> Registrar como ítem nuevo
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card de Vista Previa del Ítem Seleccionado -->
+            <div class="inv-card mt-4" id="item-preview-card" style="display: none;">
+                <div class="inv-card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-box-seam text-primary"></i>
+                        <span>Detalles del ítem seleccionado</span>
+                    </div>
+                    <button type="button" class="btn btn-xs btn-outline-secondary btn-sm" id="btn-cambiar-item">
+                        <i class="bi bi-x-circle"></i> Cambiar
+                    </button>
+                </div>
+                <div class="inv-card-body">
+                    <div class="d-flex flex-column gap-2">
+                        <div>
+                            <span class="badge bg-primary mb-1" id="preview-area">Área</span>
+                            <span class="badge bg-secondary mb-1" id="preview-tipo">Tipo</span>
+                        </div>
+                        <h3 class="m-0" id="preview-nombre">Nombre del material</h3>
+                        <hr class="my-2">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <small class="text-muted d-block">Stock actual</small>
+                                <strong class="fs-4 text-dark" id="preview-stock">0.00</strong>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted d-block">Ubicación</small>
+                                <span class="fs-6" id="preview-ubicacion">No especificada</span>
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-1">
+                            <div class="col-12" id="preview-barcode-wrapper" style="display:none;">
+                                <small class="text-muted d-block">Código de barras</small>
+                                <code id="preview-barcode">INV-XXX</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Columna de formulario de ajuste -->
+        <div class="col-lg-6">
+            <div class="inv-card h-100" id="card-ajuste-stock" style="opacity: 0.6; pointer-events: none;">
+                <div class="inv-card-header">
+                    <i class="bi bi-plus-circle-dotted"></i>
+                    <span>2. Registrar ingreso de stock</span>
+                </div>
+                <div class="inv-card-body">
+                    <form method="post" id="form-stock-existente" class="inv-form">
+                        {% csrf_token %}
+                        {{ form.non_field_errors }}
+                        
+                        <!-- Campo oculto para el item ID -->
+                        {{ form.item_id }}
+                        {% for err in form.item_id.errors %}<div class="inv-error">{{ err }}</div>{% endfor %}
+
+                        <div class="inv-field mb-3">
+                            <label class="form-label" for="{{ form.cantidad.id_for_label }}">
+                                {{ form.cantidad.label }} <span class="req">*</span>
+                            </label>
+                            {{ form.cantidad }}
+                            {% for err in form.cantidad.errors %}<div class="inv-error">{{ err }}</div>{% endfor %}
+                        </div>
+
+                        <div class="inv-field mb-3">
+                            <label class="form-label" for="{{ form.motivo.id_for_label }}">
+                                {{ form.motivo.label }} <span class="req">*</span>
+                            </label>
+                            {{ form.motivo }}
+                            {% for err in form.motivo.errors %}<div class="inv-error">{{ err }}</div>{% endfor %}
+                        </div>
+
+                        <div class="inv-field mb-3">
+                            <label class="form-label" for="{{ form.observacion.id_for_label }}">
+                                {{ form.observacion.label }}
+                            </label>
+                            {{ form.observacion }}
+                            {% for err in form.observacion.errors %}<div class="inv-error">{{ err }}</div>{% endfor %}
+                        </div>
+
+                        <div class="inv-form-actions mt-4">
+                            <button class="btn btn-primary w-100 py-2 fs-5" type="submit" id="btn-submit-stock">
+                                <i class="bi bi-check-circle me-2"></i> Agregar al stock
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Referencias DOM
+    const btnModoNombre = document.getElementById('btn-modo-nombre');
+    const btnModoEscaner = document.getElementById('btn-modo-escaner');
+    const wrapperBuscarNombre = document.getElementById('wrapper-buscar-nombre');
+    const wrapperBuscarEscaner = document.getElementById('wrapper-buscar-escaner');
+    
+    const inputSearchName = document.getElementById('input-search-name');
+    const inputSearchBarcode = document.getElementById('input-search-barcode');
+    const searchResultsList = document.getElementById('search-results-list');
+    const alertNotFound = document.getElementById('alert-not-found');
+    const linkCrearNuevoItem = document.getElementById('link-crear-nuevo-item');
+    
+    const itemPreviewCard = document.getElementById('item-preview-card');
+    const previewNombre = document.getElementById('preview-nombre');
+    const previewArea = document.getElementById('preview-area');
+    const previewTipo = document.getElementById('preview-tipo');
+    const previewStock = document.getElementById('preview-stock');
+    const previewUbicacion = document.getElementById('preview-ubicacion');
+    const previewBarcode = document.getElementById('preview-barcode');
+    const previewBarcodeWrapper = document.getElementById('preview-barcode-wrapper');
+    const btnCambiarItem = document.getElementById('btn-cambiar-item');
+    
+    const cardAjusteStock = document.getElementById('card-ajuste-stock');
+    const inputItemId = document.getElementById('{{ form.item_id.id_for_label }}');
+    const inputCantidad = document.getElementById('{{ form.cantidad.id_for_label }}');
+    
+    let debounceTimer;
+
+    // 1. Control de Modos
+    function setModo(modo) {
+        if (modo === 'nombre') {
+            btnModoNombre.classList.add('active');
+            btnModoEscaner.classList.remove('active');
+            wrapperBuscarNombre.style.display = 'block';
+            wrapperBuscarEscaner.style.display = 'none';
+            inputSearchBarcode.blur();
+            setTimeout(() => inputSearchName.focus(), 50);
+        } else {
+            btnModoEscaner.classList.add('active');
+            btnModoNombre.classList.remove('active');
+            wrapperBuscarNombre.style.display = 'none';
+            wrapperBuscarEscaner.style.display = 'block';
+            inputSearchName.blur();
+            focusBarcodeField();
+        }
+    }
+
+    btnModoNombre.addEventListener('click', () => setModo('nombre'));
+    btnModoEscaner.addEventListener('click', () => setModo('escaner'));
+
+    // Enfoque constante en modo escáner
+    function focusBarcodeField() {
+        if (btnModoEscaner.classList.contains('active')) {
+            inputSearchBarcode.focus();
+        }
+    }
+    
+    window.addEventListener('focus', focusBarcodeField);
+    document.addEventListener('click', (e) => {
+        if (btnModoEscaner.classList.contains('active') && e.target !== inputSearchBarcode) {
+            // Permitir hacer clic en otros campos si la sección de ajuste de stock está activa
+            const formActive = cardAjusteStock.style.pointerEvents !== 'none';
+            if (formActive && cardAjusteStock.contains(e.target)) {
+                return; // no forzar foco al escaner si interactúa con el form
+            }
+            focusBarcodeField();
+        }
+    });
+
+    // 2. Selección de Ítem
+    function selectItem(item) {
+        // Rellenar preview
+        previewNombre.textContent = item.nombre;
+        previewArea.textContent = item.area;
+        previewTipo.textContent = item.tipo;
+        previewStock.textContent = item.cantidad_texto;
+        previewUbicacion.textContent = item.ubicacion || 'No especificada';
+        if (item.codigo_barra) {
+            previewBarcode.textContent = item.codigo_barra;
+            previewBarcodeWrapper.style.display = 'block';
+        } else {
+            previewBarcodeWrapper.style.display = 'none';
+        }
+        
+        itemPreviewCard.style.display = 'block';
+        alertNotFound.style.display = 'none';
+        searchResultsList.style.display = 'none';
+        
+        // Habilitar Formulario
+        inputItemId.value = item.id;
+        cardAjusteStock.style.opacity = '1';
+        cardAjusteStock.style.pointerEvents = 'auto';
+        
+        // Enfocar cantidad
+        setTimeout(() => inputCantidad.focus(), 100);
+    }
+
+    function deselectItem() {
+        itemPreviewCard.style.display = 'none';
+        inputItemId.value = '';
+        cardAjusteStock.style.opacity = '0.6';
+        cardAjusteStock.style.pointerEvents = 'none';
+        inputSearchName.value = '';
+        inputSearchBarcode.value = '';
+        alertNotFound.style.display = 'none';
+        
+        if (btnModoNombre.classList.contains('active')) {
+            inputSearchName.focus();
+        } else {
+            focusBarcodeField();
+        }
+    }
+
+    btnCambiarItem.addEventListener('click', deselectItem);
+
+    // Preselección si viene por URL
+    {% if preselected_item %}
+    selectItem({
+        id: {{ preselected_item.id }},
+        nombre: "{{ preselected_item.nombre|escapejs }}",
+        area: "{{ preselected_item.get_area_display|escapejs }}",
+        tipo: "{{ preselected_item.get_tipo_display|escapejs }}",
+        cantidad_texto: "{{ preselected_item.cantidad_texto|escapejs }}",
+        ubicacion: "{{ preselected_item.ubicacion|escapejs }}",
+        codigo_barra: "{{ preselected_item.codigo_barra|escapejs }}"
+    });
+    {% endif %}
+
+    // 3. Búsqueda por Nombre (AJAX)
+    inputSearchName.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        const query = inputSearchName.value.trim();
+        if (query.length < 2) {
+            searchResultsList.style.display = 'none';
+            return;
+        }
+
+        debounceTimer = setTimeout(() => {
+            fetch(`{% url 'inventario_buscar_json' %}?q=${encodeURIComponent(query)}`)
+                .then(res => res.json())
+                .then(data => {
+                    searchResultsList.innerHTML = '';
+                    if (data.items && data.items.length > 0) {
+                        data.items.forEach(item => {
+                            const btn = document.createElement('button');
+                            btn.type = 'button';
+                            btn.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2';
+                            btn.innerHTML = `
+                                <div>
+                                    <strong class="text-dark">${escapeHtml(item.nombre)}</strong>
+                                    <div class="text-muted small">${escapeHtml(item.area)} • ${escapeHtml(item.tipo)}</div>
+                                </div>
+                                <span class="badge bg-light text-dark border">${escapeHtml(item.cantidad_texto)}</span>
+                            `;
+                            btn.addEventListener('click', () => selectItem(item));
+                            searchResultsList.appendChild(btn);
+                        });
+                        searchResultsList.style.display = 'block';
+                        alertNotFound.style.display = 'none';
+                    } else {
+                        searchResultsList.style.display = 'none';
+                        alertNotFound.style.display = 'block';
+                        linkCrearNuevoItem.href = `{% url 'inventario_crear' %}?codigo_barra=${encodeURIComponent(query)}`;
+                    }
+                })
+                .catch(err => console.error("Error en búsqueda:", err));
+        }, 300);
+    });
+
+    // 4. Búsqueda por Código (Lector / Pistola)
+    inputSearchBarcode.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const code = inputSearchBarcode.value.trim();
+            if (!code) return;
+
+            fetch(`{% url 'inventario_buscar_json' %}?codigo=${encodeURIComponent(code)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.items && data.items.length > 0) {
+                        selectItem(data.items[0]);
+                        inputSearchBarcode.value = '';
+                    } else {
+                        alertNotFound.style.display = 'block';
+                        linkCrearNuevoItem.href = `{% url 'inventario_crear' %}?codigo_barra=${encodeURIComponent(code)}&cantidad=1`;
+                        inputSearchBarcode.value = '';
+                    }
+                })
+                .catch(err => console.error("Error al buscar código:", err));
+        }
+    });
+
+    // Capturar entrada del teclado si no está en ningún campo, para mandar al escaner (pistola)
+    document.addEventListener('keydown', (e) => {
+        // Solo si estamos en modo escáner
+        if (!btnModoEscaner.classList.contains('active')) return;
+        
+        // Evitar interceptar si ya está en inputs del form de la derecha
+        const active = document.activeElement;
+        if (active && ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(active.tagName) && active !== inputSearchBarcode) {
+            return;
+        }
+
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+        if (active !== inputSearchBarcode) {
+            if (e.key.length === 1) {
+                e.preventDefault();
+                inputSearchBarcode.focus();
+                inputSearchBarcode.value += e.key;
+            }
+        }
+    });
+
+    // Helpers
+    function escapeHtml(text) {
+        if (!text) return '';
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+});
+</script>
+{% endblock %}

@@ -257,6 +257,7 @@ class Proyecto(models.Model):
         ERROR = "error", "Con respaldo por reglas"
 
     nombre = models.CharField(max_length=200)
+    foto = models.ImageField("Foto del proyecto", upload_to="proyectos/%Y/%m/", blank=True, null=True)
     organizacion = models.ForeignKey(
         Organizacion,
         on_delete=models.PROTECT,
@@ -385,6 +386,12 @@ class Proyecto(models.Model):
                 return "Proyecto en pausa"
             return "Próximo a vencer"
         return "Avance normal"
+
+    @property
+    def responsables_sin_creador(self):
+        if self.creador:
+            return self.responsables.exclude(pk=self.creador.pk)
+        return self.responsables.all()
 
 
 
@@ -880,34 +887,49 @@ class RevisionIAEtapa(models.Model):
 
 class ItemInventario(models.Model):
     class Area(models.TextChoices):
-        IMPRESION_3D = "impresion_3d", "Impresión 3D"
-        COMPUTACION = "computacion", "Computación"
-        HERRAMIENTAS = "herramientas", "Herramientas"
-        ELECTRONICA = "electronica", "Electrónica"
-        INSUMOS = "insumos", "Insumos"
-        OTROS = "otros", "Otros"
+        IMPRESION_3D    = "impresion_3d",   "Impresión 3D"
+        ELECTRONICA     = "electronica",    "Electrónica"
+        CORTE_LASER     = "corte_laser",    "Corte láser"
+        VINILO_PLOTEO   = "vinilo_ploteo",  "Vinilo / ploteo"
+        CARPINTERIA_CNC = "carpinteria_cnc","Carpintería / CNC"
+        COSTURA_TEXTIL  = "costura_textil", "Costura / textil"
+        GENERAL         = "general",        "General / bodega"
 
     class Tipo(models.TextChoices):
-        FUNGIBLE = "fungible", "Fungible"
-        NO_FUNGIBLE = "no_fungible", "No fungible"
+        MATERIAL    = "material",    "Material / insumo"
+        FILAMENTO   = "filamento",   "Filamento"
+        HERRAMIENTA = "herramienta", "Herramienta"
+        EQUIPO      = "equipo",      "Equipo / máquina"
+        COMPONENTE  = "componente",  "Componente electrónico"
+        CABLE       = "cable",       "Cable / conector"
+        OTRO        = "otro",        "Otro"
+        # Valores legacy (compatibilidad con registros anteriores)
+        FUNGIBLE    = "fungible",    "Fungible (legacy)"
+        NO_FUNGIBLE = "no_fungible", "No fungible (legacy)"
 
-    nombre = models.CharField(max_length=180)
+    # Tipos que descuentan stock al usarse
+    TIPOS_FUNGIBLES = {"material", "filamento", "componente", "cable", "fungible"}
+
+    class Estado(models.TextChoices):
+        DISPONIBLE    = "disponible",    "Disponible"
+        LIMITADO      = "limitado",      "Stock limitado"
+        RESERVADO     = "reservado",     "Reservado"
+        MANTENIMIENTO = "mantenimiento", "En mantenimiento"
+        AGOTADO       = "agotado",       "Agotado"
+
+    nombre       = models.CharField(max_length=180)
     codigo_barra = models.CharField(max_length=80, blank=True, null=True)
-    sede = models.CharField(
-        max_length=30,
-        choices=Sede.choices,
-        default=Sede.PUERTO_MONTT,
-    )
-    area = models.CharField(max_length=30, choices=Area.choices)
-    categoria = models.CharField(max_length=120)
-    tipo = models.CharField(max_length=20, choices=Tipo.choices)
-    cantidad = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    unidad = models.CharField(max_length=40)
+    sede         = models.CharField(max_length=30, choices=Sede.choices, default=Sede.PUERTO_MONTT)
+    area         = models.CharField(max_length=30, choices=Area.choices)
+    categoria    = models.CharField(max_length=120, blank=True)
+    tipo         = models.CharField(max_length=20, choices=Tipo.choices)
+    cantidad     = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    unidad       = models.CharField(max_length=40)
     stock_minimo = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    estado = models.CharField(max_length=120)
-    ubicacion = models.CharField(max_length=160, blank=True)
-    observacion = models.TextField(blank=True)
-    activo = models.BooleanField(default=True)
+    estado       = models.CharField(max_length=30, choices=Estado.choices, default=Estado.DISPONIBLE)
+    ubicacion    = models.CharField(max_length=160, blank=True)
+    observacion  = models.TextField(blank=True)
+    activo       = models.BooleanField(default=True)
     actualizado_en = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -923,7 +945,7 @@ class ItemInventario(models.Model):
 
     @property
     def descuenta_stock(self):
-        return self.tipo == self.Tipo.FUNGIBLE
+        return self.tipo in self.TIPOS_FUNGIBLES
 
     @property
     def bajo_stock(self):
@@ -978,6 +1000,38 @@ class UsoInventario(models.Model):
 
     def __str__(self):
         return f"{self.item} usado en {self.proyecto}"
+
+
+
+class MovimientoStock(models.Model):
+    """Registro de cada entrada o ajuste de stock de un ítem de inventario."""
+
+    class Motivo(models.TextChoices):
+        COMPRA     = "compra",     "Compra"
+        DONACION   = "donacion",   "Donación"
+        DEVOLUCION = "devolucion", "Devolución"
+        AJUSTE     = "ajuste",     "Ajuste de inventario"
+        PRODUCCION = "produccion", "Producción propia"
+        OTRO       = "otro",       "Otro"
+
+    item       = models.ForeignKey(
+        ItemInventario, on_delete=models.CASCADE, related_name="movimientos"
+    )
+    cantidad   = models.DecimalField(max_digits=10, decimal_places=2)
+    motivo     = models.CharField(max_length=20, choices=Motivo.choices, blank=True)
+    observacion = models.TextField(blank=True)
+    usuario    = models.ForeignKey(
+        Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name="movimientos_stock"
+    )
+    fecha      = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-fecha"]
+        verbose_name = "movimiento de stock"
+        verbose_name_plural = "movimientos de stock"
+
+    def __str__(self):
+        return f"+{self.cantidad} {self.item} ({self.get_motivo_display()})"
 
 
 class MensajePrivado(models.Model):

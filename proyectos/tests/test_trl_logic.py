@@ -1,5 +1,5 @@
 import json
-from datetime import timedelta
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from django.core import mail
@@ -36,8 +36,8 @@ class TrlStressLogicTests(TestCase):
             tipo_proyecto=Proyecto.TipoProyecto.TECNOLOGICO,
             trl_inicial=3,
             trl_objetivo=7,
-            fecha_inicio=timezone.localdate(),
-            fecha_fin=timezone.localdate() + timedelta(days=180),
+            fecha_inicio=date(2026, 1, 1),
+            fecha_fin=date(2026, 1, 1) + timedelta(days=180),
             estado=Proyecto.Estado.EN_PROCESO,
         )
         proyecto.responsables.add(self.usuario)
@@ -50,8 +50,8 @@ class TrlStressLogicTests(TestCase):
             descripcion="Proyecto simple para validar avance por objetivos.",
             metodologia=Proyecto.Metodologia.SIMPLE,
             tipo_proyecto=Proyecto.TipoProyecto.GENERAL,
-            fecha_inicio=timezone.localdate(),
-            fecha_fin=timezone.localdate() + timedelta(days=90),
+            fecha_inicio=date(2026, 1, 1),
+            fecha_fin=date(2026, 1, 1) + timedelta(days=90),
             estado=Proyecto.Estado.EN_PROCESO,
         )
         proyecto.responsables.add(self.usuario)

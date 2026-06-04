@@ -1,101 +1,416 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
-{% block title %}{{ titulo }}{% endblock %}
+{% block title %}{{ titulo }} — Inventario{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <div>
-        <span class="eyebrow">Inventario laboratorio</span>
-        <h1>{{ titulo }}</h1>
-        <p>{{ descripcion }}</p>
-    </div>
-    <a class="btn btn-outline-secondary" href="{% url volver_url %}">Volver</a>
-</div>
+<div class="inv-form-page">
 
-<div class="row justify-content-center">
-    <div class="col-lg-7">
-        <form method="post" class="form-panel" {% if modo_lector %}data-barcode-reader="true"{% elif captura_codigo_barra %}data-barcode-capture="true"{% endif %}>
-            {% csrf_token %}
-            {% if modo_lector %}
-                <div class="barcode-reader-hint">
-                    <strong>Lector listo</strong>
-                    <span>Escanea directamente. El sistema mantiene activo el campo de código y guarda cuando el lector envía Enter.</span>
-                </div>
-            {% endif %}
-            {{ form.non_field_errors }}
-            {% for field in form %}
-                <div class="mb-3">
-                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                    {{ field }}
-                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-                    {% for error in field.errors %}
-                        <div class="text-danger small">{{ error }}</div>
-                    {% endfor %}
-                </div>
-            {% endfor %}
-            <div class="d-flex gap-2">
-                <button class="btn btn-primary" type="submit">{{ boton }}</button>
-                <a class="btn btn-outline-secondary" href="{% url volver_url %}">Cancelar</a>
+    <header class="workspace-hero">
+        <div>
+            <span class="eyebrow">Inventario del laboratorio</span>
+            <h1>{{ titulo }}</h1>
+            <p>{{ descripcion }}</p>
+        </div>
+        <a class="btn btn-outline-secondary" href="{% url 'inventario_lista' %}">Volver</a>
+    </header>
+
+    {% if modo_lector %}
+    <div class="inv-lector-hint">
+        <i class="bi bi-upc-scan"></i>
+        <div>
+            <strong>Lector listo</strong>
+            <span>Escanea directamente. El sistema mantiene activo el campo de código y guarda cuando el lector envía Enter.</span>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if modo_ajuste %}
+    <form method="post" class="inv-form" id="inventario-form">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+
+        <div class="inv-card">
+            <div class="inv-card-header">
+                <i class="bi bi-plus-circle-dotted"></i>
+                <span>Ingreso de Stock</span>
             </div>
-        </form>
-    </div>
+            <div class="inv-card-body">
+                <div class="inv-field mb-3">
+                    <label class="form-label" for="{{ form.cantidad.id_for_label }}">
+                        {{ form.cantidad.label }} <span class="req">*</span>
+                    </label>
+                    {{ form.cantidad }}
+                    {% for err in form.cantidad.errors %}<div class="inv-error">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="inv-field mb-3">
+                    <label class="form-label" for="{{ form.motivo.id_for_label }}">
+                        {{ form.motivo.label }} <span class="req">*</span>
+                    </label>
+                    {{ form.motivo }}
+                    {% for err in form.motivo.errors %}<div class="inv-error">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="inv-field mb-3">
+                    <label class="form-label" for="{{ form.observacion.id_for_label }}">
+                        {{ form.observacion.label }}
+                    </label>
+                    {{ form.observacion }}
+                    {% for err in form.observacion.errors %}<div class="inv-error">{{ err }}</div>{% endfor %}
+                </div>
+            </div>
+        </div>
+
+        {# ── Botones ── #}
+        <div class="inv-form-actions">
+            <button class="btn btn-primary" type="submit" id="btn-guardar-item">{{ boton }}</button>
+            <a class="btn btn-outline-secondary" href="{% url 'inventario_lista' %}">Cancelar</a>
+        </div>
+    </form>
+    {% else %}
+    <form method="post"
+          class="inv-form"
+          id="inventario-form"
+          {% if modo_lector %}data-barcode-reader="true"{% elif captura_codigo_barra %}data-barcode-capture="true"{% endif %}>
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+
+        {# ── SECCIÓN 1: Identificación ── #}
+        <div class="inv-card">
+            <div class="inv-card-header">
+                <i class="bi bi-box-seam"></i>
+                <span>Identificación del ítem</span>
+            </div>
+            <div class="inv-card-body">
+                <div class="inv-grid-2">
+                    <div class="inv-field">
+                        <label class="form-label" for="{{ form.nombre.id_for_label }}">
+                            {{ form.nombre.label }} <span class="req">*</span>
+                        </label>
+                        {{ form.nombre }}
+                        {% for err in form.nombre.errors %}<div class="inv-error">{{ err }}</div>{% endfor %}
+                    </div>
+                    <div class="inv-field">
+                        <label class="form-label" for="{{ form.tipo.id_for_label }}">
+                            {{ form.tipo.label }} <span class="req">*</span>
+                        </label>
+                        {{ form.tipo }}
+                        {% for err in form.tipo.errors %}<div class="inv-error">{{ err }}</div>{% endfor %}
+                    </div>
+                </div>
+                <div class="inv-grid-2">
+                    <div class="inv-field">
+                        <label class="form-label" for="{{ form.area.id_for_label }}">
+                            {{ form.area.label }} <span class="req">*</span>
+                        </label>
+                        {{ form.area }}
+                        {% for err in form.area.errors %}<div class="inv-error">{{ err }}</div>{% endfor %}
+                    </div>
+                    <div class="inv-field">
+                        <label class="form-label" for="{{ form.categoria.id_for_label }}">
+                            {{ form.categoria.label }}
+                        </label>
+                        {{ form.categoria }}
+                        {% if form.categoria.help_text %}
+                            <div class="form-text">{{ form.categoria.help_text }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# ── SECCIÓN 2: Código de identificación ── #}
+        <div class="inv-card">
+            <div class="inv-card-header">
+                <i class="bi bi-upc"></i>
+                <span>Código de identificación</span>
+            </div>
+            <div class="inv-card-body">
+                <div class="inv-field">
+                    <label class="form-label" for="{{ form.codigo_barra.id_for_label }}">
+                        {{ form.codigo_barra.label }}
+                    </label>
+                    <div class="inv-codigo-row">
+                        {{ form.codigo_barra }}
+                        <button class="btn btn-outline-secondary" type="button" id="btn-generar-codigo">
+                            <i class="bi bi-arrow-clockwise"></i> Generar código aleatorio
+                        </button>
+                    </div>
+                    {% if form.codigo_barra.help_text %}
+                        <div class="form-text">{{ form.codigo_barra.help_text }}</div>
+                    {% endif %}
+                    {% for err in form.codigo_barra.errors %}<div class="inv-error">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="inv-barcode-preview" id="barcode-preview" style="display:none">
+                    <div class="inv-barcode-left">
+                        <svg id="barcode-svg"></svg>
+                        <span class="inv-barcode-code" id="barcode-label-text"></span>
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="btn-imprimir-etiqueta">
+                        <i class="bi bi-printer"></i> Imprimir etiqueta
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {# ── SECCIÓN 3: Stock y unidades ── #}
+        <div class="inv-card">
+            <div class="inv-card-header">
+                <i class="bi bi-layers"></i>
+                <span>Stock y unidades</span>
+            </div>
+            <div class="inv-card-body">
+                <div class="inv-grid-3">
+                    <div class="inv-field">
+                        <label class="form-label" for="{{ form.cantidad.id_for_label }}">
+                            {{ form.cantidad.label }}
+                        </label>
+                        {{ form.cantidad }}
+                        {% if form.cantidad.help_text %}
+                            <div class="form-text">{{ form.cantidad.help_text }}</div>
+                        {% endif %}
+                        {% for err in form.cantidad.errors %}<div class="inv-error">{{ err }}</div>{% endfor %}
+                    </div>
+                    <div class="inv-field">
+                        <label class="form-label" for="{{ form.unidad.id_for_label }}">
+                            {{ form.unidad.label }} <span class="req">*</span>
+                        </label>
+                        {{ form.unidad }}
+                        {% for err in form.unidad.errors %}<div class="inv-error">{{ err }}</div>{% endfor %}
+                    </div>
+                    <div class="inv-field">
+                        <label class="form-label" for="{{ form.stock_minimo.id_for_label }}">
+                            {{ form.stock_minimo.label }}
+                        </label>
+                        {{ form.stock_minimo }}
+                        {% if form.stock_minimo.help_text %}
+                            <div class="form-text">{{ form.stock_minimo.help_text }}</div>
+                        {% endif %}
+                        {% for err in form.stock_minimo.errors %}<div class="inv-error">{{ err }}</div>{% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# ── SECCIÓN 4: Estado y ubicación ── #}
+        <div class="inv-card">
+            <div class="inv-card-header">
+                <i class="bi bi-geo-alt"></i>
+                <span>Estado y ubicación</span>
+            </div>
+            <div class="inv-card-body">
+                <div class="inv-grid-2">
+                    <div class="inv-field">
+                        <label class="form-label" for="{{ form.estado.id_for_label }}">
+                            {{ form.estado.label }} <span class="req">*</span>
+                        </label>
+                        {{ form.estado }}
+                        {% for err in form.estado.errors %}<div class="inv-error">{{ err }}</div>{% endfor %}
+                    </div>
+                    <div class="inv-field">
+                        <label class="form-label" for="{{ form.ubicacion.id_for_label }}">
+                            {{ form.ubicacion.label }}
+                        </label>
+                        {{ form.ubicacion }}
+                        {% if form.ubicacion.help_text %}
+                            <div class="form-text">{{ form.ubicacion.help_text }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="inv-field">
+                    <label class="form-label" for="{{ form.observacion.id_for_label }}">
+                        {{ form.observacion.label }}
+                    </label>
+                    {{ form.observacion }}
+                    {% if form.observacion.help_text %}
+                        <div class="form-text">{{ form.observacion.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        {# ── Botones ── #}
+        <div class="inv-form-actions">
+            <button class="btn btn-primary" type="submit" id="btn-guardar-item">{{ boton }}</button>
+            <a class="btn btn-outline-secondary" href="{% url 'inventario_lista' %}">Cancelar</a>
+        </div>
+
+    </form>
+    {% endif %}
 </div>
-{% if modo_lector or captura_codigo_barra %}
+
+
+{% if not modo_ajuste %}
 <script>
-    document.addEventListener("DOMContentLoaded", () => {
-        const form = document.querySelector("[data-barcode-reader='true'], [data-barcode-capture='true']");
-        if (!form) {
-            return;
-        }
+/* ── Generador de código aleatorio ── */
+function generarCodigo() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = 'INV-';
+    for (let i = 0; i < 12; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+}
 
-        const barcodeInput = form.querySelector("[name='codigo_barra']");
-        const isReaderMode = form.dataset.barcodeReader === "true";
-        const messageModal = document.getElementById("messageModal");
+document.addEventListener('DOMContentLoaded', () => {
+    const codigoInput  = document.getElementById('{{ form.codigo_barra.id_for_label }}');
+    const nombreInput  = document.getElementById('{{ form.nombre.id_for_label }}');
+    const btnGenerar   = document.getElementById('btn-generar-codigo');
+    const btnImprimir  = document.getElementById('btn-imprimir-etiqueta');
+    const preview      = document.getElementById('barcode-preview');
+    const labelText    = document.getElementById('barcode-label-text');
 
-        const focusBarcode = () => {
-            if (!barcodeInput || barcodeInput.disabled) {
-                return;
-            }
-            barcodeInput.focus({ preventScroll: true });
-            barcodeInput.select();
-        };
-
-        if (isReaderMode && messageModal && window.bootstrap) {
-            const modal = bootstrap.Modal.getOrCreateInstance(messageModal);
-            setTimeout(() => {
-                modal.hide();
-                focusBarcode();
-            }, 900);
-            messageModal.addEventListener("hidden.bs.modal", focusBarcode);
-        }
-
-        setTimeout(focusBarcode, 80);
-        window.addEventListener("focus", focusBarcode);
-
-        document.addEventListener("keydown", (event) => {
-            if (!barcodeInput || event.ctrlKey || event.metaKey || event.altKey) {
-                return;
-            }
-
-            const active = document.activeElement;
-            const activeIsField = active && ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(active.tagName);
-
-            if (activeIsField && active !== barcodeInput) {
-                return;
-            }
-
-            if (active !== barcodeInput) {
-                if (event.key.length === 1) {
-                    event.preventDefault();
-                    focusBarcode();
-                    barcodeInput.value += event.key;
-                } else if (isReaderMode && event.key === "Enter" && barcodeInput.value.trim()) {
-                    event.preventDefault();
-                    form.requestSubmit();
-                }
-            }
-        });
+    /* Generar código aleatorio */
+    btnGenerar.addEventListener('click', () => {
+        codigoInput.value = generarCodigo();
+        codigoInput.dispatchEvent(new Event('input'));
     });
+
+    /* Mostrar preview al escribir el código */
+    codigoInput.addEventListener('input', () => {
+        const val = codigoInput.value.trim();
+        if (val.length >= 4) {
+            preview.style.display = 'flex';
+            labelText.textContent = val;
+            renderBarcode(val, 'barcode-svg');
+        } else {
+            preview.style.display = 'none';
+        }
+    });
+
+    /* Imprimir etiqueta en ventana popup */
+    btnImprimir.addEventListener('click', () => {
+        const codigo = codigoInput.value.trim();
+        const nombre = nombreInput ? nombreInput.value.trim() : '';
+        if (!codigo) return;
+
+        const svgEl = document.getElementById('barcode-svg');
+        const svgHTML = svgEl ? svgEl.outerHTML : '';
+
+        const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Etiqueta ${codigo}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { display: flex; align-items: center; justify-content: center;
+         min-height: 100vh; background: #fff; font-family: monospace; }
+  .label {
+    border: 2px solid #333;
+    border-radius: 8px;
+    padding: 12px 18px;
+    text-align: center;
+    width: 280px;
+  }
+  .label-nombre {
+    font-size: 13px;
+    font-weight: 700;
+    font-family: sans-serif;
+    margin-bottom: 8px;
+    color: #111;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .label svg { display: block; margin: 0 auto; }
+  .label-codigo { font-size: 10px; margin-top: 5px; letter-spacing: .08em; }
+  .label-fab { font-size: 9px; color: #888; margin-top: 3px; }
+  @media print {
+    body { min-height: auto; }
+    @page { margin: 5mm; size: 80mm 50mm; }
+  }
+</style>
+</head>
+<body>
+  <div class="label">
+    ${nombre ? `<div class="label-nombre">${nombre}</div>` : ''}
+    <svg viewBox="0 0 240 55" width="240" height="55">${svgEl ? svgEl.innerHTML : ''}</svg>
+    <div class="label-codigo">${codigo}</div>
+    <div class="label-fab">INACAP Puerto Montt</div>
+  </div>
+  <script>window.onload = () => { window.print(); }<\/script>
+</body>
+</html>`;
+
+        const win = window.open('', '_blank', 'width=500,height=450,scrollbars=no');
+        win.document.write(html);
+        win.document.close();
+    });
+
+    /* Disparar si ya viene con valor (edición) */
+    if (codigoInput.value.trim().length >= 4) {
+        codigoInput.dispatchEvent(new Event('input'));
+    }
+});
+
+/* Barcode SVG visual (representación decorativa) */
+function renderBarcode(text, svgId) {
+    const svg = document.getElementById(svgId || 'barcode-svg');
+    svg.innerHTML = '';
+    svg.setAttribute('viewBox', '0 0 200 60');
+    svg.setAttribute('width', '200');
+    svg.setAttribute('height', '60');
+
+    /* Barras decorativas basadas en el texto */
+    let x = 5;
+    const barWidth = [1, 2, 3];
+    for (let i = 0; i < text.length; i++) {
+        const code = text.charCodeAt(i);
+        const w1 = barWidth[code % 3] * 1.5;
+        const w2 = barWidth[(code >> 2) % 3];
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', x);
+        rect.setAttribute('y', 4);
+        rect.setAttribute('width', w1);
+        rect.setAttribute('height', 44);
+        rect.setAttribute('fill', '#111');
+        svg.appendChild(rect);
+        x += w1 + w2 + 1;
+        if (x > 195) break;
+    }
+
+    /* Texto debajo */
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', '100');
+    label.setAttribute('y', '58');
+    label.setAttribute('text-anchor', 'middle');
+    label.setAttribute('font-size', '8');
+    label.setAttribute('font-family', 'monospace');
+    label.textContent = text;
+    svg.appendChild(label);
+}
+
+/* ── Lector de código de barras ── */
+{% if modo_lector or captura_codigo_barra %}
+(function () {
+    const form = document.getElementById('inventario-form');
+    const barcodeInput = form.querySelector("[name='codigo_barra']");
+    const isReaderMode = form.dataset.barcodeReader === 'true';
+
+    const focusBarcode = () => {
+        if (!barcodeInput || barcodeInput.disabled) return;
+        barcodeInput.focus({ preventScroll: true });
+        barcodeInput.select();
+    };
+
+    setTimeout(focusBarcode, 80);
+    window.addEventListener('focus', focusBarcode);
+
+    document.addEventListener('keydown', (event) => {
+        if (!barcodeInput || event.ctrlKey || event.metaKey || event.altKey) return;
+        const active = document.activeElement;
+        const activeIsField = active && ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(active.tagName);
+        if (activeIsField && active !== barcodeInput) return;
+        if (active !== barcodeInput) {
+            if (event.key.length === 1) {
+                event.preventDefault();
+                focusBarcode();
+                barcodeInput.value += event.key;
+            } else if (isReaderMode && event.key === 'Enter' && barcodeInput.value.trim()) {
+                event.preventDefault();
+                form.requestSubmit();
+            }
+        }
+    });
+})();
+{% endif %}
 </script>
 {% endif %}
 {% endblock %}

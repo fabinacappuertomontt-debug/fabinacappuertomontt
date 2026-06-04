@@ -30,6 +30,7 @@ urlpatterns = [
     path("inventario/", views.inventario_lista, name="inventario_lista"),
     path("inventario/nuevo/", views.inventario_crear, name="inventario_crear"),
     path("inventario/lector/", views.inventario_lector, name="inventario_lector"),
+    path("inventario/buscar/", views.inventario_buscar_json, name="inventario_buscar_json"),
     path("inventario/<int:pk>/stock/", views.inventario_agregar_stock, name="inventario_agregar_stock"),
     path("proyectos/asistente-ia/", views.asistente_ia_proyecto, name="proyecto_asistente_ia"),
     path("proyectos/nuevo/", views.ProyectoCreateView.as_view(), name="proyecto_crear"),

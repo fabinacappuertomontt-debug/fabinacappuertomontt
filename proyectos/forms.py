@@ -1,7 +1,8 @@
-﻿from django import forms
+from django import forms
 from django.contrib.auth.forms import UserCreationForm
 
-from .models import Area, Avance, Evidencia, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Observacion, Organizacion, Proyecto, ResultadoEsperado, Tarea, TRL_DEFINICIONES, UsoInventario, Usuario, sumar_meses_y_dias
+from .models import Area, Avance, Evidencia, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Observacion, Organizacion, Proyecto, ResultadoEsperado, Tarea, TRL_DEFINICIONES, UsoInventario, Usuario, sumar_meses_y_dias, MovimientoStock
+
 
 
 class BootstrapFormMixin:
@@ -36,6 +37,7 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
         fields = [
             "metodologia",
             "nombre",
+            "foto",
             "descripcion",
             "objetivo_principal",
             "objetivo_especifico",
@@ -437,37 +439,63 @@ class EvidenciaForm(BootstrapFormMixin, forms.ModelForm):
         self.fields["tarea"].label_from_instance = lambda tarea: tarea.etiqueta
 
 
+UNIDAD_CHOICES = [
+    ('', '--- Seleccionar ---'),
+    ('Conteo', [
+        ('unidad', 'Unidad(es)'),
+        ('rollo',  'Rollo(s)'),
+        ('caja',   'Caja(s)'),
+        ('par',    'Par(es)'),
+        ('juego',  'Juego(s)'),
+    ]),
+    ('Peso / longitud (filamento, cable)', [
+        ('g',  'Gramos (g)'),
+        ('kg', 'Kilogramos (kg)'),
+        ('m',  'Metros (m)'),
+        ('cm', 'Centimetros (cm)'),
+    ]),
+    ('Volumen / area', [
+        ('ml',  'Mililitros (ml)'),
+        ('L',   'Litros (L)'),
+        ('cm2', 'cm2'),
+    ]),
+]
+
+
 class ItemInventarioForm(BootstrapFormMixin, forms.ModelForm):
+    unidad = forms.ChoiceField(choices=UNIDAD_CHOICES, label='Unidad de medida')
+    estado = forms.ChoiceField(
+        choices=[('', '--- Seleccionar ---')] + list(ItemInventario.Estado.choices),
+        label='Estado',
+    )
+
     class Meta:
         model = ItemInventario
-        fields = [
-            "nombre",
-            "codigo_barra",
-            "area",
-            "categoria",
-            "tipo",
-            "cantidad",
-            "unidad",
-            "stock_minimo",
-            "estado",
-            "ubicacion",
-            "observacion",
-        ]
+        fields = ['nombre', 'tipo', 'area', 'categoria', 'codigo_barra',
+                  'cantidad', 'unidad', 'stock_minimo', 'estado', 'ubicacion', 'observacion']
         labels = {
-            "codigo_barra": "Codigo de barra",
-            "stock_minimo": "Stock mínimo para alerta",
+            'nombre':       'Nombre',
+            'tipo':         'Tipo de recurso',
+            'area':         'Area',
+            'categoria':    'Categoria',
+            'codigo_barra': 'Codigo de barra / QR',
+            'cantidad':     'Cantidad actual',
+            'stock_minimo': 'Stock minimo para alerta',
+            'ubicacion':    'Ubicacion fisica',
+            'observacion':  'Observaciones',
         }
         help_texts = {
-            "codigo_barra": "Escanea o escribe el código del producto. Déjalo vacío si no tiene.",
-            "cantidad": "Para stock variable puedes dejarlo vacío. Para filamento, idealmente usa gramos.",
-            "stock_minimo": "Cuando el stock quede igual o bajo este número, aparece una alerta.",
+            'categoria':    'Puedes escribir libremente si no encaja en otra categoria.',
+            'codigo_barra': 'Si el item no tiene codigo, genera uno con el boton y luego imprimelo.',
+            'cantidad':     'Para stock variable, deja en 0.',
+            'stock_minimo': 'Alerta cuando llegue a este valor.',
+            'ubicacion':    'Ej: Estante A3, Cajon inferior...',
+            'observacion':  'Notas adicionales: marca, modelo, numero de serie, condicion, etc.',
         }
-        widgets = {
-            "observacion": forms.Textarea(attrs={"rows": 3}),
-        }
+        widgets = {'observacion': forms.Textarea(attrs={'rows': 3})}
 
     def clean_codigo_barra(self):
-        codigo = (self.cleaned_data.get("codigo_barra") or "").strip()
+        codigo = (self.cleaned_data.get('codigo_barra') or '').strip()
         return codigo or None
 
 
@@ -524,11 +552,32 @@ class UsoInventarioForm(BootstrapFormMixin, forms.ModelForm):
 
 class AjusteStockForm(BootstrapFormMixin, forms.Form):
     cantidad = forms.DecimalField(max_digits=10, decimal_places=2, min_value=0.01, label="Cantidad a agregar")
+    motivo = forms.ChoiceField(
+        choices=MovimientoStock.Motivo.choices,
+        label="Motivo de ajuste",
+        required=True,
+    )
     observacion = forms.CharField(
         required=False,
         label="Observación",
         widget=forms.Textarea(attrs={"rows": 3}),
     )
+
+
+class IngresoStockExistenteForm(BootstrapFormMixin, forms.Form):
+    item_id = forms.IntegerField(widget=forms.HiddenInput())
+    cantidad = forms.DecimalField(max_digits=10, decimal_places=2, min_value=0.01, label="Cantidad a agregar")
+    motivo = forms.ChoiceField(
+        choices=MovimientoStock.Motivo.choices,
+        label="Motivo de ajuste",
+        required=True,
+    )
+    observacion = forms.CharField(
+        required=False,
+        label="Observación",
+        widget=forms.Textarea(attrs={"rows": 3}),
+    )
+
 
 
 class OrganizacionSuperadminForm(BootstrapFormMixin, forms.ModelForm):

@@ -1,21 +1,19 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}{% if object %}Editar proyecto{% else %}Nuevo proyecto{% endif %}{% endblock %}
 
 {% block content %}
-<div class="page-header">
+<div class="page-header d-flex justify-content-between align-items-center mb-4">
     <div>
-        <span class="eyebrow">Proyectos</span>
-        <h1>{% if object %}Editar proyecto{% else %}Nuevo proyecto{% endif %}</h1>
-        <p>
-            {% if object %}
-                Actualiza datos generales, responsables y fechas del proyecto. El cambio de estado para pausar, reactivar o finalizar se realiza en la opcion de estado del proyecto.
-            {% else %}
-                Registra datos principales, objetivos, resultados esperados, indicadores, fechas y responsables.
-            {% endif %}
-        </p>
+        <span class="eyebrow"><a href="{% url 'proyecto_lista' %}" class="text-decoration-none text-muted">Proyectos</a> &rarr; {% if object %}Editar proyecto{% else %}Nuevo proyecto{% endif %}</span>
+        <h1 class="h2 mb-0 fw-bold">{% if object %}Editar proyecto{% else %}Nuevo proyecto{% endif %}</h1>
     </div>
-    <a class="btn btn-outline-secondary" href="{% url 'proyecto_lista' %}">Volver</a>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" href="{% url 'proyecto_lista' %}">Volver</a>
+        <button class="btn btn-primary" type="submit" form="project-stepper-form">
+            <i class="bi bi-check-circle me-1"></i> Guardar proyecto
+        </button>
+    </div>
 </div>
 
 {% if not object %}
@@ -54,103 +52,287 @@
 </div>
 {% endif %}
 
-<form method="post" class="form-panel">
+<form method="post" id="project-stepper-form" class="pb-5" enctype="multipart/form-data">
     {% csrf_token %}
     {{ form.non_field_errors }}
-    <div class="row g-3">
-        {% for field in form %}
-            {% if field.name != 'empresa_externa' and field.name != 'empresa_externa_nombre' and field.name != 'empresa_externa_rut' and field.name != 'empresa_externa_rubro' and field.name != 'empresa_externa_contacto' and field.name != 'empresa_externa_correo' and field.name != 'empresa_externa_telefono' and field.name != 'empresa_externa_rol' and field.name != 'empresa_externa_observaciones' and field.name != 'resultados_esperados' and field.name != 'indicadores' %}
-                <div class="{% if field.name == 'descripcion' or field.name == 'objetivo_principal' or field.name == 'objetivo_especifico' or field.name == 'resultados_esperados' or field.name == 'indicadores' or field.name == 'responsables' %}col-12{% else %}col-md-6{% endif %}" {% if field.name == 'trl_inicial' or field.name == 'trl_objetivo' %}data-trl-wrapper{% endif %}>
-                    {% if field.name == "metodologia" %}
-                        <div class="methodology-label-row">
-                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                            <span class="methodology-help-pill" aria-hidden="true">?</span>
-                        </div>
-                    {% else %}
-                        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                    {% endif %}
-                    {% if field.name == "responsables" %}
-                        <div class="responsables-field-header">
-                            {% if es_admin_laboratorio %}
-                                <a class="btn btn-sm btn-outline-primary" href="{% url 'usuario_crear' %}">Agregar usuario</a>
-                            {% endif %}
-                        </div>
-                        <details class="responsables-collapsible">
-                            <summary>Seleccionar responsables</summary>
-                            <div class="responsables-list compact">
-                                {% for checkbox in field %}
-                                    <label class="responsable-option" for="{{ checkbox.id_for_label }}">
-                                        {{ checkbox.tag }}
-                                        <span>{{ checkbox.choice_label }}</span>
-                                    </label>
-                                {% empty %}
-                                    <p class="text-muted mb-0">Primero crea usuarios para poder asignarlos como responsables.</p>
-                                {% endfor %}
-                            </div>
-                        </details>
-                    {% elif field.name == "objetivo_especifico" %}
-                        <div class="trl-structure-builder" data-trl-structure-builder>
-                            <input type="hidden" name="{{ field.name }}" id="{{ field.id_for_label }}" value="{{ field.value|default_if_none:''|escape }}" data-structured-field="objetivos">
-                            <input type="hidden" name="{{ form.resultados_esperados.name }}" id="{{ form.resultados_esperados.id_for_label }}" value="{{ form.resultados_esperados.value|default_if_none:''|escape }}" data-structured-field="resultados">
-                            <input type="hidden" name="{{ form.indicadores.name }}" id="{{ form.indicadores.id_for_label }}" value="{{ form.indicadores.value|default_if_none:''|escape }}" data-structured-field="indicadores">
-                            <div class="form-text mb-3" data-objective-structure-help>Usa el boton + para agregar objetivos especificos. Dentro de cada objetivo puedes agregar uno o mas resultados esperados, con su indicador y plazo.</div>
-                            <div class="trl-structure-list" data-trl-structure-list></div>
-                        </div>
-                    {% elif field.name == "resultados_esperados" %}
-                        <div class="d-none">{{ field }}</div>
-                    {% elif field.name == "indicadores" %}
-                        <div class="d-none">{{ field }}</div>
-                    {% else %}
-                        {{ field }}
-                    {% endif %}
-                    {% if field.name == "metodologia" %}
-                        <div class="methodology-help-panel" data-methodology-help></div>
-                    {% endif %}
-                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-                    {% for error in field.errors %}
-                        <div class="text-danger small">{{ error }}</div>
-                    {% endfor %}
+
+    <div class="row g-4">
+        <!-- Columna Izquierda (8/12) -->
+        <div class="col-lg-8">
+            
+            <!-- CARD 1: Tipo de Proyecto -->
+            <div class="form-section-card mb-4">
+                <div class="section-card-header d-flex align-items-center mb-4">
+                    <div class="section-icon me-3">
+                        <i class="bi bi-collection"></i>
+                    </div>
+                    <div>
+                        <h4 class="section-title mb-0">Tipo de proyecto</h4>
+                        <p class="section-subtitle mb-0">Define cómo se medirá el avance</p>
+                    </div>
                 </div>
-            {% endif %}
-        {% endfor %}
-    </div>
+                
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <button type="button" class="methodology-card text-start w-100 p-3" data-methodology-btn="simple">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="methodology-badge">Proyecto simple</span>
+                                <span class="methodology-radio-dot"></span>
+                            </div>
+                            <p class="methodology-desc mb-0">Avance por objetivos e indicadores</p>
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <button type="button" class="methodology-card text-start w-100 p-3" data-methodology-btn="trl">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="methodology-badge">Proyecto con TRL</span>
+                                <span class="methodology-radio-dot"></span>
+                            </div>
+                            <p class="methodology-desc mb-0">Avance por madurez tecnológica</p>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Opciones ocultas del formulario Django -->
+                <div class="d-none">
+                    {{ form.metodologia }}
+                </div>
+            </div>
 
-    <section class="external-company-panel mt-4" data-external-company>
-        <label class="external-company-switch" for="{{ form.empresa_externa.id_for_label }}">
-            {{ form.empresa_externa }}
-            <span>
-                <strong>{{ form.empresa_externa.label }}</strong>
-                <small>Activa esto solo si el proyecto incluye una empresa o institucion externa a INACAP.</small>
-            </span>
-        </label>
-        {% if form.empresa_externa.help_text %}<div class="form-text">{{ form.empresa_externa.help_text }}</div>{% endif %}
-        {% for error in form.empresa_externa.errors %}
-            <div class="text-danger small">{{ error }}</div>
-        {% endfor %}
+            <!-- CARD 2: Información General -->
+            <div class="form-section-card mb-4">
+                <div class="section-card-header d-flex align-items-center mb-4">
+                    <div class="section-icon me-3">
+                        <i class="bi bi-file-text"></i>
+                    </div>
+                    <div>
+                        <h4 class="section-title mb-0">Información general</h4>
+                        <p class="section-subtitle mb-0">Datos principales del proyecto</p>
+                    </div>
+                </div>
+                
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label fw-semibold" for="{{ form.nombre.id_for_label }}">Nombre del proyecto</label>
+                        {{ form.nombre }}
+                        {% for error in form.nombre.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold" for="{{ form.foto.id_for_label }}">Imagen del proyecto (opcional)</label>
+                        {{ form.foto }}
+                        {% if form.foto.help_text %}<div class="form-text mt-1">{{ form.foto.help_text }}</div>{% endif %}
+                        {% for error in form.foto.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold" for="{{ form.descripcion.id_for_label }}">Descripción</label>
+                        {{ form.descripcion }}
+                        {% for error in form.descripcion.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold" for="{{ form.objetivo_principal.id_for_label }}">Objetivo principal</label>
+                        {{ form.objetivo_principal }}
+                        {% for error in form.objetivo_principal.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+            </div>
 
-        <div class="external-company-fields" data-external-company-fields>
-            <div class="row g-3">
-                {% for field in form %}
-                    {% if field.name == 'empresa_externa_nombre' or field.name == 'empresa_externa_rut' or field.name == 'empresa_externa_rubro' or field.name == 'empresa_externa_contacto' or field.name == 'empresa_externa_correo' or field.name == 'empresa_externa_telefono' or field.name == 'empresa_externa_rol' or field.name == 'empresa_externa_observaciones' %}
-                        <div class="{% if field.name == 'empresa_externa_observaciones' %}col-12{% else %}col-md-6{% endif %}">
-                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                            {{ field }}
-                            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-                            {% for error in field.errors %}
-                                <div class="text-danger small">{{ error }}</div>
+            <!-- CARD 3: Objetivos Específicos -->
+            <div class="form-section-card mb-4">
+                <div class="section-card-header d-flex align-items-center mb-3">
+                    <div class="section-icon me-3">
+                        <i class="bi bi-bullseye"></i>
+                    </div>
+                    <div>
+                        <h4 class="section-title mb-0">Objetivos específicos</h4>
+                        <p class="section-subtitle mb-0">Agrega y detalla cada objetivo del proyecto</p>
+                    </div>
+                </div>
+                
+                <div class="trl-structure-builder" data-trl-structure-builder>
+                    <input type="hidden" name="{{ form.objetivo_especifico.name }}" id="{{ form.objetivo_especifico.id_for_label }}" value="{{ form.objetivo_especifico.value|default_if_none:''|escape }}" data-structured-field="objetivos">
+                    <input type="hidden" name="{{ form.resultados_esperados.name }}" id="{{ form.resultados_esperados.id_for_label }}" value="{{ form.resultados_esperados.value|default_if_none:''|escape }}" data-structured-field="resultados">
+                    <input type="hidden" name="{{ form.indicadores.name }}" id="{{ form.indicadores.id_for_label }}" value="{{ form.indicadores.value|default_if_none:''|escape }}" data-structured-field="indicadores">
+                    
+                    <div class="form-text mb-3 text-muted" data-objective-structure-help>
+                        Usa el botón + para agregar objetivos específicos. Dentro de cada objetivo puedes agregar uno o más resultados esperados, con su indicador y plazo.
+                    </div>
+                    
+                    <div class="trl-structure-list" data-trl-structure-list></div>
+                </div>
+                {% for error in form.objetivo_especifico.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                {% for error in form.resultados_esperados.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                {% for error in form.indicadores.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+            
+        </div>
+
+        <!-- Columna Derecha (4/12) -->
+        <div class="col-lg-4">
+            
+            <!-- CARD 4: Niveles TRL -->
+            <div class="form-section-card mb-4" id="trl-section-card" data-trl-wrapper>
+                <div class="section-card-header d-flex align-items-center mb-3">
+                    <div class="section-icon me-3">
+                        <i class="bi bi-graph-up"></i>
+                    </div>
+                    <div>
+                        <h4 class="section-title mb-0">Niveles TRL</h4>
+                        <p class="section-subtitle mb-0">Establece el nivel inicial y el esperado</p>
+                    </div>
+                </div>
+                
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label fw-semibold" for="{{ form.trl_inicial.id_for_label }}">TRL inicial</label>
+                        {{ form.trl_inicial }}
+                        {% for error in form.trl_inicial.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold" for="{{ form.trl_objetivo.id_for_label }}">TRL esperado</label>
+                        {{ form.trl_objetivo }}
+                        {% for error in form.trl_objetivo.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12 mt-2">
+                        <div class="trl-progress-visual">
+                            <div class="d-flex justify-content-between text-muted small mb-1">
+                                <span id="trl-start-label">TRL Inicial</span>
+                                <span id="trl-end-label">TRL Objetivo</span>
+                            </div>
+                            <div class="progress" style="height: 6px; background-color: var(--line, #e2e8f0); border-radius: 4px; overflow: hidden;">
+                                <div id="trl-progress-bar" class="progress-bar bg-danger" role="progressbar" style="width: 0%; transition: width 0.3s ease;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD 5: Fechas -->
+            <div class="form-section-card mb-4">
+                <div class="section-card-header d-flex align-items-center mb-3">
+                    <div class="section-icon me-3">
+                        <i class="bi bi-calendar3"></i>
+                    </div>
+                    <div>
+                        <h4 class="section-title mb-0">Fechas</h4>
+                        <p class="section-subtitle mb-0">Define los plazos del proyecto</p>
+                    </div>
+                </div>
+                
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label fw-semibold" for="{{ form.fecha_inicio.id_for_label }}">Fecha inicio</label>
+                        {{ form.fecha_inicio }}
+                        {% for error in form.fecha_inicio.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold" for="{{ form.fecha_fin.id_for_label }}">Fecha fin</label>
+                        {{ form.fecha_fin }}
+                        {% for error in form.fecha_fin.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD 6: Responsables -->
+            <div class="form-section-card mb-4">
+                <div class="section-card-header d-flex align-items-center mb-3">
+                    <div class="section-icon me-3">
+                        <i class="bi bi-people"></i>
+                    </div>
+                    <div>
+                        <h4 class="section-title mb-0">Responsables</h4>
+                        <p class="section-subtitle mb-0">Asigna el equipo de trabajo</p>
+                    </div>
+                </div>
+                
+                <div class="row g-3">
+                    <div class="col-12">
+                        <span class="form-label fw-semibold d-block mb-2">Miembros del equipo</span>
+                        <div class="responsables-list d-flex flex-column gap-2">
+                            {% for checkbox in form.responsables %}
+                                <label class="responsable-option d-flex align-items-center gap-2 p-2 border rounded cursor-pointer" for="{{ checkbox.id_for_label }}" style="background: var(--panel, #fff); transition: all 0.2s; margin-bottom: 0;">
+                                    {{ checkbox.tag }}
+                                    <span>{{ checkbox.choice_label }}</span>
+                                </label>
+                            {% empty %}
+                                <p class="text-muted mb-0 small">Primero crea usuarios para poder asignarlos como responsables.</p>
                             {% endfor %}
                         </div>
-                    {% endif %}
-                {% endfor %}
+                        {% for error in form.responsables.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                    </div>
+                    
+                    <!-- Empresa Externa Collapsible Switch -->
+                    <div class="col-12 mt-3">
+                        <section class="external-company-panel" data-external-company>
+                            <div class="form-check form-switch p-0 d-flex align-items-center gap-2 border rounded p-2" style="background: var(--soft, #f8fafc);">
+                                <div style="margin-left: 2.5rem;">
+                                    {{ form.empresa_externa }}
+                                    <label class="form-check-label fw-semibold" for="{{ form.empresa_externa.id_for_label }}">¿Empresa externa?</label>
+                                    <small class="text-muted d-block" style="font-size: 0.75rem;">El proyecto incluye una institución externa a INACAP</small>
+                                </div>
+                            </div>
+                            
+                            <div class="external-company-fields mt-3 border rounded p-3" data-external-company-fields style="background: var(--soft, #f8fafc);">
+                                <div class="row g-2">
+                                    <div class="col-12">
+                                        <label class="form-label small fw-semibold" for="{{ form.empresa_externa_nombre.id_for_label }}">Nombre</label>
+                                        {{ form.empresa_externa_nombre }}
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label small fw-semibold" for="{{ form.empresa_externa_rut.id_for_label }}">RUT</label>
+                                        {{ form.empresa_externa_rut }}
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label small fw-semibold" for="{{ form.empresa_externa_rubro.id_for_label }}">Rubro</label>
+                                        {{ form.empresa_externa_rubro }}
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label small fw-semibold" for="{{ form.empresa_externa_contacto.id_for_label }}">Contacto</label>
+                                        {{ form.empresa_externa_contacto }}
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label small fw-semibold" for="{{ form.empresa_externa_correo.id_for_label }}">Correo</label>
+                                        {{ form.empresa_externa_correo }}
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label small fw-semibold" for="{{ form.empresa_externa_telefono.id_for_label }}">Teléfono</label>
+                                        {{ form.empresa_externa_telefono }}
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label small fw-semibold" for="{{ form.empresa_externa_rol.id_for_label }}">Rol de la empresa</label>
+                                        {{ form.empresa_externa_rol }}
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label small fw-semibold" for="{{ form.empresa_externa_observaciones.id_for_label }}">Observaciones</label>
+                                        {{ form.empresa_externa_observaciones }}
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
             </div>
-        </div>
-    </section>
 
-    <div class="d-flex gap-2 mt-4">
-        <button class="btn btn-primary" type="submit">Guardar</button>
-        {% if object %}
-            <a class="btn btn-outline-secondary" href="{{ object.get_absolute_url }}">Cancelar</a>
-        {% endif %}
+            <!-- CARD 7: Generar etapas con IA banner -->
+            {% if not object %}
+            <div class="ia-banner-card p-3 rounded mb-4" style="background: rgba(197, 58, 67, 0.05); border: 1px solid rgba(197, 58, 67, 0.2);">
+                <div class="d-flex align-items-start gap-3">
+                    <div class="ia-banner-icon bg-danger text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; flex-shrink: 0;">
+                        <i class="bi bi-stars"></i>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <h5 class="fw-bold mb-0 text-danger" style="font-size: 0.95rem;">Generar etapas con IA</h5>
+                            <span class="badge bg-danger-subtle text-danger" style="font-size: 0.65rem; border: 1px solid rgba(197, 58, 67, 0.3);">IA</span>
+                        </div>
+                        <p class="mb-0 text-muted" style="font-size: 0.8rem; line-height: 1.4;">
+                            Al guardar, la IA generará automáticamente las 5 fases de trabajo basándose en tus objetivos y nivel TRL.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
     </div>
 </form>
 
@@ -1029,6 +1211,101 @@
 
         render();
         syncTrlVisibility();
+
+        /* ── Lógica de la Maqueta de dos Columnas ── */
+        (() => {
+            // Lógica de botones de metodología interactivos
+            const simpleBtn = document.querySelector('[data-methodology-btn="simple"]');
+            const trlBtn = document.querySelector('[data-methodology-btn="trl"]');
+            const hiddenSelect = document.getElementById("id_metodologia");
+
+            const updateMethodologyButtons = (val) => {
+                if (val === "simple") {
+                    simpleBtn?.classList.add("active");
+                    trlBtn?.classList.remove("active");
+                } else if (val === "trl") {
+                    simpleBtn?.classList.remove("active");
+                    trlBtn?.classList.add("active");
+                }
+            };
+
+            if (hiddenSelect && simpleBtn && trlBtn) {
+                simpleBtn.addEventListener("click", () => {
+                    hiddenSelect.value = "simple";
+                    hiddenSelect.dispatchEvent(new Event("change"));
+                    updateMethodologyButtons("simple");
+                });
+                trlBtn.addEventListener("click", () => {
+                    hiddenSelect.value = "trl";
+                    hiddenSelect.dispatchEvent(new Event("change"));
+                    updateMethodologyButtons("trl");
+                });
+                // Inicializar estado de los botones
+                updateMethodologyButtons(hiddenSelect.value);
+                hiddenSelect.addEventListener("change", () => {
+                    updateMethodologyButtons(hiddenSelect.value);
+                });
+            }
+
+            // Lógica de barra de progreso TRL visual
+            const trlInicialSelect = document.getElementById("id_trl_inicial");
+            const trlObjetivoSelect = document.getElementById("id_trl_objetivo");
+            const trlProgressBar = document.getElementById("trl-progress-bar");
+            const trlStartLabel = document.getElementById("trl-start-label");
+            const trlEndLabel = document.getElementById("trl-end-label");
+
+            const updateTrlProgress = () => {
+                const initVal = parseInt(trlInicialSelect?.value) || 1;
+                const objVal = parseInt(trlObjetivoSelect?.value) || 1;
+
+                if (trlStartLabel) trlStartLabel.textContent = `TRL ${initVal}`;
+                if (trlEndLabel) trlEndLabel.textContent = `TRL ${objVal}`;
+
+                // Calcular porcentaje: 1 es 0%, 9 es 100%
+                const minTrl = 1;
+                const maxTrl = 9;
+                const percentage = ((objVal - initVal) / (maxTrl - minTrl)) * 100;
+                
+                // Garantizar valores lógicos
+                const displayPercentage = Math.max(0, Math.min(100, percentage));
+                if (trlProgressBar) {
+                    trlProgressBar.style.width = `${displayPercentage}%`;
+                }
+            };
+
+            if (trlInicialSelect && trlObjetivoSelect) {
+                trlInicialSelect.addEventListener("change", updateTrlProgress);
+                trlObjetivoSelect.addEventListener("change", updateTrlProgress);
+                updateTrlProgress();
+            }
+
+            // Validación antes de enviar el formulario
+            const projectForm = document.getElementById("project-stepper-form");
+            if (projectForm) {
+                projectForm.addEventListener("submit", (e) => {
+                    let firstInvalid = null;
+                    const checkField = (name) => {
+                        const input = projectForm.querySelector(`[name='${name}']`);
+                        if (input && !input.value.trim()) {
+                            input.classList.add("is-invalid");
+                            input.addEventListener("input", () => input.classList.remove("is-invalid"), { once: true });
+                            if (!firstInvalid) firstInvalid = input;
+                        }
+                    };
+                    
+                    checkField("nombre");
+                    checkField("descripcion");
+                    checkField("objetivo_principal");
+                    checkField("fecha_inicio");
+
+                    if (firstInvalid) {
+                        e.preventDefault();
+                        firstInvalid.scrollIntoView({ behavior: "smooth", block: "center" });
+                        firstInvalid.focus();
+                    }
+                });
+            }
+        })();
     })();
 </script>
 {% endblock %}

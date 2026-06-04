@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}Inventario{% endblock %}
 
@@ -12,8 +12,8 @@
         </div>
         {% if puede_gestionar_inventario %}
             <div class="inventory-admin-actions">
-                <a class="btn btn-primary" href="{% url 'inventario_lector' %}">Agregar con lector</a>
-                <a class="btn btn-outline-primary" href="{% url 'inventario_crear' %}">Agregar item</a>
+                <a class="btn btn-primary" href="{% url 'inventario_lector' %}">Agregar ítem existente</a>
+                <a class="btn btn-outline-primary" href="{% url 'inventario_crear' %}">Agregar ítem nuevo</a>
             </div>
         {% endif %}
     </header>

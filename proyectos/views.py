@@ -34,6 +34,7 @@ from .forms import (
     FaseProyectoForm,
     ItemInventarioForm,
     LectorCodigoBarraForm,
+    IngresoStockExistenteForm,
     MensajePrivadoForm,
     ObservacionForm,
     OrganizacionAdminForm,
@@ -48,7 +49,7 @@ from .forms import (
     UsuarioUpdateForm,
 )
 from .gemini_service import analizar_borrador_trl, analizar_etapa_trl, analizar_trl, generar_mesa_trabajo_ia, generar_estructura_proyecto_ia
-from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario
+from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario, MovimientoStock
 
 logger = logging.getLogger("proyectos.views")
 
@@ -877,7 +878,6 @@ class ProyectoListView(LoginRequiredMixin, ListView):
     model = Proyecto
     template_name = "proyectos/proyecto_lista.html"
     context_object_name = "proyectos"
-    paginate_by = 10
 
     def get_queryset(self):
         queryset = proyectos_de_sede(self.request.user).select_related("creador").prefetch_related("responsables", "fases").annotate(
@@ -899,10 +899,15 @@ class ProyectoListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        for proyecto in context["proyectos"]:
+        proyectos = list(context["proyectos"])
+        for proyecto in proyectos:
             sincronizar_trl_desde_resultados(proyecto)
             sincronizar_avance_simple_desde_objetivos(proyecto)
             proyecto.puede_editar = usuario_puede_editar_proyecto(self.request.user, proyecto)
+            
+        context["proyectos_activos"] = [p for p in proyectos if p.estado != Proyecto.Estado.FINALIZADO]
+        context["proyectos_terminados"] = [p for p in proyectos if p.estado == Proyecto.Estado.FINALIZADO]
+        
         context["estados"] = Proyecto.Estado.choices
         context["responsables"] = usuarios_de_sede(self.request.user).order_by("nombre", "username")
         context["estado_actual"] = self.request.GET.get("estado", "")
@@ -1413,6 +1418,8 @@ def generar_mesa_trabajo_ia_async(proyecto_id):
             Proyecto.MesaTrabajoEstado.LISTA,
             f"Mesa de trabajo generada con IA ({plan.get('origen','ia')}). {total_tareas} tareas en total.",
         )
+    except Proyecto.DoesNotExist:
+        logger.warning("[IA] El proyecto %s ya no existe. Finalizando hilo de IA.", proyecto_id)
     except Exception as exc:
         logger.exception("[IA] Error inesperado en hilo IA para proyecto %s: %s", proyecto_id, exc)
         try:
@@ -1424,6 +1431,8 @@ def generar_mesa_trabajo_ia_async(proyecto_id):
                 Proyecto.MesaTrabajoEstado.LISTA if total_tareas > 0 else Proyecto.MesaTrabajoEstado.ERROR,
                 f"Ocurrio un error con la IA. Mesa base disponible con {total_tareas} tareas.",
             )
+        except Proyecto.DoesNotExist:
+            logger.warning("[IA] El proyecto %s ya no existe durante el fallback.", proyecto_id)
         except Exception as exc2:
             logger.exception("[IA] Error en fallback de reglas para proyecto %s: %s", proyecto_id, exc2)
     finally:
@@ -1958,7 +1967,9 @@ def sincronizar_trl_desde_resultados(proyecto):
         and proyecto.nivel_actual >= proyecto.trl_objetivo_efectivo
         and porcentaje >= 100
     )
-    if objetivo_cumplido:
+    if proyecto.estado == Proyecto.Estado.FINALIZADO:
+        nuevo_estado = Proyecto.Estado.FINALIZADO
+    elif objetivo_cumplido:
         nuevo_estado = Proyecto.Estado.FINALIZADO
     elif proyecto.estado == Proyecto.Estado.EN_PAUSA:
         nuevo_estado = Proyecto.Estado.EN_PAUSA
@@ -1982,11 +1993,11 @@ def sincronizar_avance_simple_desde_objetivos(proyecto):
         return
     porcentaje = calcular_avance_simple(proyecto)
     nuevo_estado = proyecto.estado
-    if porcentaje >= 100 and (proyecto.resultados_trl.exists() or proyecto.fases_relevantes.exists()):
+    if proyecto.estado == Proyecto.Estado.FINALIZADO:
         nuevo_estado = Proyecto.Estado.FINALIZADO
-    elif porcentaje > 0 and proyecto.estado in {Proyecto.Estado.PENDIENTE, Proyecto.Estado.FINALIZADO}:
-        nuevo_estado = Proyecto.Estado.EN_PROCESO
-    elif porcentaje == 0 and proyecto.estado == Proyecto.Estado.FINALIZADO:
+    elif porcentaje >= 100 and (proyecto.resultados_trl.exists() or proyecto.fases_relevantes.exists()):
+        nuevo_estado = Proyecto.Estado.FINALIZADO
+    elif porcentaje > 0 and proyecto.estado == Proyecto.Estado.PENDIENTE:
         nuevo_estado = Proyecto.Estado.EN_PROCESO
     cambios = []
     if proyecto.porcentaje_avance != porcentaje:
@@ -2170,7 +2181,9 @@ def recalcular_avance_por_tareas(proyecto):
     proyecto.porcentaje_avance = porcentaje
     if total and completadas == total:
         proyecto.estado = Proyecto.Estado.FINALIZADO
-    elif proyecto.estado in {Proyecto.Estado.PENDIENTE, Proyecto.Estado.FINALIZADO}:
+    elif proyecto.estado == Proyecto.Estado.FINALIZADO:
+        pass
+    elif proyecto.estado == Proyecto.Estado.PENDIENTE:
         proyecto.estado = Proyecto.Estado.EN_PROCESO
     proyecto.save(update_fields=["porcentaje_avance", "estado", "actualizado_en"])
 
@@ -2813,14 +2826,14 @@ def inventario_crear(request):
             item = form.save(commit=False)
             item.sede = sede_usuario(request.user)
             item.save()
-            messages.success(request, "Item agregado al inventario.")
+            messages.success(request, "Ítem agregado al inventario.")
             return redirect("inventario_lista")
     return render(
         request,
         "proyectos/inventario_form.html",
         {
             "form": form,
-            "titulo": "Agregar item al inventario",
+            "titulo": "Agregar ítem nuevo",
             "descripcion": "Registra materiales, equipos o insumos disponibles en el laboratorio.",
             "boton": "Guardar item",
             "volver_url": "inventario_lista",
@@ -2831,47 +2844,81 @@ def inventario_crear(request):
 
 @login_required
 def inventario_lector(request):
-    form = LectorCodigoBarraForm()
-    item_encontrado = None
+    form = IngresoStockExistenteForm()
     if request.method == "POST":
-        form = LectorCodigoBarraForm(request.POST)
+        form = IngresoStockExistenteForm(request.POST)
         if form.is_valid():
-            codigo = form.cleaned_data["codigo_barra"]
+            item_id = form.cleaned_data["item_id"]
             cantidad = form.cleaned_data["cantidad"]
-            observacion = form.cleaned_data.get("observacion")
+            motivo = form.cleaned_data["motivo"]
+            observacion = form.cleaned_data.get("observacion", "")
+            
             with transaction.atomic():
-                item_encontrado = (
-                    inventario_de_sede(request.user)
-                    .select_for_update()
-                    .filter(activo=True, codigo_barra=codigo)
-                    .first()
+                item = get_object_or_404(inventario_de_sede(request.user), pk=item_id, activo=True)
+                item.cantidad = (item.cantidad or 0) + cantidad
+                if observacion:
+                    item.observacion = (item.observacion + "\n" if item.observacion else "") + observacion
+                item.save(update_fields=["cantidad", "observacion", "actualizado_en"])
+                
+                MovimientoStock.objects.create(
+                    item=item,
+                    cantidad=cantidad,
+                    motivo=motivo,
+                    observacion=observacion,
+                    usuario=request.user
                 )
-                if item_encontrado:
-                    item_encontrado.cantidad = (item_encontrado.cantidad or 0) + cantidad
-                    if observacion:
-                        item_encontrado.observacion = (
-                            (item_encontrado.observacion + "\n" if item_encontrado.observacion else "")
-                            + observacion
-                        )
-                    item_encontrado.save(update_fields=["cantidad", "observacion", "actualizado_en"])
-                    messages.success(request, f"Stock actualizado: {item_encontrado.nombre}.")
-                    return redirect("inventario_lector")
-            messages.warning(request, "No existe un ítem activo con ese código. Completa el alta para dejarlo registrado.")
-            parametros = urlencode({"codigo_barra": codigo, "cantidad": cantidad})
-            return redirect(f"{reverse('inventario_crear')}?{parametros}")
+            messages.success(request, f"Stock actualizado para {item.nombre}.")
+            return redirect("inventario_lista")
+            
+    # Si viene con un item preseleccionado por URL
+    preselected_item = None
+    item_id_param = request.GET.get("item_id")
+    if item_id_param:
+        preselected_item = inventario_de_sede(request.user).filter(pk=item_id_param, activo=True).first()
+        
     return render(
         request,
-        "proyectos/inventario_form.html",
+        "proyectos/inventario_existente.html",
         {
             "form": form,
-            "titulo": "Agregar con lector de barra",
-            "descripcion": "Escanea el código del ítem y suma la cantidad ingresada al stock existente.",
-            "boton": "Agregar al stock",
+            "titulo": "Agregar ítem existente",
+            "descripcion": "Busca un material por nombre o escanea su código de barras con la pistola para agregar stock.",
             "volver_url": "inventario_lista",
-            "modo_lector": True,
-            "item_encontrado": item_encontrado,
+            "preselected_item": preselected_item,
         },
     )
+
+
+@login_required
+def inventario_buscar_json(request):
+    q = request.GET.get("q", "").strip()
+    codigo = request.GET.get("codigo", "").strip()
+    
+    items = inventario_de_sede(request.user).filter(activo=True)
+    
+    if codigo:
+        items = items.filter(codigo_barra=codigo)
+    elif q:
+        items = items.filter(Q(nombre__icontains=q) | Q(codigo_barra__icontains=q) | Q(ubicacion__icontains=q))
+    else:
+        # Por defecto, si no hay consulta, devolver los primeros 15
+        items = items[:15]
+        
+    resultados = []
+    for item in items:
+        resultados.append({
+            "id": item.id,
+            "nombre": item.nombre,
+            "codigo_barra": item.codigo_barra or "",
+            "area": item.get_area_display() if hasattr(item, 'get_area_display') else item.area,
+            "tipo": item.get_tipo_display() if hasattr(item, 'get_tipo_display') else item.tipo,
+            "cantidad": float(item.cantidad) if item.cantidad is not None else 0,
+            "unidad": item.unidad,
+            "ubicacion": item.ubicacion or "",
+            "cantidad_texto": item.cantidad_texto,
+        })
+        
+    return JsonResponse({"items": resultados})
 
 
 @login_required
@@ -2882,10 +2929,21 @@ def inventario_agregar_stock(request, pk):
         form = AjusteStockForm(request.POST)
         if form.is_valid():
             cantidad = form.cleaned_data["cantidad"]
-            item.cantidad = (item.cantidad or 0) + cantidad
-            if form.cleaned_data.get("observacion"):
-                item.observacion = (item.observacion + "\n" if item.observacion else "") + form.cleaned_data["observacion"]
-            item.save(update_fields=["cantidad", "observacion", "actualizado_en"])
+            motivo = form.cleaned_data["motivo"]
+            observacion = form.cleaned_data.get("observacion", "")
+            with transaction.atomic():
+                item.cantidad = (item.cantidad or 0) + cantidad
+                if observacion:
+                    item.observacion = (item.observacion + "\n" if item.observacion else "") + observacion
+                item.save(update_fields=["cantidad", "observacion", "actualizado_en"])
+                
+                MovimientoStock.objects.create(
+                    item=item,
+                    cantidad=cantidad,
+                    motivo=motivo,
+                    observacion=observacion,
+                    usuario=request.user
+                )
             messages.success(request, "Stock actualizado correctamente.")
             return redirect("inventario_lista")
     return render(
@@ -2897,6 +2955,7 @@ def inventario_agregar_stock(request, pk):
             "descripcion": f"Stock actual: {item.cantidad_texto}.",
             "boton": "Actualizar stock",
             "volver_url": "inventario_lista",
+            "modo_ajuste": True,
         },
     )
 
@@ -2944,6 +3003,14 @@ def actualizar_estado(request, pk):
     proyecto = get_object_or_404(proyectos_de_sede(request.user), pk=pk)
     if not exigir_permiso_edicion_proyecto(request, proyecto):
         return redirect("proyecto_trabajo", pk=proyecto.pk)
+    
+    if proyecto.estado == Proyecto.Estado.FINALIZADO:
+        es_creador = (proyecto.creador_id == request.user.pk)
+        es_admin = usuario_es_admin_laboratorio(request.user)
+        if not (es_creador or es_admin):
+            messages.error(request, "Este proyecto está finalizado. Solo el creador / líder del proyecto puede reactivarlo.")
+            return redirect("proyecto_trabajo", pk=proyecto.pk)
+
     form = EstadoProyectoForm(instance=proyecto)
     if request.method == "POST":
         form = EstadoProyectoForm(request.POST, instance=proyecto)

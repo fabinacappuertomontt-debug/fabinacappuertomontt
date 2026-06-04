@@ -1,0 +1,113 @@
+<article class="project-course-card course-{{ proyecto.nivel_alerta }}">
+    <a class="project-course-cover" href="{{ proyecto.get_absolute_url }}" aria-label="Abrir {{ proyecto.nombre }}">
+        <span class="project-cover-band"></span>
+        {% if proyecto.foto %}
+            <img class="project-cover-image-uploaded" src="{{ proyecto.foto.url }}" alt="{{ proyecto.nombre }}">
+        {% else %}
+            <span class="project-cover-photo" aria-hidden="true"></span>
+            <span class="project-cover-logo">
+                <img src="https://portal.inacap.cl/documents/d/guest/logofooter60a" alt="INACAP">
+                <strong>{{ proyecto.nombre|slice:":6"|upper }}</strong>
+            </span>
+        {% endif %}
+    </a>
+
+    <div class="project-course-body">
+        <div class="project-course-heading">
+            <span class="status-pill status-{{ proyecto.estado }}">{{ proyecto.get_estado_display }}</span>
+            <span class="alert-dot alert-{{ proyecto.nivel_alerta }}">{{ proyecto.texto_alerta }}</span>
+        </div>
+
+        <h2>
+            <a href="{{ proyecto.get_absolute_url }}">{{ proyecto.nombre }}</a>
+        </h2>
+
+        <p class="project-course-meta">
+            {{ proyecto.fecha_inicio|date:"Y" }}/{{ proyecto.get_sede_display }}
+            {% if proyecto.fecha_fin %} · vence {{ proyecto.fecha_fin|date:"d/m/Y" }}{% endif %}
+        </p>
+
+        <div class="project-course-progress">
+            <div>
+                <span>Avance del proyecto</span>
+                <strong>{{ proyecto.porcentaje_avance }}%</strong>
+            </div>
+            <div class="progress" role="progressbar" aria-valuenow="{{ proyecto.porcentaje_avance }}" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar" style="width: {{ proyecto.porcentaje_avance }}%"></div>
+            </div>
+        </div>
+
+        <div class="project-course-detail-row">
+            <span><i class="bi bi-check2-square" aria-hidden="true"></i> {{ proyecto.tareas_completadas }}/{{ proyecto.total_tareas }} tareas</span>
+            {% if proyecto.usa_trl %}
+                <span><i class="bi bi-layers" aria-hidden="true"></i> {{ proyecto.rango_trl_texto }}</span>
+            {% else %}
+                <span><i class="bi bi-diagram-3" aria-hidden="true"></i> {{ proyecto.fases_completadas_relevantes }}/{{ proyecto.total_fases_relevantes }} fases</span>
+            {% endif %}
+        </div>
+
+        {% if not user.organizacion or user.organizacion.mostrar_usuarios %}
+        <div class="project-course-owners">
+            {% if proyecto.creador %}
+                <span class="person-chip person-chip-with-info person-chip-leader">
+                    <span class="chip-label"><i class="bi bi-star-fill text-warning me-1"></i>{{ proyecto.creador.nombre|default:proyecto.creador.username|truncatechars:18 }}</span>
+                    <button class="person-info-button" type="button" aria-label="Ver contacto de {{ proyecto.creador }}">
+                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                    </button>
+                    <span class="person-info-popover" role="tooltip">
+                        <strong>{{ proyecto.creador }}</strong>
+                        <small>Creador / Líder del proyecto</small>
+                        <span><i class="bi bi-envelope" aria-hidden="true"></i>{{ proyecto.creador.email|default:"Sin correo" }}</span>
+                        <span><i class="bi bi-telephone" aria-hidden="true"></i>{{ proyecto.creador.telefono|default:"Sin teléfono" }}</span>
+                        <span><i class="bi bi-person-badge" aria-hidden="true"></i>{{ proyecto.creador.cargo|default:proyecto.creador.get_rol_display }}</span>
+                        {% if proyecto.creador.area %}<span><i class="bi bi-diagram-3" aria-hidden="true"></i>{{ proyecto.creador.area.nombre }}</span>{% endif %}
+                        <span><i class="bi bi-building" aria-hidden="true"></i>{{ proyecto.creador.get_sede_display }}</span>
+                    </span>
+                </span>
+            {% endif %}
+            {% for responsable in proyecto.responsables_sin_creador|slice:":3" %}
+                <span class="person-chip person-chip-with-info">
+                    <span class="chip-label">{{ responsable.nombre|default:responsable.username|truncatechars:16 }}</span>
+                    <button class="person-info-button" type="button" aria-label="Ver contacto de {{ responsable }}">
+                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                    </button>
+                    <span class="person-info-popover" role="tooltip">
+                        <strong>{{ responsable }}</strong>
+                        <small>Responsable del proyecto</small>
+                        <span><i class="bi bi-envelope" aria-hidden="true"></i>{{ responsable.email|default:"Sin correo" }}</span>
+                        <span><i class="bi bi-telephone" aria-hidden="true"></i>{{ responsable.telefono|default:"Sin teléfono" }}</span>
+                        <span><i class="bi bi-person-badge" aria-hidden="true"></i>{{ responsable.cargo|default:responsable.get_rol_display }}</span>
+                        {% if responsable.area %}<span><i class="bi bi-diagram-3" aria-hidden="true"></i>{{ responsable.area.nombre }}</span>{% endif %}
+                        <span><i class="bi bi-building" aria-hidden="true"></i>{{ responsable.get_sede_display }}</span>
+                    </span>
+                </span>
+            {% empty %}
+                {% if not proyecto.creador %}
+                    <span class="text-muted" style="font-size:.8rem">Sin responsables</span>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="project-course-actions">
+        <a class="btn btn-primary" href="{{ proyecto.get_absolute_url }}">
+            <i class="bi bi-eye" aria-hidden="true"></i>
+            Ver
+        </a>
+        <a class="btn btn-outline-primary" href="{% url 'proyecto_trabajo' proyecto.pk %}">
+            <i class="bi bi-kanban" aria-hidden="true"></i>
+            Trabajar
+        </a>
+        {% if proyecto.puede_editar %}
+            <a class="btn btn-outline-secondary" href="{% url 'proyecto_editar' proyecto.pk %}" title="Editar {{ proyecto.nombre }}">
+                <i class="bi bi-pencil-square" aria-hidden="true"></i>
+            </a>
+        {% endif %}
+        {% if puede_eliminar_proyectos %}
+            <a class="btn btn-outline-danger" href="{% url 'proyecto_eliminar' proyecto.pk %}" title="Eliminar {{ proyecto.nombre }}">
+                <i class="bi bi-trash" aria-hidden="true"></i>
+            </a>
+        {% endif %}
+    </div>
+</article>
