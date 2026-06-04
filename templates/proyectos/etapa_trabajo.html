@@ -191,12 +191,39 @@
                     <div class="workspace-empty">No hay tareas pendientes.</div>
                 {% endfor %}
                 {% for tarea in tareas_completadas|slice:":3" %}
+                    <div class="workspace-list-item completed">
+                        <strong><span class="task-number">{{ tarea.etiqueta_corta }}</span> {{ tarea.nombre }}</strong>
+                        <span>Completada{% if tarea.responsable %} - {{ tarea.responsable }}{% endif %}</span>
+                        {% if puede_editar_proyecto %}
+                            <div class="task-actions">
+                                <a class="btn btn-sm btn-outline-primary"
+                                   href="{% url 'tarea_editar' tarea.pk %}?next={{ next_url|urlencode }}{% if fase_activa %}&fase={{ fase_activa.pk }}{% endif %}"
+                                   title="Editar esta tarea">
+                                    Editar
+                                </a>
+                                <a class="btn btn-sm btn-outline-danger"
+                                   href="{% url 'tarea_eliminar' tarea.pk %}?next={{ next_url|urlencode }}"
+                                   title="Eliminar esta tarea">
+                                    Eliminar
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="stage-panel">
+            <div class="workspace-section-title compact">
+                <div><span class="eyebrow">Evidencias</span><h2>Fotos y archivos</h2></div>
+                {% if puede_editar_proyecto %}
                     <a class="btn btn-sm btn-outline-primary" href="{% url 'evidencia_crear' proyecto.pk %}?next={{ next_url|urlencode }}{% if fase_activa %}&fase={{ fase_activa.pk }}{% endif %}">Subir</a>
                 {% endif %}
             </div>
             <div class="stage-evidence-list">
                 {% for evidencia in evidencias_detalle %}
                     <div class="stage-evidence-item">
+
                         {% if evidencia.es_imagen %}<img src="{{ evidencia.obj.archivo.url }}" alt="{{ evidencia.obj.nombre }}">{% endif %}
                         <strong>{{ evidencia.obj.nombre }}</strong>
                         <span>{{ evidencia.obj.fecha_subida }} - {{ evidencia.obj.usuario }}</span>
