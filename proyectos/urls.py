@@ -1,4 +1,4 @@
-﻿from django.urls import path
+from django.urls import path
 
 from . import views
 
@@ -48,6 +48,8 @@ urlpatterns = [
     path("proyectos/<int:pk>/tareas/nueva/", views.crear_tarea, name="tarea_crear"),
     path("proyectos/<int:pk>/evidencias/nueva/", views.subir_evidencia, name="evidencia_crear"),
     path("tareas/<int:pk>/completar/", views.completar_tarea, name="tarea_completar"),
+    path("tareas/<int:pk>/editar/", views.editar_tarea, name="tarea_editar"),
+    path("tareas/<int:pk>/eliminar/", views.eliminar_tarea, name="tarea_eliminar"),
     path("proyectos/<int:pk>/observaciones/nueva/", views.crear_observacion, name="observacion_crear"),
     path("proyectos/<int:pk>/inventario/usar/", views.registrar_uso_inventario, name="inventario_usar"),
 ]

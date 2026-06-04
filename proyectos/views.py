@@ -3074,6 +3074,55 @@ def completar_tarea(request, pk):
 
 
 @login_required
+def editar_tarea(request, pk):
+    tarea = get_object_or_404(Tarea.objects.filter(proyecto__sede=sede_usuario(request.user)), pk=pk)
+    if not exigir_permiso_edicion_proyecto(request, tarea.proyecto):
+        return redirect("proyecto_trabajo", pk=tarea.proyecto_id)
+    form = TareaForm(instance=tarea, sede=tarea.proyecto.sede)
+    if request.method == "POST":
+        form = TareaForm(request.POST, instance=tarea, sede=tarea.proyecto.sede)
+        if form.is_valid():
+            form.save()
+            recalcular_avance_por_tareas(tarea.proyecto)
+            messages.success(request, "Tarea actualizada correctamente.")
+            return redirect(url_retorno_segura(request, f"/proyectos/{tarea.proyecto_id}/trabajo/"))
+    return render(
+        request,
+        "proyectos/accion_form.html",
+        {
+            "proyecto": tarea.proyecto,
+            "form": form,
+            "titulo": "Editar tarea",
+            "descripcion": f"Modifica los datos de la tarea: {tarea.nombre}",
+            "boton": "Guardar cambios",
+        },
+    )
+
+
+@login_required
+def eliminar_tarea(request, pk):
+    tarea = get_object_or_404(Tarea.objects.filter(proyecto__sede=sede_usuario(request.user)), pk=pk)
+    if not exigir_permiso_edicion_proyecto(request, tarea.proyecto):
+        return redirect("proyecto_trabajo", pk=tarea.proyecto_id)
+    if request.method == "POST":
+        proyecto = tarea.proyecto
+        nombre = tarea.nombre
+        tarea.delete()
+        recalcular_avance_por_tareas(proyecto)
+        messages.success(request, f"Tarea eliminada: {nombre}")
+        return redirect(url_retorno_segura(request, f"/proyectos/{proyecto.pk}/trabajo/"))
+    # GET → mostrar confirmación
+    return render(
+        request,
+        "proyectos/tarea_confirmar_eliminar.html",
+        {
+            "proyecto": tarea.proyecto,
+            "tarea": tarea,
+        },
+    )
+
+
+@login_required
 def crear_observacion(request, pk):
     proyecto = get_object_or_404(proyectos_de_sede(request.user), pk=pk)
     if not exigir_permiso_edicion_proyecto(request, proyecto):

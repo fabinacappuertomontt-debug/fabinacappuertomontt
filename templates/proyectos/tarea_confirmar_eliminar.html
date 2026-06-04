@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Eliminar tarea — {{ proyecto.nombre }}{% endblock %}
+
+{% block content %}
+<div class="action-form-page">
+    <header class="workspace-hero">
+        <div>
+            <span class="eyebrow">Eliminar tarea</span>
+            <h1>¿Eliminar esta tarea?</h1>
+            <p>Esta acción no se puede deshacer.</p>
+        </div>
+    </header>
+
+    <div class="action-form-card danger-card">
+        <div class="danger-task-info">
+            <span class="eyebrow">Tarea a eliminar</span>
+            <strong>{{ tarea.nombre }}</strong>
+            {% if tarea.descripcion %}
+                <p>{{ tarea.descripcion }}</p>
+            {% endif %}
+            <span class="status-pill status-{{ tarea.estado }}">{{ tarea.get_estado_display }}</span>
+            {% if tarea.responsable %}
+                <span class="task-responsable">Responsable: {{ tarea.responsable }}</span>
+            {% endif %}
+        </div>
+
+        <div class="action-form-buttons">
+            <form method="post">
+                {% csrf_token %}
+                {% if request.GET.next %}
+                    <input type="hidden" name="next" value="{{ request.GET.next }}">
+                {% endif %}
+                <button class="btn btn-danger" type="submit" id="btn-confirmar-eliminar-tarea">
+                    Sí, eliminar tarea
+                </button>
+            </form>
+            <a class="btn btn-outline-secondary" href="{% url 'proyecto_trabajo' proyecto.pk %}">
+                Cancelar
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
