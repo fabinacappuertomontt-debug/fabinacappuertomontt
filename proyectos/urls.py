@@ -11,6 +11,7 @@ urlpatterns = [
     path("login/<slug:organizacion_slug>/", views.organizacion_login, name="organizacion_login"),
     path("organizacion/configuracion/", views.organizacion_configuracion, name="organizacion_configuracion"),
     path("registro/", views.registro_publico, name="registro"),
+    path("registro/areas/", views.areas_por_sede_json, name="areas_por_sede"),
     path("registro/pendiente/<int:pk>/", views.registro_pendiente, name="registro_pendiente"),
     path("registro/resolver/<str:token>/", views.registro_resolver, name="registro_resolver"),
     path("registro/verificar/<int:pk>/", views.verificar_correo, name="verificar_correo"),

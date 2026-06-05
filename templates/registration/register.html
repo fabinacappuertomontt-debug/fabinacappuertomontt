@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}Registro{% endblock %}
 {% block body_class %}login-page{% endblock %}
@@ -8,7 +8,7 @@
     <section class="login-intro">
         <div class="login-brand-row">
             <span class="login-logo-mark">F</span>
-            <span>Crea INACAP</span>
+            <span id="registro-titulo-sede">Crea INACAP Puerto Montt</span>
         </div>
         <span class="eyebrow">Registro institucional</span>
         <h1>Crear acceso por sede y área</h1>
@@ -22,7 +22,7 @@
         </figure>
         <div class="login-feature-grid">
             <article><strong>@</strong><span>Correo laboral</span></article>
-            <article><strong>Crea INACAP</strong><span>Aprobacion externa</span></article>
+            <article><strong id="login-feature-sede">Crea INACAP</strong><span>Aprobacion externa</span></article>
             <article><strong>ÁREA</strong><span>Equipo asignado</span></article>
         </div>
     </section>
@@ -32,18 +32,30 @@
                 <span class="eyebrow">Nuevo usuario</span>
                 <h2>Registrarse</h2>
                 <p>Si tu correo no es INACAP, el equipo Crea INACAP revisara la solicitud antes de activar tu cuenta.</p>
-                <form method="post">
+                <form method="post" id="registro-form">
                     {% csrf_token %}
                     {{ form.non_field_errors }}
                     {% for field in form %}
-                        <div class="mb-3">
-                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                            {{ field }}
-                            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-                            {% for error in field.errors %}
-                                <div class="text-danger small">{{ error }}</div>
-                            {% endfor %}
-                        </div>
+                        {% if field.html_name == "area" %}
+                            {# El campo area se reemplaza dinámicamente con JS según la sede elegida #}
+                            <div class="mb-3" id="campo-area-wrapper">
+                                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                                {% for error in field.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="mb-3">
+                                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                                {% for error in field.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
                     {% endfor %}
                     <button class="btn btn-primary w-100" type="submit">
                         <i class="bi bi-shield-check" aria-hidden="true"></i>
@@ -58,5 +70,58 @@
         </div>
     </section>
 </div>
-{% endblock %}
 
+<script>
+(function () {
+    var sedeSelect   = document.getElementById('id_sede');
+    var areaSelect   = document.getElementById('id_area');
+    var tituloSede   = document.getElementById('registro-titulo-sede');
+    var featureSede  = document.getElementById('login-feature-sede');
+
+    var nombresOrg = {
+        'puerto_montt': 'Crea INACAP Puerto Montt',
+        'osorno':       'Crea INACAP Osorno',
+    };
+
+    function actualizarAreas(sede, valorActual) {
+        fetch('/registro/areas/?sede=' + encodeURIComponent(sede))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                // Vaciar opciones actuales
+                while (areaSelect.options.length) areaSelect.remove(0);
+
+                // Opción vacía
+                var defaultOpt = document.createElement('option');
+                defaultOpt.value = '';
+                defaultOpt.textContent = 'Selecciona tu area';
+                areaSelect.appendChild(defaultOpt);
+
+                data.areas.forEach(function (a) {
+                    var opt = document.createElement('option');
+                    opt.value = a.id;
+                    opt.textContent = a.nombre;
+                    if (String(a.id) === String(valorActual)) opt.selected = true;
+                    areaSelect.appendChild(opt);
+                });
+
+                // Actualizar textos decorativos
+                var nombre = nombresOrg[sede] || 'Crea INACAP';
+                if (tituloSede)  tituloSede.textContent  = nombre;
+                if (featureSede) featureSede.textContent = nombre;
+            })
+            .catch(function (err) { console.error('Error al cargar areas:', err); });
+    }
+
+    if (sedeSelect && areaSelect) {
+        sedeSelect.addEventListener('change', function () {
+            actualizarAreas(this.value, '');
+        });
+
+        // Cargar al inicio con el valor de sede ya seleccionado (en caso de error de validación y re-render)
+        var sedeInicial = sedeSelect.value || 'puerto_montt';
+        var areaInicial = areaSelect.value || '';
+        actualizarAreas(sedeInicial, areaInicial);
+    }
+})();
+</script>
+{% endblock %}

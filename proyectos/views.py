@@ -49,7 +49,7 @@ from .forms import (
     UsuarioUpdateForm,
 )
 from .gemini_service import analizar_borrador_trl, analizar_etapa_trl, analizar_trl, generar_mesa_trabajo_ia, generar_estructura_proyecto_ia
-from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario, MovimientoStock
+from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Area, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario, MovimientoStock
 
 logger = logging.getLogger("proyectos.views")
 
@@ -374,6 +374,23 @@ def registro_publico(request):
                 messages.warning(request, "Cuenta creada, pero no se pudo enviar el correo. Revisa la configuración SMTP.")
             return redirect("verificar_correo", pk=usuario.pk)
     return render(request, "registration/register.html", {"form": form})
+
+
+def areas_por_sede_json(request):
+    """AJAX: retorna solo el area principal (Crea INACAP) de la sede pedida."""
+    sede = request.GET.get("sede", "puerto_montt")
+    slug_mapa = {
+        "puerto_montt": "fab-inacap-puerto-montt",
+        "osorno": "crea-inacap-osorno",
+    }
+    slug_org = slug_mapa.get(sede, "fab-inacap-puerto-montt")
+    areas = (
+        Area.objects
+        .filter(organizacion__slug=slug_org, activa=True, es_fab=True)
+        .values("id", "nombre")
+        .order_by("nombre")
+    )
+    return JsonResponse({"areas": list(areas)})
 
 
 def registro_pendiente(request, pk):

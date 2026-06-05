@@ -858,10 +858,15 @@ class RegistroPublicoForm(BootstrapFormMixin, UserCreationForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Por defecto mostramos todas las areas de ambas sedes
+        # El JS en el template actualiza dinámicamente via AJAX.
+        # En caso de recarga (POST fallido), el area elegida ya viene con valor;
+        # cargamos las areas de ambas organizaciones para que la validación funcione.
         self.fields["area"].queryset = Area.objects.filter(
-            organizacion__slug="fab-inacap-puerto-montt",
+            organizacion__slug__in=["fab-inacap-puerto-montt", "crea-inacap-osorno"],
             activa=True,
-        ).order_by("nombre")
+            es_fab=True,
+        ).order_by("organizacion__nombre", "nombre")
         self.fields["area"].empty_label = "Selecciona tu area"
         self.fields["area"].required = True
         self.fields["password1"].widget.attrs.setdefault("class", "form-control")
@@ -897,8 +902,17 @@ class RegistroPublicoForm(BootstrapFormMixin, UserCreationForm):
         usuario.institucion = self.cleaned_data.get("institucion", "").strip()
         usuario.rol = self.cleaned_data.get("rol") or Usuario.Rol.ALUMNO
         usuario.area = self.cleaned_data.get("area")
+        # Asignar organizacion y sede según el area seleccionada
         if usuario.area:
             usuario.organizacion = usuario.area.organizacion
+            # Inferir sede según el slug de la organización
+            org_slug = getattr(usuario.area.organizacion, "slug", "")
+            if org_slug == "crea-inacap-osorno":
+                from .models import Sede
+                usuario.sede = Sede.OSORNO
+            else:
+                from .models import Sede
+                usuario.sede = Sede.PUERTO_MONTT
         usuario.is_active = False
         usuario.is_staff = False
         usuario.is_superuser = False
