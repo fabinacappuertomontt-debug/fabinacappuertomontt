@@ -383,7 +383,7 @@ def _llamar_gemini_mesa(prompt, fases_validas):
     if not api_key:
         return PLAN_MESA_FALLBACK.copy()
 
-    model = getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash")
+    model = getattr(settings, "GEMINI_MODEL_PRO", "gemini-2.5-pro")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
@@ -693,7 +693,7 @@ def generar_estructura_proyecto_ia(proyecto):
     # Intentar con Gemini
     api_key = getattr(settings, "GEMINI_API_KEY", "")
     if api_key:
-        model = getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash")
+        model = getattr(settings, "GEMINI_MODEL_PRO", "gemini-2.5-pro")
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
