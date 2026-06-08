@@ -865,7 +865,6 @@ class RegistroPublicoForm(BootstrapFormMixin, UserCreationForm):
         self.fields["area"].queryset = Area.objects.filter(
             organizacion__slug__in=["fab-inacap-puerto-montt", "crea-inacap-osorno"],
             activa=True,
-            es_fab=True,
         ).order_by("organizacion__nombre", "nombre")
         self.fields["area"].empty_label = "Selecciona tu area"
         self.fields["area"].required = True

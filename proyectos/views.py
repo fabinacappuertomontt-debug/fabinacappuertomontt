@@ -1231,16 +1231,24 @@ def fases_por_tipo(tipo_proyecto):
 
 def crear_fases_para_proyecto(proyecto):
     tipo_proyecto = Proyecto.TipoProyecto.TECNOLOGICO if proyecto.usa_trl else Proyecto.TipoProyecto.GENERAL
+    tipo_cambiado = False
     if proyecto.tipo_proyecto != tipo_proyecto:
         proyecto.tipo_proyecto = tipo_proyecto
         proyecto.save(update_fields=["tipo_proyecto"])
+        tipo_cambiado = True
+
+    # Si cambió de tipo, limpiamos fases anteriores para recrearlas
+    if tipo_cambiado:
+        proyecto.fases.all().delete()
+
     for numero, nombre, objetivo in fases_por_tipo(tipo_proyecto):
-        fase, _ = FaseProyecto.objects.get_or_create(
+        fase, creada = FaseProyecto.objects.get_or_create(
             proyecto=proyecto,
             trl=numero,
             defaults={"nombre": nombre, "objetivo": objetivo},
         )
-        if fase.nombre != nombre or fase.objetivo != objetivo:
+        # Solo sincronizar valores por defecto si la fase no fue creada recién y sí cambió el tipo de proyecto
+        if not creada and tipo_cambiado:
             fase.nombre = nombre
             fase.objetivo = objetivo
             fase.save(update_fields=["nombre", "objetivo"])
@@ -1250,7 +1258,8 @@ def fases_validas_para_mesa(proyecto):
     if proyecto.usa_trl:
         # Incluye trl_inicial para que resultados ligados al nivel de partida tambien tengan tareas
         return list(range(proyecto.trl_inicial_efectivo, proyecto.trl_objetivo_efectivo + 1))
-    return [numero for numero, _, _ in fases_por_tipo(Proyecto.TipoProyecto.GENERAL)]
+    # Permitir hasta 6 fases en proyectos simples (metodología no TRL)
+    return [1, 2, 3, 4, 5, 6]
 
 
 def plan_mesa_por_reglas(proyecto):
@@ -1405,7 +1414,8 @@ def generar_mesa_trabajo_ia_async(proyecto_id):
 
         if not plan.get("ok") or tiempo_total > 60:
             # Ambas IAs fallaron o tardaron demasiado
-            # Aplicar reglas (puede dar 0 si las tareas base ya existen)
+            # Aplicar reglas y crear fases por defecto
+            crear_fases_para_proyecto(proyecto)
             aplicar_plan_mesa_trabajo(proyecto, plan_mesa_por_reglas(proyecto))
             total_tareas = proyecto.tareas.count()
             logger.warning(
@@ -1427,6 +1437,42 @@ def generar_mesa_trabajo_ia_async(proyecto_id):
                 )
             return
 
+        # 1. Crear o actualizar fases personalizadas devueltas por la IA
+        fases_creadas_ids = []
+        for etapa in plan.get("etapas", []):
+            try:
+                fase_numero = int(etapa.get("fase") or 0)
+            except (TypeError, ValueError):
+                continue
+            if not fase_numero:
+                continue
+
+            nombre = etapa.get("nombre")
+            if not nombre:
+                # Si la IA no generó nombre, usar el default
+                tipo_proyecto = Proyecto.TipoProyecto.TECNOLOGICO if proyecto.usa_trl else Proyecto.TipoProyecto.GENERAL
+                default_fases = dict(fases_por_tipo(tipo_proyecto))
+                nombre = default_fases.get(fase_numero, f"Fase {fase_numero}")
+
+            criterio = etapa.get("criterio") or ""
+            evidencias = etapa.get("evidencias_sugeridas") or []
+
+            fase, _ = FaseProyecto.objects.update_or_create(
+                proyecto=proyecto,
+                trl=fase_numero,
+                defaults={
+                    "nombre": nombre[:200],
+                    "objetivo": criterio,
+                    "evidencias_sugeridas": evidencias[:12],
+                }
+            )
+            fases_creadas_ids.append(fase.id)
+
+        # 2. Para proyectos simples, borrar fases huérfanas que la IA no haya propuesto
+        if not proyecto.usa_trl:
+            proyecto.fases.exclude(id__in=fases_creadas_ids).delete()
+
+        # 3. Aplicar tareas vinculadas a las fases que ya están en la base de datos
         tareas = aplicar_plan_mesa_trabajo(proyecto, plan)
         total_tareas = proyecto.tareas.count()
         logger.info("[IA] Mesa generada con IA para proyecto %s. Tareas nuevas: %s, total: %s.", proyecto_id, tareas, total_tareas)
@@ -2338,10 +2384,10 @@ class ProyectoCreateView(LoginRequiredMixin, CreateView):
         form.instance.estado = Proyecto.Estado.EN_PROCESO
         response = super().form_valid(form)
         self.object.responsables.add(self.request.user)
-        crear_fases_para_proyecto(self.object)
+        # Ya no creamos fases por defecto en primer plano, dejamos que el hilo asíncrono las genere de forma personalizada
         sincronizar_trl_desde_resultados(self.object)
         sincronizar_avance_simple_desde_objetivos(self.object)
-        # IA lee todo lo que el usuario escribio y genera la ruta y mesa de trabajo
+        # IA lee todo lo que el usuario escribió y genera la ruta de etapas y tareas
         generar_mesa_trabajo_inicial(self.object)
         notificar_creador_proyecto(self.request, self.object)
         notificar_responsables_proyecto(self.request, self.object)

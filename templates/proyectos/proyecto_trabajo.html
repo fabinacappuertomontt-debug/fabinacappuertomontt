@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}Mesa de trabajo - {{ proyecto.nombre }}{% endblock %}
 
@@ -147,7 +147,51 @@
         </div>
     </section>
 
-    <section class="workspace-board" aria-label="Etapas de trabajo">
+    {% if proyecto.mesa_trabajo_estado == "generando" %}
+        <section class="workspace-summary-strip" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4rem 2rem; text-align: center; background: rgba(255,255,255,0.05); border: 1px dashed var(--line); border-radius: 12px; margin-top: 1.5rem; margin-bottom: 2rem;">
+            <div class="loading-spinner" style="border: 4px solid rgba(0,0,0,0.1); width: 48px; height: 48px; border-radius: 50%; border-left-color: var(--inacap-red); animation: spin 1s linear infinite; margin-bottom: 1.5rem;"></div>
+            <h2 style="font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--text);">🤖 Diseñando la mesa de trabajo con IA...</h2>
+            <p style="color: var(--muted); max-width: 500px; margin-bottom: 1.5rem;">Gemini Pro está estructurando las fases personalizadas del proyecto y cargando las tareas recomendadas basadas en tus objetivos específicos y resultados esperados.</p>
+            <div class="progress" style="width: 100%; max-width: 300px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-bottom: 1.5rem;">
+                <div class="progress-bar-loading" style="width: 100%; height: 100%; background: var(--inacap-red); animation: loading-progress 2s ease-in-out infinite;"></div>
+            </div>
+            <span style="font-size: 0.85rem; color: var(--muted);">Esto tardará unos segundos. La página se actualizará sola cuando la mesa de trabajo esté lista.</span>
+        </section>
+
+        <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes loading-progress {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        .progress-bar-loading {
+            width: 100%;
+            background: var(--inacap-red);
+            transform: translateX(-100%);
+        }
+        </style>
+
+        <script>
+        (function() {
+            const checkInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('{% url "proyecto_mesa_estado" proyecto.pk %}');
+                    const data = await response.json();
+                    if (data.estado !== 'generando') {
+                        clearInterval(checkInterval);
+                        window.location.reload();
+                    }
+                } catch (error) {
+                    console.error("Error al consultar el estado de la mesa:", error);
+                }
+            }, 2000);
+        })();
+        </script>
+    {% else %}
+        <section class="workspace-board" aria-label="Etapas de trabajo">
         <div class="workspace-section-title">
             <div>
                 <span class="eyebrow">Ruta del trabajo</span>
@@ -205,6 +249,7 @@
             {% endfor %}
         </div>
     </section>
+    {% endif %}
 
     <section class="workspace-compact-panels" aria-label="Informacion adicional del proyecto">
         <details class="workspace-collapsible-card">

@@ -84,33 +84,38 @@ Responde siempre en JSON valido con estas claves:
 
 
 MESA_TRABAJO_CONTEXTO = """
-Eres un planificador tecnico IA para una plataforma Django de seguimiento de proyectos Crea INACAP Puerto Montt.
-El usuario ya completo el proyecto con nombre, descripcion, objetivo principal, objetivos especificos,
-resultados esperados e indicadores. Tu tarea es leer TODO eso y generar la ruta de trabajo y la mesa de tareas.
+Eres un planificador técnico IA para una plataforma Django de seguimiento de proyectos de Crea INACAP.
+El usuario ya completó el proyecto con su nombre, descripción, objetivo principal, objetivos específicos y resultados esperados. Tu tarea es generar la ruta de trabajo personalizada (las fases o etapas de desarrollo) y las tareas para la mesa de trabajo.
 
 Reglas obligatorias:
-- Lee y usa directamente los objetivos especificos, resultados esperados e indicadores que ya escribio el usuario.
-- Cada tarea debe estar directamente relacionada con al menos uno de los objetivos o resultados del proyecto.
-- No inventes objetivos ni resultados nuevos; trabaja solo con lo que el usuario definio.
-- No marques tareas, criterios, resultados ni etapas como completadas.
-- No inventes fases fuera de la lista entregada por el sistema.
-- Las tareas deben ser concretas y accionables, no genericas.
-- El criterio de cada fase debe resumir que debe demostrarse para avanzar, basado en los resultados de esa etapa.
-- Las evidencias sugeridas deben ser archivos, fotos, capturas, informes, pruebas o registros reales del proyecto.
-- Si el proyecto es simple: distribuye tareas por fases sin mencionar TRL.
-- Si el proyecto usa TRL: relaciona cada fase con el TRL correspondiente, sus resultados e indicadores especificos.
-- Genera entre 3 y 6 tareas por fase, concretas y vinculadas al trabajo real del equipo.
+1. Detecta si es un proyecto simple (usa_trl = False) o un proyecto tecnológico TRL (usa_trl = True).
+2. Para Proyectos TRL:
+   - Mantén los números de fase correspondientes a los niveles TRL solicitados en "fases_disponibles".
+   - Genera un nombre y criterio de cumplimiento personalizado para cada nivel TRL que se adapte al contexto del proyecto (ej: en lugar de "Concepto tecnológico formulado", usa un nombre específico como "Prueba experimental del sensor de riego").
+3. Para Proyectos Simples (no TRL):
+   - Determina cuántas fases de desarrollo lógicas necesita el proyecto (mínimo 3, máximo 6). Asígnales números de fase secuenciales partiendo desde 1 (ej: 1, 2, 3, 4...).
+   - Nombra cada fase de forma personalizada y profesional acorde al proyecto (ej: "Fase 1: Diseño del Prototipo", "Fase 2: Programación y Conexión de API").
+   - Escribe un "criterio" claro de cumplimiento para cada fase, indicando qué se debe lograr para dar por finalizada la etapa.
+4. Para cada fase (sea simple o TRL):
+   - Genera entre 3 y 6 tareas concretas y accionables, directamente vinculadas al trabajo real del equipo para esa fase.
+   - Especifica entre 1 y 3 evidencias sugeridas (archivos, capturas, informes, fotos) que demuestren el cumplimiento.
 
-Responde siempre en JSON valido con esta forma:
+Responde siempre en JSON válido con esta estructura exacta:
 {
   "etapas": [
     {
       "fase": 1,
-      "criterio": "descripcion de que debe cumplirse en esta fase segun los resultados del proyecto",
+      "nombre": "Nombre personalizado de la etapa",
+      "criterio": "Descripción detallada del criterio de aceptación o logro de esta etapa",
       "tareas": [
-        {"nombre": "nombre corto de la tarea", "descripcion": "descripcion concreta de que hay que hacer"}
+        {
+          "nombre": "Nombre corto de la tarea",
+          "descripcion": "Descripción concreta de la actividad"
+        }
       ],
-      "evidencias_sugeridas": ["tipo de archivo o registro que el equipo debe subir"]
+      "evidencias_sugeridas": [
+        "Tipo de archivo o registro que sirve como evidencia"
+      ]
     }
   ]
 }
@@ -196,6 +201,7 @@ def _normalizar_plan_mesa(datos, fases_validas):
             evidencias = []
         etapas.append({
             "fase": fase,
+            "nombre": str(etapa.get("nombre", "")).strip(),
             "criterio": str(etapa.get("criterio", "")).strip(),
             "tareas": tareas[:12],
             "evidencias_sugeridas": evidencias[:12],
@@ -444,6 +450,7 @@ def _llamar_groq_json(prompt, normalizador, fallback, temperature=0.2):
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         },
         method="POST",
     )
