@@ -197,7 +197,7 @@
                 <span class="eyebrow">Ruta del trabajo</span>
                 <div class="d-flex align-items-center gap-3">
                     <h2 class="mb-0">Etapas y avance</h2>
-                    <button class="btn btn-outline-danger btn-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modalAyudaLogica" style="border-radius: 20px; font-weight: 700; padding: 4px 12px; border-color: #cf3f4f; color: #cf3f4f; background-color: transparent;">
+                    <button class="btn btn-outline-danger btn-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modalTutorialGlobal" style="border-radius: 20px; font-weight: 700; padding: 4px 12px; border-color: #cf3f4f; color: #cf3f4f; background-color: transparent;">
                         <i class="bi bi-question-circle"></i> ¿Necesitas ayuda?
                     </button>
                 </div>
@@ -339,113 +339,6 @@
             </div>
         </details>
     </section>
-
-    <!-- Modal de Ayuda de Lógica y Metodología -->
-    <div class="modal fade" id="modalAyudaLogica" tabindex="-1" aria-labelledby="modalAyudaLogicaLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content" style="border-radius: 16px; border: none; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
-                <div class="modal-header text-white d-flex align-items-center" style="background: linear-gradient(135deg, #cf3f4f, #9b1c2a); padding: 20px 24px;">
-                    <div class="d-flex align-items-center gap-2">
-                        <i class="bi bi-info-circle-fill" style="font-size: 1.4rem;"></i>
-                        <h5 class="modal-title mb-0" id="modalAyudaLogicaLabel" style="font-weight: 800; letter-spacing: 0.5px;">Guía de Funcionamiento: Metodologías e IA</h5>
-                    </div>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="opacity: 0.8;"></button>
-                </div>
-                <div class="modal-body" style="padding: 28px; background-color: #f8fafc; max-height: 75vh; overflow-y: auto;">
-                    
-                    <div class="row g-4">
-                        <!-- Tarjeta Proyecto Simple -->
-                        <div class="col-md-6">
-                            <div class="card h-100 border-0" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden;">
-                                <div class="card-header bg-white border-0 pt-4 px-4 pb-2">
-                                    <span class="badge bg-secondary-subtle text-secondary px-3 py-1 mb-2" style="font-size: 0.75rem; font-weight: 800; border-radius: 6px;">METODOLOGÍA SIMPLE</span>
-                                    <h4 style="font-weight: 800; color: #1e293b; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
-                                        <i class="bi bi-list-task" style="color: #64748b; font-size: 1.4rem;"></i> Gestión por Objetivos
-                                    </h4>
-                                </div>
-                                <div class="card-body px-4 pb-4">
-                                    <p class="text-muted small mb-4" style="line-height: 1.5; font-weight: 500;">
-                                        Ideal para proyectos operativos tradicionales que avanzan de forma secuencial mediante tareas y entregables directos.
-                                    </p>
-                                    <ul class="list-unstyled d-flex flex-column gap-3">
-                                        <li class="d-flex align-items-start gap-2">
-                                            <i class="bi bi-check-circle-fill text-success mt-0.5" style="font-size: 0.95rem;"></i>
-                                            <span class="small text-dark" style="font-weight: 600;">
-                                                <strong>Avanzar etapa</strong>: Se realiza manualmente ingresando al detalle de la fase y marcándola como "Completada".
-                                            </span>
-                                        </li>
-                                        <li class="d-flex align-items-start gap-2">
-                                            <i class="bi bi-shield-fill-exclamation text-danger mt-0.5" style="font-size: 0.95rem;"></i>
-                                            <span class="small text-dark" style="font-weight: 600;">
-                                                <strong>Seguridad anti-errores</strong>: El sistema bloquea el cambio de estado si la fase aún tiene tareas pendientes o si no se ha subido evidencia de respaldo.
-                                            </span>
-                                        </li>
-                                        <li class="d-flex align-items-start gap-2">
-                                            <i class="bi bi-cpu text-primary mt-0.5" style="font-size: 0.95rem;"></i>
-                                            <span class="small text-dark" style="font-weight: 600;">
-                                                <strong>Asistente IA</strong>: Ayuda a redactar objetivos y resultados en el asistente inicial para estructurar rápidamente el proyecto.
-                                            </span>
-                                        </li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Tarjeta Proyecto TRL -->
-                        <div class="col-md-6">
-                            <div class="card h-100 border-0" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden;">
-                                <div class="card-header bg-white border-0 pt-4 px-4 pb-2">
-                                    <span class="badge bg-danger-subtle text-danger px-3 py-1 mb-2" style="font-size: 0.75rem; font-weight: 800; border-radius: 6px; background-color: #fee2e2; color: #cf3f4f;">MESA TRL</span>
-                                    <h4 style="font-weight: 800; color: #cf3f4f; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
-                                        <i class="bi bi-graph-up-arrow" style="font-size: 1.3rem;"></i> Madurez Tecnológica
-                                    </h4>
-                                </div>
-                                <div class="card-body px-4 pb-4">
-                                    <p class="text-muted small mb-4" style="line-height: 1.5; font-weight: 500;">
-                                        Para proyectos tecnológicos con ruta I+D+i (Investigación, Desarrollo e innovación) que miden su madurez de TRL 2 a TRL 7 o 9.
-                                    </p>
-                                    <ul class="list-unstyled d-flex flex-column gap-3">
-                                        <li class="d-flex align-items-start gap-2">
-                                            <i class="bi bi-lightning-charge-fill text-warning mt-0.5" style="font-size: 0.95rem;"></i>
-                                            <span class="small text-dark" style="font-weight: 600;">
-                                                <strong>Cálculo Automático</strong>: Las fases se marcan completas al cumplir el 100% de los indicadores asociados a ese nivel TRL. No hay botones manuales.
-                                            </span>
-                                        </li>
-                                        <li class="d-flex align-items-start gap-2">
-                                            <i class="bi bi-arrow-left-right text-info mt-0.5" style="font-size: 0.95rem;"></i>
-                                            <span class="small text-dark" style="font-weight: 600;">
-                                                <strong>Bidireccional</strong>: Si desmarcas una meta (ej. por error), el nivel TRL y el porcentaje general bajan automáticamente para mantener coherencia.
-                                            </span>
-                                        </li>
-                                        <li class="d-flex align-items-start gap-2">
-                                            <i class="bi bi-stars text-danger mt-0.5" style="font-size: 0.95rem; color: #cf3f4f;"></i>
-                                            <span class="small text-dark" style="font-weight: 600;">
-                                                <strong>IA: Tareas Sugeridas</strong>: Presiona "Generar con IA" en la mesa de trabajo para que el asistente proponga y asigne tareas específicas para cumplir las metas del TRL en desarrollo.
-                                            </span>
-                                        </li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Notificaciones por correo -->
-                    <div class="mt-4 p-3 border-0 bg-white" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
-                        <h5 style="font-weight: 800; color: #1e293b; font-size: 1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="bi bi-envelope-check-fill text-success"></i> Sistema de Correo Optimizado
-                        </h5>
-                        <p class="text-muted small mb-0 mt-2" style="font-weight: 500; line-height: 1.5;">
-                            Los <strong>responsables</strong> solo son notificados al ser asignados al proyecto para evitar spam. Por su parte, el <strong>creador del proyecto</strong> recibe notificaciones al crearse el proyecto y cada vez que el equipo logre avanzar y completar un nivel TRL o etapa.
-                        </p>
-                    </div>
-                    
-                </div>
-                <div class="modal-footer bg-light border-0" style="padding: 16px 24px;">
-                    <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal" style="border-radius: 8px; font-weight: 700;">Entendido</button>
-                </div>
-            </div>
-        </div>
-    </div>
 
 </div>
 

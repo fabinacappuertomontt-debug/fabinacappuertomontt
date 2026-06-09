@@ -1,4 +1,4 @@
-﻿{% load static %}
+{% load static %}
 <!doctype html>
 <html lang="es">
 <head>
@@ -110,6 +110,10 @@
                                 <span>Configuración</span>
                             </a>
                         {% endif %}
+                        <a class="sidebar-link" href="#" data-bs-toggle="modal" data-bs-target="#modalTutorialGlobal">
+                            <i class="bi bi-patch-question-fill" style="color: var(--inacap-red, #cf3f4f);"></i>
+                            <span>Guía & Tutorial</span>
+                        </a>
                     </nav>
                 </div>
 
@@ -269,6 +273,207 @@
             }
         });
     </script>
+    <!-- Modal Tutorial Global -->
+    <div class="modal fade" id="modalTutorialGlobal" tabindex="-1" aria-labelledby="modalTutorialGlobalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 16px; border: none; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+                <div class="modal-header text-white d-flex align-items-center" style="background: linear-gradient(135deg, var(--inacap-red, #cf3f4f), #1e293b); padding: 20px 24px;">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-journal-bookmark-fill" style="font-size: 1.5rem;"></i>
+                        <h5 class="modal-title mb-0" id="modalTutorialGlobalLabel" style="font-weight: 800; letter-spacing: 0.5px;">Centro de Ayuda y Guía de la Plataforma</h5>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="opacity: 0.8;"></button>
+                </div>
+                <div class="modal-body" style="padding: 28px; background-color: #f8fafc; max-height: 75vh; overflow-y: auto;">
+                    <!-- Navegación por Pestañas -->
+                    <ul class="nav nav-pills mb-4 gap-2" id="tutorialTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active px-4 py-2" id="nav-general-tab" data-bs-toggle="tab" data-bs-target="#nav-general" type="button" role="tab" aria-controls="nav-general" aria-selected="true" style="border-radius: 8px; font-weight: 700;">
+                                <i class="bi bi-info-circle"></i> General
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link px-4 py-2" id="nav-simple-tab" data-bs-toggle="tab" data-bs-target="#nav-simple" type="button" role="tab" aria-controls="nav-simple" aria-selected="false" style="border-radius: 8px; font-weight: 700;">
+                                <i class="bi bi-list-task"></i> Metodología Simple
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link px-4 py-2" id="nav-trl-tab" data-bs-toggle="tab" data-bs-target="#nav-trl" type="button" role="tab" aria-controls="nav-trl" aria-selected="false" style="border-radius: 8px; font-weight: 700;">
+                                <i class="bi bi-graph-up-arrow"></i> Metodología TRL
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link px-4 py-2" id="nav-novedades-tab" data-bs-toggle="tab" data-bs-target="#nav-novedades" type="button" role="tab" aria-controls="nav-novedades" aria-selected="false" style="border-radius: 8px; font-weight: 700;">
+                                <i class="bi bi-stars"></i> ¿Qué hay de nuevo?
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="tutorialTabsContent">
+                        <!-- Pestaña General -->
+                        <div class="tab-pane fade show active" id="nav-general" role="tabpanel" aria-labelledby="nav-general-tab">
+                            <div class="p-3 bg-white" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+                                <h4 style="font-weight: 800; color: #1e293b;">Bienvenido a la Plataforma de Seguimiento</h4>
+                                <p class="text-muted" style="line-height: 1.6; font-weight: 500;">
+                                    Este sistema está diseñado para facilitar el control de proyectos, la asignación de tareas, el seguimiento de avances y la administración del inventario de laboratorios. Dependiendo del tipo de proyecto, dispones de dos enfoques metodológicos para organizar el trabajo de forma efectiva.
+                                </p>
+                                <hr class="my-4">
+                                <h5 class="mb-3" style="font-weight: 800; color: #1e293b;">Estructura Principal del Software:</h5>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <div class="p-3 border-0 bg-light" style="border-radius: 8px; height: 100%;">
+                                            <strong class="d-block text-danger mb-2"><i class="bi bi-kanban"></i> Tablero de Trabajo</strong>
+                                            <span class="small text-muted" style="font-weight: 500;">Visualiza las fases de tu proyecto en orden, controla el avance general y accede a los detalles de cada etapa.</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 border-0 bg-light" style="border-radius: 8px; height: 100%;">
+                                            <strong class="d-block text-primary mb-2"><i class="bi bi-chat-dots"></i> Chat y Colaboración</strong>
+                                            <span class="small text-muted" style="font-weight: 500;">Comunícate con tu equipo y usa los asistentes de Inteligencia Artificial para refinar objetivos y generar tareas.</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 border-0 bg-light" style="border-radius: 8px; height: 100%;">
+                                            <strong class="d-block text-success mb-2"><i class="bi bi-box-seam"></i> Control de Stock</strong>
+                                            <span class="small text-muted" style="font-weight: 500;">Registra el uso de materiales, herramientas e insumos del laboratorio asociados directamente a cada proyecto.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pestaña Simple -->
+                        <div class="tab-pane fade" id="nav-simple" role="tabpanel" aria-labelledby="nav-simple-tab">
+                            <div class="p-3 bg-white" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+                                <h4 style="font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                                    <i class="bi bi-list-task" style="color: #64748b;"></i> Gestión por Objetivos Tradicionales
+                                </h4>
+                                <p class="text-muted mb-4" style="line-height: 1.6; font-weight: 500;">
+                                    Ideal para proyectos operativos, administrativos, eventos o de gestión que avanzan de forma secuencial mediante tareas y entregables directos.
+                                </p>
+                                <ul class="list-unstyled d-flex flex-column gap-3">
+                                    <li class="d-flex align-items-start gap-2">
+                                        <i class="bi bi-check-circle-fill text-success mt-1" style="font-size: 1.1rem;"></i>
+                                        <span class="text-dark" style="font-weight: 500;">
+                                            <strong>Avance Manual Controlado</strong>: Las fases del proyecto no se completan solas. Debes ingresar al detalle de la etapa y marcarla como completa de forma manual cuando finalices su trabajo.
+                                        </span>
+                                    </li>
+                                    <li class="d-flex align-items-start gap-2">
+                                        <i class="bi bi-shield-fill-exclamation text-danger mt-1" style="font-size: 1.1rem;"></i>
+                                        <span class="text-dark" style="font-weight: 500;">
+                                            <strong>Bloqueo de Seguridad Anti-Errores</strong>: Para garantizar la calidad y orden del proyecto, el sistema no te permitirá completar una etapa si aún tiene tareas pendientes sin finalizar o si no has subido al menos un documento o archivo como evidencia de respaldo.
+                                        </span>
+                                    </li>
+                                    <li class="d-flex align-items-start gap-2">
+                                        <i class="bi bi-cpu text-primary mt-1" style="font-size: 1.1rem;"></i>
+                                        <span class="text-dark" style="font-weight: 500;">
+                                            <strong>Redacción Asistida por IA</strong>: Al crear o editar el proyecto, cuentas con un chat interactivo donde puedes describir tu idea. El Asistente IA estructurará el objetivo general, objetivos específicos y resultados esperados por ti en el formulario.
+                                        </span>
+                                    </li>
+                                    <li class="d-flex align-items-start gap-2">
+                                        <i class="bi bi-people mt-1" style="font-size: 1.1rem; color: #64748b;"></i>
+                                        <span class="text-dark" style="font-weight: 500;">
+                                            <strong>Asignación Directa</strong>: Define quiénes del equipo serán los responsables específicos de completar las tareas de cada fase.
+                                        </span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Pestaña TRL -->
+                        <div class="tab-pane fade" id="nav-trl" role="tabpanel" aria-labelledby="nav-trl-tab">
+                            <div class="p-3 bg-white" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+                                <h4 style="font-weight: 800; color: #cf3f4f; display: flex; align-items: center; gap: 8px;">
+                                    <i class="bi bi-graph-up-arrow"></i> Gestión por Madurez Tecnológica (TRL)
+                                </h4>
+                                <p class="text-muted mb-4" style="line-height: 1.6; font-weight: 500;">
+                                    Diseñado para proyectos de desarrollo tecnológico o innovación (I+D+i) que miden su madurez en la escala estándar desde TRL de inicio hasta TRL de meta.
+                                </p>
+                                <ul class="list-unstyled d-flex flex-column gap-3">
+                                    <li class="d-flex align-items-start gap-2">
+                                        <i class="bi bi-lightning-charge-fill text-warning mt-1" style="font-size: 1.1rem;"></i>
+                                        <span class="text-dark" style="font-weight: 500;">
+                                            <strong>Cálculo Automático por Cumplimiento</strong>: Las fases se marcan como completadas de forma 100% automática una vez que todos los indicadores técnicos de ese nivel se cumplan. No existen botones para forzar la finalización.
+                                        </span>
+                                    </li>
+                                    <li class="d-flex align-items-start gap-2">
+                                        <i class="bi bi-clipboard2-check text-info mt-1" style="font-size: 1.1rem;"></i>
+                                        <span class="text-dark" style="font-weight: 500;">
+                                            <strong>Indicadores de esta Etapa y Metas TRL</strong>: En la mesa de trabajo de cada etapa verás la sección de metas. Estos indicadores son las metas técnicas requeridas para validar ese nivel. Puedes registrar su valor y marcar su cumplimiento en tiempo real directamente en esta sección.
+                                        </span>
+                                    </li>
+                                    <li class="d-flex align-items-start gap-2">
+                                        <i class="bi bi-arrow-left-right text-info mt-1" style="font-size: 1.1rem;"></i>
+                                        <span class="text-dark" style="font-weight: 500;">
+                                            <strong>Comportamiento Bidireccional</strong>: Si desmarcas un indicador (ej. por retroceso técnico o error), el nivel TRL del proyecto y el porcentaje general bajan automáticamente para mantener la veracidad del avance.
+                                        </span>
+                                    </li>
+                                    <li class="d-flex align-items-start gap-2">
+                                        <i class="bi bi-stars text-danger mt-1" style="font-size: 1.1rem; color: #cf3f4f;"></i>
+                                        <span class="text-dark" style="font-weight: 500;">
+                                            <strong>Sugerencia de Tareas con IA</strong>: Al presionar "Generar con IA" dentro de una etapa, el asistente evaluará los indicadores técnicos pendientes de la etapa actual y creará sugerencias de tareas concretas listas para asignar al equipo.
+                                        </span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Pestaña Novedades -->
+                        <div class="tab-pane fade" id="nav-novedades" role="tabpanel" aria-labelledby="nav-novedades-tab">
+                            <div class="p-3 bg-white" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+                                <h4 style="font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                                    <i class="bi bi-stars text-danger"></i> ¿Qué hay de nuevo en esta versión?
+                                </h4>
+                                <p class="text-muted mb-4" style="line-height: 1.6; font-weight: 500;">
+                                    Hemos optimizado la interfaz y las automatizaciones para hacer el trabajo del equipo más ágil y libre de spam.
+                                </p>
+                                <ul class="list-unstyled d-flex flex-column gap-3">
+                                    <li class="d-flex align-items-start gap-2">
+                                        <i class="bi bi-arrow-clockwise text-primary mt-1" style="font-size: 1.1rem;"></i>
+                                        <span class="text-dark" style="font-weight: 500;">
+                                            <strong>Sincronización en Tiempo Real</strong>: Olvídate de refrescar manualmente. El tablero general del proyecto se actualiza solo (usando recarga inteligente de caché bfcache) al regresar de trabajar en las etapas.
+                                        </span>
+                                    </li>
+                                    <li class="d-flex align-items-start gap-2">
+                                        <i class="bi bi-envelope-check text-success mt-1" style="font-size: 1.1rem;"></i>
+                                        <span class="text-dark" style="font-weight: 500;">
+                                            <strong>Notificaciones de Correo Sin Spam</strong>: Los responsables de tareas ya no recibirán correos repetitivos por cada cambio menor o tarea individual asignada. Solo recibirán una notificación al unirse al proyecto. Por otro lado, el creador del proyecto será notificado inmediatamente cuando el equipo complete con éxito una fase o etapa completa.
+                                        </span>
+                                    </li>
+                                    <li class="d-flex align-items-start gap-2">
+                                        <i class="bi bi-check2-square text-info mt-1" style="font-size: 1.1rem;"></i>
+                                        <span class="text-dark" style="font-weight: 500;">
+                                            <strong>Edición de Indicadores Directa</strong>: Puedes marcar y actualizar metas técnicas directamente en el tablero de la etapa en desarrollo sin tener que abrir el wizard de edición general del proyecto.
+                                        </span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer bg-light border-0" style="padding: 16px 24px;">
+                    <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal" style="border-radius: 8px; font-weight: 700;">Entendido</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        #modalTutorialGlobal .nav-pills .nav-link.active {
+            background-color: var(--inacap-red, #cf3f4f) !important;
+            color: white !important;
+        }
+        #modalTutorialGlobal .nav-pills .nav-link {
+            color: #64748b;
+            background-color: #f1f5f9;
+            transition: all 0.2s ease;
+        }
+        #modalTutorialGlobal .nav-pills .nav-link:hover {
+            color: var(--inacap-red, #cf3f4f);
+            background-color: #e2e8f0;
+        }
+    </style>
 </body>
 </html>
 
