@@ -1819,38 +1819,13 @@ def notificar_creador_movimiento(request, proyecto, titulo, descripcion, fase=No
 
 
 def notificar_tarea_asignada(request, tarea):
-    if not tarea.responsable or not tarea.responsable.email:
-        return False
-    url = url_publica(request, tarea.proyecto.get_absolute_url())
-    mensaje = (
-        f"Hola {tarea.responsable.nombre or tarea.responsable.username},\n\n"
-        f"Se te asignó la tarea '{tarea.nombre}' en el proyecto '{tarea.proyecto.nombre}'.\n\n"
-        f"Estado: {tarea.get_estado_display()}\n"
-        f"Revisar proyecto: {url}\n\n"
-        f"Crea INACAP Puerto Montt"
-    )
-    return enviar_correo_simple(
-        f"Nueva tarea asignada: {tarea.nombre}",
-        [tarea.responsable.email],
-        mensaje,
-    )
+    # Deshabilitado para evitar spam de correos a los responsables
+    return False
 
 
 def notificar_observacion(request, observacion):
-    url = url_publica(request, observacion.proyecto.get_absolute_url())
-    destinatarios = [usuario.email for usuario in observacion.proyecto.responsables.all()]
-    mensaje = (
-        f"Hola,\n\n"
-        f"{observacion.usuario} agregó una observación al proyecto '{observacion.proyecto.nombre}'.\n\n"
-        f"Observación:\n{observacion.comentario}\n\n"
-        f"Revisar proyecto: {url}\n\n"
-        f"Crea INACAP Puerto Montt"
-    )
-    return enviar_correo_simple(
-        f"Nueva observación en {observacion.proyecto.nombre}",
-        destinatarios,
-        mensaje,
-    )
+    # Deshabilitado para evitar spam de correos a los responsables
+    return False
 
 
 TRL_ETAPAS = [
@@ -3368,8 +3343,17 @@ def actualizar_indicador(request, pk, indicador_id):
     indicador.valor_actual = str(data.get("valor_actual", "")).strip()
     indicador.save()
 
+    # Obtener el conjunto de IDs de las fases completadas antes de sincronizar
+    fases_completadas_antes = set(proyecto.fases.filter(estado=FaseProyecto.Estado.COMPLETADA).values_list("pk", flat=True))
+
     sincronizar_trl_desde_resultados(proyecto)
     sincronizar_avance_simple_desde_objetivos(proyecto)
+
+    # Identificar si alguna fase pasó a estar completada y notificar solo al creador del proyecto
+    fases_completadas_despues = proyecto.fases.filter(estado=FaseProyecto.Estado.COMPLETADA)
+    for fase in fases_completadas_despues:
+        if fase.pk not in fases_completadas_antes:
+            notificar_creador_fase_completada(request, fase)
 
     return JsonResponse({"ok": True})
 
