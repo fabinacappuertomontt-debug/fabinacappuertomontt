@@ -41,6 +41,7 @@ urlpatterns = [
     path("proyectos/<int:pk>/trabajo/", views.proyecto_trabajo, name="proyecto_trabajo"),
     path("proyectos/<int:pk>/etapas/<slug:slug>/", views.etapa_trabajo, name="etapa_trabajo"),
     path("proyectos/<int:pk>/etapas/<slug:slug>/ia/", views.analizar_etapa_ia, name="etapa_ia_analizar"),
+    path("proyectos/<int:pk>/etapas/<slug:slug>/generar-tareas-ia/", views.generar_tareas_etapa_ia_view, name="etapa_generar_tareas_ia"),
     path("revisiones-ia/<int:pk>/decidir/", views.decidir_revision_ia_etapa, name="revision_ia_decidir"),
     path("proyectos/<int:pk>/editar/", views.ProyectoUpdateView.as_view(), name="proyecto_editar"),
     path("proyectos/<int:pk>/eliminar/", views.proyecto_eliminar, name="proyecto_eliminar"),
@@ -54,4 +55,5 @@ urlpatterns = [
     path("tareas/<int:pk>/eliminar/", views.eliminar_tarea, name="tarea_eliminar"),
     path("proyectos/<int:pk>/observaciones/nueva/", views.crear_observacion, name="observacion_crear"),
     path("proyectos/<int:pk>/inventario/usar/", views.registrar_uso_inventario, name="inventario_usar"),
+    path("proyectos/<int:pk>/indicadores/<int:indicador_id>/actualizar/", views.actualizar_indicador, name="indicador_actualizar"),
 ]

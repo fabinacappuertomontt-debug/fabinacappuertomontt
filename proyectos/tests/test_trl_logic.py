@@ -546,6 +546,59 @@ class TrlStressLogicTests(TestCase):
         self.assertIn("/etapas/", correo.body)
         self.assertEqual(correo.alternatives[0][1], "text/html")
 
+    def test_actualizar_indicador_endpoint_requiere_login(self):
+        proyecto = self.crear_proyecto_trl()
+        resultados = self.crear_estructura_trl(proyecto)
+        indicador = resultados[0].indicadores.first()
+        url = reverse('indicador_actualizar', kwargs={
+            'pk': proyecto.pk,
+            'indicador_id': indicador.pk
+        })
+        resp = self.client.post(url, content_type='application/json', data='{}')
+        self.assertEqual(resp.status_code, 302)
+
+    def test_actualizar_indicador_endpoint_success(self):
+        proyecto = self.crear_proyecto_trl()
+        resultados = self.crear_estructura_trl(proyecto)
+        indicador = resultados[0].indicadores.first()
+        url = reverse('indicador_actualizar', kwargs={
+            'pk': proyecto.pk,
+            'indicador_id': indicador.pk
+        })
+        self.client.force_login(self.usuario)
+        resp = self.client.post(
+            url,
+            data=json.dumps({"cumplido": True, "valor_actual": "100%"}),
+            content_type='application/json'
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), {'ok': True})
+
+        indicador.refresh_from_db()
+        self.assertTrue(indicador.cumplido)
+        self.assertEqual(indicador.valor_actual, '100%')
+
+    def test_actualizar_indicador_endpoint_no_permission(self):
+        proyecto = self.crear_proyecto_trl()
+        resultados = self.crear_estructura_trl(proyecto)
+        indicador = resultados[0].indicadores.first()
+        url = reverse('indicador_actualizar', kwargs={
+            'pk': proyecto.pk,
+            'indicador_id': indicador.pk
+        })
+        otro_usuario = Usuario.objects.create_user(
+            username="intruso",
+            password="password123",
+            email="intruso@example.com"
+        )
+        self.client.force_login(otro_usuario)
+        resp = self.client.post(
+            url,
+            data=json.dumps({"cumplido": True, "valor_actual": "100%"}),
+            content_type='application/json'
+        )
+        self.assertEqual(resp.status_code, 403)
+
 
 class AreaRegistroTests(TestCase):
     def setUp(self):
@@ -747,6 +800,73 @@ class GeminiAssistantTests(TestCase):
         self.assertIn("analisis", data)
         self.assertIn("GEMINI_API_KEY", data["analisis"]["recomendaciones"])
 
+    def test_normalizar_formulario_sugerido_completo(self):
+        from proyectos.gemini_service import _normalizar_formulario_sugerido
+        
+        datos = {
+            "nombre": "Proyecto Test",
+            "descripcion": "Mi proyecto de pruebas.",
+            "objetivo_principal": "Probar el sistema",
+            "trl_inicial": 2,
+            "trl_objetivo": 5,
+            "objetivos_especificos": [
+                {
+                    "descripcion": "Objetivo 1",
+                    "resultados": [
+                        {
+                            "descripcion": "Resultado 1",
+                            "trl_objetivo": 3,
+                            "plazo_meses": 2,
+                            "indicadores": [
+                                {
+                                    "descripcion": "Indicador 1",
+                                    "meta": "100%"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        res = _normalizar_formulario_sugerido(datos)
+        self.assertIsNotNone(res)
+        self.assertEqual(res["nombre"], "Proyecto Test")
+        self.assertEqual(res["trl_inicial"], 2)
+        self.assertEqual(res["trl_objetivo"], 5)
+        self.assertEqual(len(res["objetivos_especificos"]), 1)
+        self.assertEqual(res["objetivos_especificos"][0]["descripcion"], "Objetivo 1")
+
+    def test_normalizar_formulario_sugerido_datos_parciales_y_vacios(self):
+        from proyectos.gemini_service import _normalizar_formulario_sugerido
+        
+        # Missing trl, missing results indicators, etc.
+        datos = {
+            "nombre": "Proyecto Incompleto",
+            "objetivos_especificos": [
+                {
+                    "descripcion": "Objetivo sin resultados"
+                }
+            ]
+        }
+        res = _normalizar_formulario_sugerido(datos)
+        self.assertIsNotNone(res)
+        self.assertEqual(res["nombre"], "Proyecto Incompleto")
+        self.assertIsNone(res["trl_inicial"])
+        # Should have filled default result and default indicator
+        obj_1 = res["objetivos_especificos"][0]
+        self.assertEqual(len(obj_1["resultados"]), 1)
+        self.assertEqual(obj_1["resultados"][0]["descripcion"], "")
+        self.assertEqual(len(obj_1["resultados"][0]["indicadores"]), 1)
+        self.assertEqual(obj_1["resultados"][0]["indicadores"][0]["descripcion"], "")
+
+    def test_normalizar_formulario_sugerido_invalido(self):
+        from proyectos.gemini_service import _normalizar_formulario_sugerido
+        
+        # Totally invalid
+        self.assertIsNone(_normalizar_formulario_sugerido(None))
+        self.assertIsNone(_normalizar_formulario_sugerido([]))
+        self.assertIsNone(_normalizar_formulario_sugerido({"sin_campos_validos": True}))
+
     @override_settings(GEMINI_API_KEY="", GROQ_API_KEY="")
     def test_vista_ia_proyecto_renderiza_fallback(self):
         proyecto = Proyecto.objects.create(
@@ -769,3 +889,133 @@ class GeminiAssistantTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Asistente IA TRL")
         self.assertContains(response, "GEMINI_API_KEY")
+
+    @override_settings(GEMINI_API_KEY="", GROQ_API_KEY="clave-de-prueba", GROQ_MODEL="llama-test")
+    @patch("proyectos.gemini_service.urllib.request.urlopen")
+    def test_generar_tareas_etapa_ia_view_crea_tareas(self, urlopen_mock):
+        proyecto = Proyecto.objects.create(
+            nombre="Proyecto IA TRL",
+            descripcion="Proyecto de prueba.",
+            metodologia=Proyecto.Metodologia.TRL,
+            tipo_proyecto=Proyecto.TipoProyecto.TECNOLOGICO,
+            trl_inicial=3,
+            trl_objetivo=6,
+            fecha_inicio=timezone.localdate(),
+            fecha_fin=timezone.localdate() + timedelta(days=120),
+            estado=Proyecto.Estado.EN_PROCESO,
+        )
+        proyecto.responsables.add(self.usuario)
+        crear_fases_para_proyecto(proyecto)
+
+        fase_activa = proyecto.fases.filter(trl=4).first()
+        self.assertIsNotNone(fase_activa)
+
+        # Mocking Groq API response
+        contenido = {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps({
+                            "tareas": [
+                                {
+                                    "nombre": "Tarea de Diseno de Esquematico",
+                                    "descripcion": "Diseñar esquemático en KiCad."
+                                },
+                                {
+                                    "nombre": "Tarea de PCB Layout",
+                                    "descripcion": "Rutar pistas y colocar componentes."
+                                }
+                            ]
+                        })
+                    }
+                }
+            ]
+        }
+        urlopen_mock.return_value.__enter__.return_value.read.return_value = json.dumps(contenido).encode("utf-8")
+
+        self.client.force_login(self.usuario)
+        response = self.client.post(
+            reverse("etapa_generar_tareas_ia", kwargs={"pk": proyecto.pk, "slug": "validacion"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["tareas_creadas"], 2)
+
+        # Check database
+        tareas = Tarea.objects.filter(proyecto=proyecto, fase=fase_activa)
+        self.assertEqual(tareas.count(), 2)
+        self.assertEqual(tareas.filter(nombre="Tarea de Diseno de Esquematico").count(), 1)
+
+    def test_fase_proyecto_form_validation_enforces_no_pending_tasks_and_at_least_one_evidence(self):
+        from proyectos.forms import FaseProyectoForm
+        from proyectos.models import Tarea, Evidencia
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        # 1. Create a Simple methodology project
+        proyecto = Proyecto.objects.create(
+            nombre="Proyecto Simple de Prueba",
+            descripcion="Proyecto de prueba sin TRL.",
+            metodologia=Proyecto.Metodologia.SIMPLE,
+            tipo_proyecto=Proyecto.TipoProyecto.GENERAL,
+            fecha_inicio=timezone.localdate(),
+            fecha_fin=timezone.localdate() + timedelta(days=60),
+            estado=Proyecto.Estado.EN_PROCESO,
+        )
+        proyecto.responsables.add(self.usuario)
+        crear_fases_para_proyecto(proyecto)
+
+        fase = proyecto.fases.filter(trl=1).first()
+        self.assertIsNotNone(fase)
+
+        # Create a pending task in the phase
+        tarea = Tarea.objects.create(
+            proyecto=proyecto,
+            fase=fase,
+            nombre="Tarea Pendiente",
+            estado=Tarea.Estado.PENDIENTE,
+        )
+
+        # Try to validate form with estado="completada" — should fail due to pending tasks and no evidence
+        form_data = {
+            "estado": "completada",
+            "realizado": "Hicimos un análisis inicial del proyecto.",
+        }
+        form = FaseProyectoForm(data=form_data, instance=fase)
+        form.changed_data = ["estado"]  # mock that the state is actively changing
+        self.assertFalse(form.is_valid())
+        self.assertIn("estado", form.errors)
+        self.assertTrue(any("tareas pendientes" in err for err in form.errors["estado"]))
+        self.assertTrue(any("evidencia" in err for err in form.errors["estado"]))
+
+        # Complete the task
+        tarea.estado = Tarea.Estado.COMPLETADA
+        tarea.save()
+
+        # Check form again — should still fail due to missing evidence
+        form = FaseProyectoForm(data=form_data, instance=fase)
+        form.changed_data = ["estado"]
+        self.assertFalse(form.is_valid())
+        self.assertIn("estado", form.errors)
+        self.assertFalse(any("tareas pendientes" in err for err in form.errors["estado"]))
+        self.assertTrue(any("evidencia" in err for err in form.errors["estado"]))
+
+        # Upload an evidence file
+        archivo_test = SimpleUploadedFile("documento.pdf", b"contenido de prueba", content_type="application/pdf")
+        Evidencia.objects.create(
+            proyecto=proyecto,
+            fase=fase,
+            nombre="Documento de prueba",
+            archivo=archivo_test,
+            usuario=self.usuario,
+        )
+
+        # Check form again — should now pass!
+        form = FaseProyectoForm(data=form_data, instance=fase)
+        form.changed_data = ["estado"]
+        self.assertTrue(form.is_valid(), form.errors)
+
+
+

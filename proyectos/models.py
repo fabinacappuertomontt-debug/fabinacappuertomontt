@@ -668,6 +668,14 @@ class FaseProyecto(models.Model):
             return f"TRL {self.trl}"
         return f"Fase {self.trl}"
 
+    @property
+    def tiene_tareas_pendientes(self):
+        return self.tareas_etapa.exclude(estado="completada").exists()
+
+    @property
+    def tiene_evidencias(self):
+        return self.evidencias_etapa.exists()
+
 class Avance(models.Model):
     proyecto = models.ForeignKey(
         Proyecto,

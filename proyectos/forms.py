@@ -384,6 +384,22 @@ class FaseProyectoForm(BootstrapFormMixin, forms.ModelForm):
             self.fields["estado"].disabled = True
             self.fields["estado"].help_text = "El estado del TRL ahora se calcula automaticamente segun resultados e indicadores."
 
+    def clean(self):
+        cleaned_data = super().clean()
+        estado = cleaned_data.get("estado")
+        if self.instance.pk and "estado" in self.changed_data and estado == FaseProyecto.Estado.COMPLETADA:
+            if self.instance.tiene_tareas_pendientes:
+                self.add_error(
+                    "estado",
+                    "No se puede marcar la fase como completada porque tiene tareas pendientes de desarrollo."
+                )
+            if not self.instance.tiene_evidencias:
+                self.add_error(
+                    "estado",
+                    "Debes subir al menos un archivo de evidencia para respaldar el cumplimiento de esta fase."
+                )
+        return cleaned_data
+
     class Meta:
         model = FaseProyecto
         fields = ["estado", "realizado"]

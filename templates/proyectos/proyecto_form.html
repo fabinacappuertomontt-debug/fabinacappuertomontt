@@ -16,6 +16,24 @@
     </div>
 </div>
 
+<style>
+    .highlight-fill-pulse {
+        animation: highlightPulse 2s ease-out;
+    }
+    @keyframes highlightPulse {
+        0% {
+            border-color: #c53a43;
+            box-shadow: 0 0 0 0.2rem rgba(197, 58, 67, 0.25);
+            background-color: rgba(197, 58, 67, 0.05);
+        }
+        100% {
+            border-color: inherit;
+            box-shadow: none;
+            background-color: transparent;
+        }
+    }
+</style>
+
 {% if not object %}
 <div class="ai-project-dock" data-ai-project-assistant data-ai-url="{% url 'proyecto_asistente_ia' %}">
     <button class="ai-project-launcher" type="button" data-ai-toggle aria-label="Abrir asistente IA">
@@ -427,6 +445,182 @@
             const toggle = aiAssistant.querySelector("[data-ai-toggle]");
             const panel = aiAssistant.querySelector("[data-ai-panel]");
             const close = aiAssistant.querySelector("[data-ai-close]");
+
+            const getSelectedMethodology = () => sessionStorage.getItem("ai_assistant_methodology") || "";
+            const setSelectedMethodology = (val) => {
+                if (val) {
+                    sessionStorage.setItem("ai_assistant_methodology", val);
+                } else {
+                    sessionStorage.removeItem("ai_assistant_methodology");
+                }
+            };
+
+            const renderInitialState = () => {
+                const selected = getSelectedMethodology();
+                if (!selected) {
+                    result.innerHTML = `
+                        <div class="ai-message ai-message-assistant">
+                            <strong>IA INACAP Proyectos</strong>
+                            <p class="mb-2">¡Hola! Para ayudarte a crear tu proyecto, por favor selecciona la metodología:</p>
+                            <div class="d-flex flex-column gap-2 mt-2" data-ai-init-options>
+                                <button class="btn btn-sm btn-outline-danger text-start w-100 p-2" type="button" data-ai-select-methodology="simple" style="border-color: rgba(197, 58, 67, 0.3);">
+                                    <i class="bi bi-collection me-1 text-danger"></i> <strong>Proyecto Simple</strong><br>
+                                    <small class="text-muted">Avance por objetivos e indicadores sin TRL</small>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger text-start w-100 p-2" type="button" data-ai-select-methodology="trl" style="border-color: rgba(197, 58, 67, 0.3);">
+                                    <i class="bi bi-graph-up me-1 text-danger"></i> <strong>Proyecto con TRL</strong><br>
+                                    <small class="text-muted">Avance por madurez tecnológica TRL 1-9</small>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    const label = selected === "trl" ? "Proyecto con TRL" : "Proyecto Simple";
+                    result.innerHTML = `
+                        <div class="ai-message ai-message-assistant">
+                            <strong>IA INACAP Proyectos</strong>
+                            <p class="mb-1">Metodología seleccionada: <strong>${label}</strong>.</p>
+                            <p class="mb-2 text-muted" style="font-size: 0.8rem;">Escribe una idea o resumen de tu proyecto para poder generar los objetivos y rellenar el formulario por ti.</p>
+                            <button class="btn btn-link btn-sm p-0 text-danger" type="button" data-ai-reset-methodology style="font-size: 0.75rem; text-decoration: none;">
+                                <i class="bi bi-arrow-counterclockwise"></i> Cambiar tipo de proyecto
+                            </button>
+                        </div>
+                    `;
+                }
+                result.scrollTop = result.scrollHeight;
+            };
+
+            result.addEventListener("click", (event) => {
+                const selectBtn = event.target.closest("[data-ai-select-methodology]");
+                if (selectBtn) {
+                    const method = selectBtn.dataset.aiSelectMethodology;
+                    setSelectedMethodology(method);
+                    appendUserMessage(method === "trl" ? "Proyecto con TRL" : "Proyecto Simple");
+                    
+                    const hiddenSelect = document.getElementById("id_metodologia");
+                    if (hiddenSelect) {
+                        hiddenSelect.value = method;
+                        hiddenSelect.dispatchEvent(new Event("change"));
+                    }
+                    
+                    setTimeout(() => {
+                        const label = method === "trl" ? "Proyecto con TRL" : "Proyecto Simple";
+                        const desc = method === "trl"
+                            ? "Escribe tu idea tecnológica para estimar el nivel TRL inicial/esperado, proponer la ruta y rellenar el formulario por ti."
+                            : "Escribe tu idea para generar los objetivos e indicadores del proyecto y rellenar el formulario por ti.";
+                        result.innerHTML += `
+                            <div class="ai-message ai-message-assistant">
+                                <strong>IA INACAP Proyectos</strong>
+                                <p class="mb-1">Has seleccionado: <strong>${label}</strong>.</p>
+                                <p class="mb-0">${desc}</p>
+                            </div>
+                        `;
+                        result.scrollTop = result.scrollHeight;
+                        messageInput?.focus();
+                    }, 400);
+                }
+                
+                const resetBtn = event.target.closest("[data-ai-reset-methodology]");
+                if (resetBtn) {
+                    setSelectedMethodology("");
+                    renderInitialState();
+                }
+
+                const fillBtn = event.target.closest("[data-ai-fill-btn]");
+                if (fillBtn) {
+                    const rawData = fillBtn.dataset.aiFillBtn;
+                    let sugerido = null;
+                    try {
+                        sugerido = JSON.parse(decodeURIComponent(rawData));
+                    } catch (e) {
+                        console.error("Error parsing generated form", e);
+                        alert("No se pudo leer la estructura sugerida.");
+                        return;
+                    }
+                    if (!sugerido) return;
+
+                    const nombreVal = document.querySelector("[name='nombre']")?.value || "";
+                    const descVal = document.querySelector("[name='descripcion']")?.value || "";
+                    const objVal = document.querySelector("[name='objetivo_principal']")?.value || "";
+
+                    if (nombreVal.trim() || descVal.trim() || objVal.trim()) {
+                        const confirmFill = confirm("¿Deseas rellenar el formulario? Esto sobrescribirá tus datos actuales del proyecto.");
+                        if (!confirmFill) {
+                            return;
+                        }
+                    }
+
+                    const method = getSelectedMethodology() || (sugerido.trl_inicial ? "trl" : "simple");
+                    const hiddenSelect = document.getElementById("id_metodologia");
+                    if (hiddenSelect) {
+                        hiddenSelect.value = method;
+                        hiddenSelect.dispatchEvent(new Event("change"));
+                    }
+
+                    const fieldsToFill = {
+                        "nombre": sugerido.nombre || "",
+                        "descripcion": sugerido.descripcion || "",
+                        "objetivo_principal": sugerido.objetivo_principal || ""
+                    };
+
+                    if (method === "trl") {
+                        if (sugerido.trl_inicial !== undefined && sugerido.trl_inicial !== null) {
+                            fieldsToFill["trl_inicial"] = sugerido.trl_inicial;
+                        }
+                        if (sugerido.trl_objetivo !== undefined && sugerido.trl_objetivo !== null) {
+                            fieldsToFill["trl_objetivo"] = sugerido.trl_objetivo;
+                        }
+                    }
+
+                    const inputsToHighlight = [];
+                    for (const [name, val] of Object.entries(fieldsToFill)) {
+                        const el = document.querySelector(`[name='${name}']`);
+                        if (el) {
+                            el.value = val;
+                            el.dispatchEvent(new Event("input"));
+                            el.dispatchEvent(new Event("change"));
+                            inputsToHighlight.push(el);
+                        }
+                    }
+
+                    document.dispatchEvent(new CustomEvent("ai:fill-form", {
+                        detail: {
+                            payload: sugerido.objetivos_especificos || [],
+                            methodology: method
+                        }
+                    }));
+
+                    const formEl = document.getElementById("project-stepper-form");
+                    if (formEl) {
+                        formEl.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }
+
+                    inputsToHighlight.forEach(el => {
+                        el.classList.add("highlight-fill-pulse");
+                    });
+
+                    const builderEl = document.querySelector("[data-trl-structure-builder]");
+                    if (builderEl) {
+                        builderEl.classList.add("highlight-fill-pulse");
+                    }
+
+                    setTimeout(() => {
+                        inputsToHighlight.forEach(el => {
+                            el.classList.remove("highlight-fill-pulse");
+                        });
+                        if (builderEl) {
+                            builderEl.classList.remove("highlight-fill-pulse");
+                        }
+                    }, 2000);
+
+                    const successMessage = document.createElement("div");
+                    successMessage.className = "alert alert-success mt-2 small py-1 px-2";
+                    successMessage.innerHTML = `<i class="bi bi-check-circle-fill"></i> ¡Formulario rellenado con éxito!`;
+                    fillBtn.parentNode.appendChild(successMessage);
+                    setTimeout(() => successMessage.remove(), 3000);
+                }
+            });
+
             const setAssistantOpen = (open) => {
                 if (!panel) {
                     return;
@@ -434,6 +628,7 @@
                 panel.hidden = !open;
                 aiAssistant.classList.toggle("is-open", open);
                 if (open) {
+                    renderInitialState();
                     window.setTimeout(() => messageInput?.focus(), 80);
                 }
             };
@@ -449,14 +644,21 @@
             };
             const renderAiResult = (analysis) => {
                 const tasks = Array.isArray(analysis.tareas_sugeridas) ? analysis.tareas_sugeridas : [];
-                result.innerHTML += `
+                const hasFormSugerido = !!analysis.formulario_sugerido;
+                let html = `
                     <div class="ai-message ai-message-assistant">
                         <strong>IA INACAP Proyectos</strong>
                         <div class="ai-result-stack">
+                `;
+                if (analysis.trl_estimado) {
+                    html += `
                             <article>
                                 <span>TRL estimado</span>
-                                <strong>${escapeHtml(analysis.trl_estimado || "Sin estimacion")}</strong>
+                                <strong>${escapeHtml(analysis.trl_estimado)}</strong>
                             </article>
+                    `;
+                }
+                html += `
                             <article>
                                 <span>Justificacion</span>
                                 <p>${escapeHtml(analysis.justificacion || "Sin justificacion disponible.")}</p>
@@ -465,13 +667,37 @@
                                 <span>Recomendaciones</span>
                                 <p>${escapeHtml(analysis.recomendaciones || "Sin recomendaciones disponibles.")}</p>
                             </article>
+                `;
+                if (tasks.length) {
+                    html += `
                             <article>
                                 <span>Tareas sugeridas</span>
-                                ${tasks.length ? `<ul>${tasks.map((task) => `<li>${escapeHtml(task)}</li>`).join("")}</ul>` : `<p class="text-muted mb-0">Sin tareas sugeridas.</p>`}
+                                <ul>${tasks.map((task) => `<li>${escapeHtml(task)}</li>`).join("")}</ul>
                             </article>
+                    `;
+                }
+                html += `
                         </div>
+                `;
+                if (hasFormSugerido) {
+                    const stringified = encodeURIComponent(JSON.stringify(analysis.formulario_sugerido));
+                    html += `
+                        <div class="mt-3 p-3 rounded border bg-light text-dark" style="border-color: var(--line, #e2e8f0) !important;">
+                            <div class="d-flex align-items-center gap-2 mb-2 text-danger">
+                                <i class="bi bi-stars"></i>
+                                <strong>¡Estructura generada!</strong>
+                            </div>
+                            <p class="small text-muted mb-3">Se ha generado un borrador completo para tu proyecto (nombre, descripción, objetivos e indicadores).</p>
+                            <button class="btn btn-danger btn-sm w-100 fw-semibold" type="button" data-ai-fill-btn="${stringified}">
+                                <i class="bi bi-file-earmark-text-fill me-1"></i> Rellenar formulario
+                            </button>
+                        </div>
+                    `;
+                }
+                html += `
                     </div>
                 `;
+                result.innerHTML += html;
                 result.scrollTop = result.scrollHeight;
             };
             button.addEventListener("click", async () => {
@@ -482,7 +708,7 @@
                 }
                 const payload = {
                     mensaje,
-                    metodologia: document.querySelector("[name='metodologia']")?.value || "",
+                    metodologia: getSelectedMethodology() || document.querySelector("[name='metodologia']")?.value || "",
                     nombre: document.querySelector("[name='nombre']")?.value || "",
                     descripcion: document.querySelector("[name='descripcion']")?.value || "",
                     objetivo_principal: document.querySelector("[name='objetivo_principal']")?.value || "",
@@ -529,6 +755,8 @@
                     button.click();
                 }
             });
+
+            renderInitialState();
         }
 
         const objectiveBuilder = document.querySelector("[data-specific-objectives]");
@@ -1207,6 +1435,17 @@
                 render();
                 return;
             }
+        });
+
+        document.addEventListener("ai:fill-form", (event) => {
+            const { payload, methodology } = event.detail;
+            const mode = methodology === "trl" ? "trl" : "simple";
+            modeStates[mode].payload = normalizePayload(payload);
+            modeStates[mode].activeObjectiveIndex = 0;
+            modeStates[mode].activeResultIndex = 0;
+            persist();
+            render();
+            syncTrlVisibility();
         });
 
         render();

@@ -1350,7 +1350,7 @@ def plan_mesa_por_reglas(proyecto):
 
 
 def aplicar_plan_mesa_trabajo(proyecto, plan):
-    fases = {fase.trl: fase for fase in proyecto.fases.all()}
+    fases = {fase.trl: fase for fase in FaseProyecto.objects.filter(proyecto=proyecto)}
     responsable = proyecto.responsables.order_by("nombre", "username").first() or proyecto.creador
     tareas_creadas = 0
     for etapa in plan.get("etapas", []):
@@ -2602,6 +2602,14 @@ def etapa_trabajo(request, pk, slug):
             fase=fase_activa,
             etapa_slug=slug,
         ).select_related("solicitado_por", "decidido_por").first()
+
+    indicadores_etapa = IndicadorResultado.objects.none()
+    if proyecto.usa_trl and fases_etapa:
+        indicadores_etapa = IndicadorResultado.objects.filter(
+            resultado__objetivo__proyecto=proyecto,
+            resultado__trl_objetivo__in=[f.trl for f in fases_etapa]
+        ).select_related("resultado__objetivo").order_by("resultado__trl_objetivo", "orden")
+
     contexto = {
         "proyecto": proyecto,
         "etapa": etapa,
@@ -2613,6 +2621,7 @@ def etapa_trabajo(request, pk, slug):
         "evidencias_detalle": preparar_evidencias_detalle(type("ProyectoEvidencias", (), {"evidencias": evidencias_etapa})()),
         "usos_etapa": proyecto.usos_inventario.filter(filtro_etapa).select_related("item", "usuario") if fases_etapa else proyecto.usos_inventario.none(),
         "revision_ia_ultima": revision_ia_ultima,
+        "indicadores_etapa": indicadores_etapa,
         "next_url": request.path,
         "es_admin_laboratorio": usuario_es_admin_laboratorio(request.user),
         "puede_editar_proyecto": usuario_puede_editar_proyecto(request.user, proyecto),
@@ -2717,6 +2726,58 @@ def decidir_revision_ia_etapa(request, pk):
     revision.save(update_fields=["decision", "motivo_decision", "decidido_por", "decidido_en"])
     messages.success(request, mensaje)
     return redirect("etapa_trabajo", pk=revision.proyecto_id, slug=revision.etapa_slug)
+
+
+@login_required
+@require_POST
+def generar_tareas_etapa_ia_view(request, pk, slug):
+    proyecto = get_object_or_404(
+        proyectos_de_sede(request.user).prefetch_related("fases", "responsables"),
+        pk=pk,
+    )
+    if not exigir_permiso_edicion_proyecto(request, proyecto):
+        return JsonResponse({"ok": False, "error": "No tienes permisos para editar este proyecto."}, status=403)
+
+    etapa = next((item for item in construir_tablero_trl(proyecto) if item["slug"] == slug), None)
+    if not etapa or etapa["bloqueada"]:
+        return JsonResponse({"ok": False, "error": "No se pueden generar tareas para esta etapa porque esta bloqueada o no existe."}, status=400)
+
+    fases_etapa = [paso["fase"] for paso in etapa["pasos"]]
+    fase_activa = next((paso["fase"] for paso in etapa["pasos"] if paso["desbloqueada"] and not paso["fase"].completada), None)
+    if not fase_activa and fases_etapa:
+        fase_activa = fases_etapa[-1]
+
+    if not fase_activa:
+        return JsonResponse({"ok": False, "error": "No hay una fase activa disponible para la cual generar tareas."}, status=400)
+
+    from .gemini_service import generar_tareas_etapa_ia
+    resultado = generar_tareas_etapa_ia(proyecto, fase_activa)
+    tareas_sugeridas = resultado.get("tareas", [])
+
+    if not tareas_sugeridas:
+        return JsonResponse({"ok": False, "error": "No se pudieron generar tareas con IA en este momento."}, status=500)
+
+    responsable = proyecto.responsables.order_by("nombre", "username").first() or proyecto.creador
+    tareas_creadas = 0
+    for t in tareas_sugeridas:
+        nombre_tarea = t.get("nombre", "").strip()
+        if not nombre_tarea:
+            continue
+        if Tarea.objects.filter(proyecto=proyecto, fase=fase_activa, nombre=nombre_tarea[:200]).exists():
+            continue
+        Tarea.objects.create(
+            proyecto=proyecto,
+            fase=fase_activa,
+            nombre=nombre_tarea[:200],
+            descripcion=t.get("descripcion", ""),
+            estado=Tarea.Estado.PENDIENTE,
+            responsable=responsable,
+        )
+        tareas_creadas += 1
+
+    return JsonResponse({"ok": True, "tareas_creadas": tareas_creadas})
+
+
 def construir_linea_temporal(proyecto):
     items = [
         {
@@ -3283,5 +3344,34 @@ def crear_observacion(request, pk):
             "boton": "Guardar observación",
         },
     )
+
+
+@login_required
+@require_POST
+def actualizar_indicador(request, pk, indicador_id):
+    proyecto = get_object_or_404(Proyecto, pk=pk)
+    if not exigir_permiso_edicion_proyecto(request, proyecto):
+        return JsonResponse({"ok": False, "error": "No tienes permisos para editar este proyecto."}, status=403)
+
+    indicador = get_object_or_404(
+        IndicadorResultado,
+        id=indicador_id,
+        resultado__objetivo__proyecto=proyecto
+    )
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "JSON inválido."}, status=400)
+
+    indicador.cumplido = bool(data.get("cumplido", False))
+    indicador.valor_actual = str(data.get("valor_actual", "")).strip()
+    indicador.save()
+
+    sincronizar_trl_desde_resultados(proyecto)
+    sincronizar_avance_simple_desde_objetivos(proyecto)
+
+    return JsonResponse({"ok": True})
+
 
 

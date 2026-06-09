@@ -50,6 +50,66 @@
                     </div>
                 {% endfor %}
             </div>
+
+            {% if proyecto.usa_trl and indicadores_etapa %}
+                <div class="inline-indicators-section mt-4 pt-3 border-top" id="panel-indicadores">
+                    <div class="workspace-section-title compact mb-3">
+                        <div>
+                            <span class="eyebrow" style="color: #cf3f4f;"><i class="bi bi-ui-checks-grid me-1"></i> Indicadores de esta etapa</span>
+                            <h3 class="h6 mb-0">Cumplimiento de metas TRL</h3>
+                        </div>
+                        <span class="badge bg-secondary" style="font-weight: 800; border-radius: 6px; padding: 4px 8px;">
+                            {{ indicadores_etapa|length }} en total
+                        </span>
+                    </div>
+                    
+                    <div class="stage-criteria-table">
+                        {% for ind in indicadores_etapa %}
+                            <div id="fila-ind-{{ ind.id }}" class="stage-criteria-row {% if ind.cumplido %}stage-criteria-completada{% else %}stage-criteria-en_proceso{% endif %} d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3" data-url="{% url 'indicador_actualizar' pk=proyecto.pk indicador_id=ind.id %}">
+                                <div class="form-check d-flex align-items-start gap-2 mb-0 flex-grow-1">
+                                    <input
+                                      type="checkbox"
+                                      class="form-check-input ind-check mt-1"
+                                      data-id="{{ ind.id }}"
+                                      id="ind-{{ ind.id }}"
+                                      {% if ind.cumplido %}checked{% endif %}
+                                      {% if not puede_editar_proyecto %}disabled{% endif %}
+                                      style="cursor: pointer; width: 1.2rem; height: 1.2rem;"
+                                    >
+                                    <label class="form-check-label ms-2" for="ind-{{ ind.id }}" style="cursor: pointer;">
+                                        <strong style="font-size: 0.95rem; font-weight: 800; color: var(--color-text); display: inline;">{{ ind.descripcion }}</strong>
+                                        <span class="d-block text-muted small mt-1" style="font-size: 0.78rem; font-weight: 600;">
+                                            Resultado: {{ ind.resultado.descripcion }} <span class="badge bg-light text-dark border ms-1" style="font-size: 0.7rem; font-weight: 800;">TRL {{ ind.resultado.trl_objetivo }}</span>
+                                        </span>
+                                    </label>
+                                </div>
+                                <div class="d-flex align-items-center gap-2" style="min-width: 250px; width: 100%; max-width: 320px;">
+                                    <span class="text-muted small" style="font-weight: 700; white-space: nowrap;">Valor:</span>
+                                    <input
+                                      type="text"
+                                      class="form-control form-control-sm ind-valor"
+                                      data-id="{{ ind.id }}"
+                                      value="{{ ind.valor_actual }}"
+                                      placeholder="Ej: 95%, v1.2, completado..."
+                                      {% if not puede_editar_proyecto %}disabled{% endif %}
+                                      style="border-radius: 6px; font-weight: 700; padding: 4px 8px;"
+                                    >
+                                    {% if puede_editar_proyecto %}
+                                        <button
+                                          class="btn btn-sm btn-outline-success btn-guardar-ind"
+                                          data-id="{{ ind.id }}"
+                                          title="Guardar valor"
+                                          style="border-radius: 6px; padding: 4px 8px;"
+                                        >
+                                          <i class="bi bi-floppy"></i>
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
         </article>
 
         <article class="stage-panel">
@@ -156,7 +216,14 @@
         <article class="stage-panel">
             <div class="workspace-section-title compact">
                 <div><span class="eyebrow">Tareas</span><h2>Trabajo del equipo</h2></div>
-                {% if puede_editar_proyecto %}
+                {% if puede_editar_proyecto and fase_activa %}
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-danger" id="btn-generar-tareas-ia" type="button" data-url="{% url 'etapa_generar_tareas_ia' proyecto.pk etapa.slug %}">
+                            <i class="bi bi-stars"></i> Generar con IA
+                        </button>
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'tarea_crear' proyecto.pk %}?next={{ next_url|urlencode }}{% if fase_activa %}&fase={{ fase_activa.pk }}{% endif %}">Crear</a>
+                    </div>
+                {% elif puede_editar_proyecto %}
                     <a class="btn btn-sm btn-outline-primary" href="{% url 'tarea_crear' proyecto.pk %}?next={{ next_url|urlencode }}{% if fase_activa %}&fase={{ fase_activa.pk }}{% endif %}">Crear</a>
                 {% endif %}
             </div>
@@ -275,6 +342,116 @@
         </article>
 
     </section>
+
+    <script>
+        (() => {
+            const btn = document.getElementById("btn-generar-tareas-ia");
+            if (!btn) return;
+            
+            btn.addEventListener("click", async () => {
+                if (!confirm("¿Deseas generar sugerencias de tareas con IA para esta etapa?")) {
+                    return;
+                }
+                
+                const originalHtml = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="width: 12px; height: 12px;"></span> Generando...`;
+                
+                const csrfToken = document.querySelector("[name=csrfmiddlewaretoken]")?.value || "";
+                
+                try {
+                    const response = await fetch(btn.dataset.url, {
+                        method: "POST",
+                        headers: {
+                            "X-CSRFToken": csrfToken,
+                            "Content-Type": "application/json"
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    if (!response.ok || !data.ok) {
+                        throw new Error(data.error || "No se pudieron generar las tareas.");
+                    }
+                    
+                    btn.className = "btn btn-sm btn-success text-white";
+                    btn.innerHTML = `<i class="bi bi-check-circle-fill"></i> ¡Listo!`;
+                    
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                    
+                } catch (error) {
+                    alert(error.message || "Ocurrió un error al conectar con el asistente IA.");
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                }
+            });
+        })();
+    </script>
+
+    {% if proyecto.usa_trl and indicadores_etapa %}
+    <script>
+        (() => {
+            const CSRF = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+
+            async function guardarIndicador(id) {
+                const fila = document.getElementById(`fila-ind-${id}`);
+                if (!fila) return;
+                const url = fila.dataset.url;
+                const check = fila.querySelector(`.ind-check`);
+                const valor = fila.querySelector(`.ind-valor`);
+                const btn   = fila.querySelector(`.btn-guardar-ind`);
+
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:10px; height:10px;"></span>';
+                }
+
+                try {
+                    const resp = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': CSRF,
+                        },
+                        body: JSON.stringify({
+                            cumplido: check.checked,
+                            valor_actual: valor.value,
+                        }),
+                    });
+
+                    const data = await resp.json();
+
+                    if (data.ok) {
+                        fila.classList.toggle('stage-criteria-completada', check.checked);
+                        fila.classList.toggle('stage-criteria-en_proceso', !check.checked);
+                        if (btn) {
+                            btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+                            btn.className = "btn btn-sm btn-success text-white";
+                        }
+                        setTimeout(() => location.reload(), 600);
+                    } else {
+                        throw new Error(data.error || 'Error desconocido');
+                    }
+                } catch (err) {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="bi bi-floppy"></i>';
+                    }
+                    alert('Error al guardar: ' + err.message);
+                }
+            }
+
+            document.querySelectorAll('.btn-guardar-ind').forEach(btn => {
+                btn.addEventListener('click', () => guardarIndicador(btn.dataset.id));
+            });
+
+            document.querySelectorAll('.ind-check').forEach(chk => {
+                chk.addEventListener('change', () => guardarIndicador(chk.dataset.id));
+            });
+        })();
+    </script>
+    {% endif %}
 </div>
 {% endblock %}
 

@@ -42,6 +42,33 @@
                     {% endfor %}
                 </div>
             {% endfor %}
+
+            {% if not proyecto.usa_trl %}
+                <div class="alert alert-info small mt-2 mb-3" style="background: rgba(207, 63, 79, 0.05); border: 1px solid rgba(207, 63, 79, 0.15); color: var(--color-text); border-radius: 8px; padding: 12px;">
+                    <strong style="color: #cf3f4f; display: block; margin-bottom: 6px;">
+                        <i class="bi bi-shield-lock-fill me-1"></i> Requisitos de Finalización
+                    </strong>
+                    <ul class="mb-0 ps-3" style="font-size: 0.85rem; line-height: 1.4;">
+                        <li>
+                            Tareas: 
+                            {% if fase.tiene_tareas_pendientes %}
+                                <span class="text-danger" style="font-weight: 600;">Pendientes de completar</span>
+                            {% else %}
+                                <span class="text-success" style="font-weight: 600;">Todas completadas</span>
+                            {% endif %}
+                        </li>
+                        <li>
+                            Evidencias: 
+                            {% if fase.tiene_evidencias %}
+                                <span class="text-success" style="font-weight: 600;">Al menos una evidencia subida</span>
+                            {% else %}
+                                <span class="text-danger" style="font-weight: 600;">Falta subir evidencias</span>
+                            {% endif %}
+                        </li>
+                    </ul>
+                </div>
+            {% endif %}
+
             <button class="btn btn-primary w-100" type="submit">Guardar fase</button>
         </form>
     </div>

@@ -52,12 +52,41 @@ TRL 7: Prototipo demostrado en entorno real.
 TRL 8: Sistema completo y validado.
 TRL 9: Sistema probado con exito en entorno real.
 
+Si el usuario solicita generar/crear un proyecto desde cero, o si el formulario actual esta mayormente vacio y proporciona una idea o consulta de proyecto, debes proponer el borrador estructurado completo del proyecto.
+
 Responde siempre en JSON valido con estas claves:
 {
-  "trl_estimado": "",
-  "justificacion": "",
-  "recomendaciones": "",
-  "tareas_sugeridas": []
+  "trl_estimado": "estimado del nivel TRL si aplica, o vacio",
+  "justificacion": "explicacion/respuesta para el usuario",
+  "recomendaciones": "consejos breves sobre la idea",
+  "tareas_sugeridas": ["tarea 1", "tarea 2"],
+  "formulario_sugerido": { // Incluir esta clave SOLO si la consulta del usuario es una idea para estructurar o si pide explicitamente rellenar/crear el proyecto
+    "nombre": "Nombre creativo y profesional para el proyecto",
+    "descripcion": "Descripcion detallada en 2 o 3 parrafos",
+    "objetivo_principal": "Objetivo principal claro (debe iniciar con un verbo en infinitivo)",
+    "trl_inicial": 1, // entero del 1 al 9, requerido solo si es metodologia TRL
+    "trl_objetivo": 4, // entero del 1 al 9, requerido solo si es metodologia TRL
+    "objetivos_especificos": [
+      {
+        "descripcion": "Objetivo especifico 1 (verbo infinitivo)",
+        "resultados": [
+          {
+            "descripcion": "Resultado esperado 1 asociado al objetivo",
+            "trl_objetivo": 2, // entero 1-9 si es TRL, o fase 1-5 si es Simple
+            "plazo_meses": 2, // entero representativo del plazo sugerido en meses
+            "dias": 0, // entero
+            "observaciones": "Comentarios adicionales sobre el resultado",
+            "indicadores": [
+              {
+                "descripcion": "Descripcion del indicador para medir el resultado",
+                "meta": "Meta o valor objetivo concreto"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
 }
 """
 
@@ -122,6 +151,146 @@ Responde siempre en JSON válido con esta estructura exacta:
 """
 
 
+def _normalizar_formulario_sugerido(datos):
+    if not isinstance(datos, dict):
+        return None
+
+    # 1. Campos basicos
+    nombre = str(datos.get("nombre") or "").strip()
+    descripcion = str(datos.get("descripcion") or "").strip()
+    objetivo_principal = str(datos.get("objetivo_principal") or "").strip()
+
+    if not nombre and not descripcion and not objetivo_principal:
+        return None
+
+    # 2. Campos TRL (opcionales)
+    trl_inicial = datos.get("trl_inicial")
+    if trl_inicial is not None:
+        try:
+            trl_inicial = int(trl_inicial)
+        except (TypeError, ValueError):
+            trl_inicial = None
+
+    trl_objetivo = datos.get("trl_objetivo")
+    if trl_objetivo is not None:
+        try:
+            trl_objetivo = int(trl_objetivo)
+        except (TypeError, ValueError):
+            trl_objetivo = None
+
+    # 3. Objetivos especificos
+    objetivos_raw = datos.get("objetivos_especificos") or datos.get("objetivos")
+    if not isinstance(objetivos_raw, list):
+        return None
+
+    objetivos_out = []
+    for obj_data in objetivos_raw:
+        if not isinstance(obj_data, dict):
+            continue
+        desc_obj = str(obj_data.get("descripcion") or "").strip()
+        if not desc_obj:
+            continue
+
+        resultados_raw = obj_data.get("resultados")
+        if not isinstance(resultados_raw, list):
+            resultados_raw = []
+
+        resultados_out = []
+        for res_data in resultados_raw:
+            if not isinstance(res_data, dict):
+                continue
+            desc_res = str(res_data.get("descripcion") or "").strip()
+            if not desc_res:
+                continue
+
+            # trl_objetivo de cada resultado (nivel TRL o numero de fase)
+            trl_res = res_data.get("trl_objetivo") or res_data.get("trl")
+            try:
+                trl_res = int(trl_res) if trl_res is not None else 1
+            except (TypeError, ValueError):
+                trl_res = 1
+
+            try:
+                meses = max(0, min(36, int(res_data.get("plazo_meses") or res_data.get("meses") or 0)))
+            except (TypeError, ValueError):
+                meses = 0
+
+            try:
+                dias = max(0, min(30, int(res_data.get("dias") or 0)))
+            except (TypeError, ValueError):
+                dias = 0
+
+            # Indicadores del resultado
+            inds_raw = res_data.get("indicadores")
+            if not isinstance(inds_raw, list):
+                inds_raw = []
+
+            inds_out = []
+            for ind_data in inds_raw:
+                if not isinstance(ind_data, dict):
+                    continue
+                desc_ind = str(ind_data.get("descripcion") or "").strip()
+                meta_ind = str(ind_data.get("meta") or "").strip()
+                if desc_ind or meta_ind:
+                    inds_out.append({
+                        "descripcion": desc_ind,
+                        "meta": meta_ind,
+                        "valor_actual": "",
+                        "cumplido": False
+                    })
+
+            if not inds_out:
+                inds_out.append({
+                    "descripcion": "",
+                    "meta": "",
+                    "valor_actual": "",
+                    "cumplido": False
+                })
+
+            resultados_out.append({
+                "descripcion": desc_res,
+                "trl": str(trl_res),
+                "meses": meses,
+                "dias": dias,
+                "fecha_cumplimiento": "",
+                "observaciones": str(res_data.get("observaciones") or "").strip(),
+                "indicadores": inds_out
+            })
+
+        if not resultados_out:
+            resultados_out.append({
+                "descripcion": "",
+                "trl": "",
+                "meses": 0,
+                "dias": 0,
+                "fecha_cumplimiento": "",
+                "observaciones": "",
+                "indicadores": [{
+                    "descripcion": "",
+                    "meta": "",
+                    "valor_actual": "",
+                    "cumplido": False
+                }]
+            })
+
+        objetivos_out.append({
+            "descripcion": desc_obj,
+            "resultados": resultados_out
+        })
+
+    if not objetivos_out:
+        return None
+
+    return {
+        "nombre": nombre,
+        "descripcion": descripcion,
+        "objetivo_principal": objetivo_principal,
+        "trl_inicial": trl_inicial,
+        "trl_objetivo": trl_objetivo,
+        "objetivos_especificos": objetivos_out
+    }
+
+
 def _normalizar_respuesta(datos):
     if not isinstance(datos, dict):
         return RESPUESTA_FALLBACK.copy()
@@ -130,12 +299,16 @@ def _normalizar_respuesta(datos):
         tareas = [item.strip() for item in tareas.split("\n") if item.strip()]
     if not isinstance(tareas, list):
         tareas = []
-    return {
+    res = {
         "trl_estimado": str(datos.get("trl_estimado", "")).strip(),
         "justificacion": str(datos.get("justificacion", "")).strip(),
         "recomendaciones": str(datos.get("recomendaciones", "")).strip(),
         "tareas_sugeridas": [str(tarea).strip() for tarea in tareas if str(tarea).strip()],
     }
+    form_sugerido = datos.get("formulario_sugerido")
+    if form_sugerido:
+        res["formulario_sugerido"] = _normalizar_formulario_sugerido(form_sugerido)
+    return res
 
 
 def _normalizar_respuesta_etapa(datos):
@@ -546,9 +719,18 @@ def analizar_trl(proyecto):
 
 def analizar_borrador_trl(datos):
     pregunta = str(datos.get("mensaje") or "").strip()
+    metodologia = str(datos.get("metodologia") or "").strip().lower()
+
     instruccion = "Analiza este borrador escrito en el formulario Crear proyecto."
+    if metodologia:
+        instruccion += f"\nMetodologia del proyecto a usar/generar: {metodologia}."
     if pregunta:
-        instruccion += f"\nPregunta del usuario: {pregunta}"
+        instruccion += f"\nMensaje/Idea del usuario: {pregunta}"
+        instruccion += (
+            "\nIMPORTANTE: Si el usuario describe una idea, realiza una consulta sobre como estructurar "
+            "su proyecto o pide explicitamente completarlo, DEBES generar la estructura de 'formulario_sugerido' "
+            "siguiendo el esquema especificado en el contexto, adaptandola a la metodologia elegida."
+        )
     prompt = f"{TRL_CONTEXTO}\n\n{instruccion}\n{json.dumps(datos, ensure_ascii=False, indent=2)}"
     respuesta = _llamar_gemini(prompt)
     if _respuesta_fallo_trl(respuesta):
@@ -729,5 +911,97 @@ def generar_estructura_proyecto_ia(proyecto):
         {"ok": False, "objetivos": []},
         temperature=0.22,
     )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# SUGERENCIA DE TAREAS CON IA PARA ETAPAS DE TRABAJO
+# ──────────────────────────────────────────────────────────────────────────────
+
+TAREAS_ETAPA_CONTEXTO = """
+Eres un planificador técnico IA para la plataforma de proyectos Crea INACAP.
+Tu tarea es generar sugerencias de tareas concretas y de corta duración para una fase de trabajo específica de un proyecto.
+
+Proyecto:
+- Nombre: {nombre_proyecto}
+- Descripción: {descripcion_proyecto}
+- Objetivo Principal: {objetivo_principal}
+
+Fase/Etapa Actual:
+- Nombre: {nombre_fase}
+- Criterio de Logro: {objetivo_fase}
+
+Genera entre 3 y 5 tareas concretas, realistas y directamente orientadas a que el equipo de trabajo cumpla con el criterio de logro de esta fase.
+Cada tarea debe tener un nombre corto y claro (máximo 80 caracteres) y una descripción opcional muy breve (máximo 200 caracteres).
+
+Responde únicamente en formato JSON con la siguiente estructura exacta:
+{{
+  "tareas": [
+    {{
+      "nombre": "Nombre de la tarea",
+      "descripcion": "Breve descripción de la actividad"
+    }}
+  ]
+}}
+"""
+
+def generar_tareas_etapa_ia(proyecto, fase):
+    prompt = TAREAS_ETAPA_CONTEXTO.format(
+        nombre_proyecto=proyecto.nombre,
+        descripcion_proyecto=proyecto.descripcion,
+        objetivo_principal=proyecto.objetivo_principal,
+        nombre_fase=fase.nombre,
+        objetivo_fase=fase.objetivo
+    )
+    
+    def normalizador(datos):
+        if not isinstance(datos, dict):
+            return {"tareas": []}
+        tareas_raw = datos.get("tareas")
+        if not isinstance(tareas_raw, list):
+            return {"tareas": []}
+        tareas_out = []
+        for t in tareas_raw:
+            if not isinstance(t, dict):
+                continue
+            nombre = str(t.get("nombre") or "").strip()
+            desc = str(t.get("descripcion") or "").strip()
+            if nombre:
+                tareas_out.append({
+                    "nombre": nombre[:200],
+                    "descripcion": desc[:400]
+                })
+        return {"tareas": tareas_out}
+
+    # Intentar con Gemini
+    api_key = getattr(settings, "GEMINI_API_KEY", "")
+    if api_key:
+        model = getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"},
+        }
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=_timeout_ia()) as resp:
+                raw = resp.read().decode("utf-8")
+            text = _extraer_texto_gemini(json.loads(raw))
+            return normalizador(json.loads(_limpiar_json_modelo(text)))
+        except Exception as e:
+            logger.warning("[IA] Error llamando a Gemini para sugerencia de tareas: %s", e)
+
+    # Fallback a Groq
+    return _llamar_groq_json(
+        prompt,
+        normalizador,
+        {"tareas": []},
+        temperature=0.2,
+    )
+
 
 
