@@ -1042,6 +1042,51 @@ class MovimientoStock(models.Model):
         return f"+{self.cantidad} {self.item} ({self.get_motivo_display()})"
 
 
+class GrupoChat(models.Model):
+    nombre = models.CharField(max_length=150)
+    creado_por = models.ForeignKey(
+        Usuario,
+        on_delete=models.CASCADE,
+        related_name="grupos_creados",
+    )
+    miembros = models.ManyToManyField(Usuario, related_name="grupos_chat")
+    sede = models.CharField(
+        max_length=30,
+        choices=Sede.choices,
+        default=Sede.PUERTO_MONTT,
+    )
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-creado_en"]
+        verbose_name = "grupo de chat"
+        verbose_name_plural = "grupos de chat"
+
+    def __str__(self):
+        return self.nombre
+
+
+class Notificacion(models.Model):
+    usuario = models.ForeignKey(
+        Usuario,
+        on_delete=models.CASCADE,
+        related_name="notificaciones",
+    )
+    titulo = models.CharField(max_length=200)
+    mensaje = models.TextField()
+    url = models.CharField(max_length=255, blank=True)
+    leido = models.BooleanField(default=False)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-creado_en"]
+        verbose_name = "notificación"
+        verbose_name_plural = "notificaciones"
+
+    def __str__(self):
+        return f"{self.usuario.username}: {self.titulo}"
+
+
 class MensajePrivado(models.Model):
     remitente = models.ForeignKey(
         Usuario,
@@ -1052,6 +1097,15 @@ class MensajePrivado(models.Model):
         Usuario,
         on_delete=models.CASCADE,
         related_name="mensajes_recibidos",
+        null=True,
+        blank=True,
+    )
+    grupo = models.ForeignKey(
+        GrupoChat,
+        on_delete=models.CASCADE,
+        related_name="mensajes",
+        null=True,
+        blank=True,
     )
     texto = models.TextField(blank=True)
     archivo = models.FileField(upload_to="chat/%Y/%m/", blank=True, null=True)
@@ -1064,4 +1118,6 @@ class MensajePrivado(models.Model):
         verbose_name_plural = "mensajes privados"
 
     def __str__(self):
+        if self.grupo:
+            return f"{self.remitente} -> Grupo: {self.grupo.nombre}"
         return f"{self.remitente} -> {self.destinatario}"

@@ -14,9 +14,39 @@
 
     <section class="chat-layout">
         <aside class="chat-users-panel">
-            <div class="workspace-section-title compact">
+            <!-- Sección de Grupos -->
+            <div class="workspace-section-title compact d-flex justify-content-between align-items-center mb-2">
                 <div>
-                    <span class="eyebrow">Usuarios</span>
+                    <span class="eyebrow">Colaboración</span>
+                    <h2 class="mb-0">Grupos</h2>
+                </div>
+                <button class="btn btn-outline-danger btn-sm rounded-circle d-flex align-items-center justify-content-center" data-bs-toggle="modal" data-bs-target="#modalCrearGrupo" style="width: 28px; height: 28px; padding: 0;" title="Crear nuevo grupo">
+                    <i class="bi bi-plus-lg"></i>
+                </button>
+            </div>
+
+            <div class="chat-user-list mb-4">
+                {% for item in grupos_lista %}
+                    <a class="chat-user-item {% if grupo and grupo.pk == item.grupo.pk %}is-active{% endif %}" href="{% url 'chat_grupo' item.grupo.pk %}">
+                        <span class="chat-avatar bg-danger text-white d-flex align-items-center justify-content-center"><i class="bi bi-people-fill"></i></span>
+                        <span class="chat-user-copy">
+                            <strong>{{ item.grupo.nombre }}</strong>
+                            {% if item.ultimo %}
+                                <em>{{ item.ultimo.remitente.nombre|default:item.ultimo.remitente.username }}: {{ item.ultimo.texto|default:"Archivo adjunto"|truncatechars:30 }}</em>
+                            {% else %}
+                                <em>Sin mensajes todavía</em>
+                            {% endif %}
+                        </span>
+                    </a>
+                {% empty %}
+                    <div class="small text-muted px-3 py-2">No perteneces a ningún grupo de chat.</div>
+                {% endfor %}
+            </div>
+
+            <!-- Sección de Contactos -->
+            <div class="workspace-section-title compact mb-2">
+                <div>
+                    <span class="eyebrow">Mensajes directos</span>
                     <h2>Contactos</h2>
                 </div>
             </div>
@@ -49,17 +79,31 @@
         </aside>
 
         <section class="chat-thread-panel">
-            {% if destinatario %}
+            {% if destinatario or grupo %}
                 <div class="chat-thread-header">
-                    <div class="chat-avatar large">{{ destinatario.nombre|default:destinatario.username|slice:":1"|upper }}</div>
-                    <div>
-                        <span class="eyebrow">Conversación</span>
-                        <h2>{{ destinatario.nombre|default:destinatario.username }}</h2>
-                        <p>
-                            <i class="presence-dot {% if destinatario_presencia.en_linea %}is-online{% endif %}" aria-hidden="true"></i>
-                            {{ destinatario_presencia.texto }} · {{ destinatario.email }}
-                        </p>
-                    </div>
+                    {% if destinatario %}
+                        <div class="chat-avatar large">{{ destinatario.nombre|default:destinatario.username|slice:":1"|upper }}</div>
+                        <div>
+                            <span class="eyebrow">Conversación directa</span>
+                            <h2>{{ destinatario.nombre|default:destinatario.username }}</h2>
+                            <p>
+                                <i class="presence-dot {% if destinatario_presencia.en_linea %}is-online{% endif %}" aria-hidden="true"></i>
+                                {{ destinatario_presencia.texto }} · {{ destinatario.email }}
+                            </p>
+                        </div>
+                    {% else %}
+                        <div class="chat-avatar large bg-danger text-white d-flex align-items-center justify-content-center"><i class="bi bi-people-fill"></i></div>
+                        <div>
+                            <span class="eyebrow">Grupo de chat</span>
+                            <h2>{{ grupo.nombre }}</h2>
+                            <p class="small text-muted mb-0">
+                                Miembros: 
+                                {% for m in grupo.miembros.all %}
+                                    {{ m.nombre|default:m.username }}{% if not forloop.last %}, {% endif %}
+                                {% endfor %}
+                            </p>
+                        </div>
+                    {% endif %}
                 </div>
 
                 <div class="chat-messages" id="chatMessages">
@@ -81,7 +125,11 @@
                     {% empty %}
                         <div class="chat-empty">
                             <strong>Empieza la conversación</strong>
-                            <span>Escribe un mensaje o adjunta un archivo para {{ destinatario.nombre|default:destinatario.username }}.</span>
+                            {% if destinatario %}
+                                <span>Escribe un mensaje o adjunta un archivo para {{ destinatario.nombre|default:destinatario.username }}.</span>
+                            {% else %}
+                                <span>Escribe un mensaje o adjunta un archivo para enviar al grupo.</span>
+                            {% endif %}
                         </div>
                     {% endfor %}
                 </div>
@@ -120,12 +168,53 @@
             {% else %}
                 <div class="chat-select-empty">
                     <i class="bi bi-chat-dots-fill"></i>
-                    <strong>Selecciona un usuario</strong>
-                    <span>Elige un contacto de la lista para abrir un chat privado.</span>
+                    <strong>Selecciona un chat</strong>
+                    <span>Elige un contacto o un grupo de la lista para abrir una conversación.</span>
                 </div>
             {% endif %}
         </section>
     </section>
+</div>
+
+<!-- Modal Crear Grupo -->
+<div class="modal fade" id="modalCrearGrupo" tabindex="-1" aria-labelledby="modalCrearGrupoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 12px; border: none; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
+            <form action="{% url 'chat_grupo_nuevo' %}" method="post">
+                {% csrf_token %}
+                <div class="modal-header text-white" style="background: var(--inacap-red, #cf3f4f); padding: 16px 20px;">
+                    <h5 class="modal-title mb-0" id="modalCrearGrupoLabel" style="font-weight: 800;"><i class="bi bi-people-fill me-2"></i> Crear Nuevo Grupo</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="opacity: 0.8;"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <div class="mb-3">
+                        <label for="id_group_name" class="form-label small fw-bold">Nombre del Grupo</label>
+                        <input type="text" class="form-control" id="id_group_name" name="nombre" placeholder="Ej: Equipo Innovación" required style="border-radius: 8px;">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Seleccionar Miembros (Sede)</label>
+                        <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto; border-radius: 8px;">
+                            {% for user_sede in usuarios_sede %}
+                                <div class="form-check py-1">
+                                    <input class="form-check-input" type="checkbox" name="miembros" value="{{ user_sede.pk }}" id="userCheck{{ user_sede.pk }}">
+                                    <label class="form-check-label small" for="userCheck{{ user_sede.pk }}">
+                                        <strong>{{ user_sede.nombre|default:user_sede.username }}</strong>
+                                        <span class="text-muted d-block" style="font-size: 0.75rem;">{{ user_sede.email }} · {{ user_sede.get_rol_display }}</span>
+                                    </label>
+                                </div>
+                            {% empty %}
+                                <span class="small text-muted">No hay otros miembros disponibles en tu sede.</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light" style="padding: 12px 20px;">
+                    <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal" style="border-radius: 6px; font-weight: 700;">Cancelar</button>
+                    <button type="submit" class="btn btn-primary btn-sm px-4" style="border-radius: 6px; font-weight: 700;">Crear Grupo</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <script>

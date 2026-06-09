@@ -58,6 +58,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "proyectos.context_processors.chat_no_leidos",
+                "proyectos.context_processors.notificaciones_usuario",
             ],
         },
     },

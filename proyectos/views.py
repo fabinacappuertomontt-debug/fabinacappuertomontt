@@ -49,7 +49,7 @@ from .forms import (
     UsuarioUpdateForm,
 )
 from .gemini_service import analizar_borrador_trl, analizar_etapa_trl, analizar_trl, generar_mesa_trabajo_ia, generar_estructura_proyecto_ia
-from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Area, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario, MovimientoStock
+from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Area, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario, MovimientoStock, GrupoChat, Notificacion
 
 logger = logging.getLogger("proyectos.views")
 
@@ -1092,9 +1092,10 @@ def usuario_detalle(request, pk):
 
 
 @login_required
-def chat_privado(request, usuario_id=None):
+def chat_privado(request, usuario_id=None, grupo_id=None):
     usuarios = usuarios_de_sede(request.user).filter(is_active=True).exclude(pk=request.user.pk).order_by("nombre", "username")
     destinatario = None
+    grupo = None
     mensajes_chat = MensajePrivado.objects.none()
     form = MensajePrivadoForm()
 
@@ -1114,7 +1115,37 @@ def chat_privado(request, usuario_id=None):
                 mensaje.remitente = request.user
                 mensaje.destinatario = destinatario
                 mensaje.save()
+                
+                # trigger notification to recipient
+                Notificacion.objects.create(
+                    usuario=destinatario,
+                    titulo="Nuevo mensaje de chat",
+                    mensaje=f"{request.user.nombre or request.user.username} te ha enviado un mensaje.",
+                    url=reverse("chat_privado", kwargs={"usuario_id": request.user.pk})
+                )
                 return redirect("chat_privado", usuario_id=destinatario.pk)
+
+    elif grupo_id:
+        grupo = get_object_or_404(GrupoChat.objects.filter(miembros=request.user), pk=grupo_id)
+        mensajes_chat = grupo.mensajes.all().select_related("remitente")
+
+        if request.method == "POST":
+            form = MensajePrivadoForm(request.POST, request.FILES)
+            if form.is_valid():
+                mensaje = form.save(commit=False)
+                mensaje.remitente = request.user
+                mensaje.grupo = grupo
+                mensaje.save()
+                
+                # trigger notifications to all group members (except sender)
+                for miembro in grupo.miembros.exclude(pk=request.user.pk):
+                    Notificacion.objects.create(
+                        usuario=miembro,
+                        titulo=f"Mensaje en grupo: {grupo.nombre}",
+                        mensaje=f"{request.user.nombre or request.user.username} envió un mensaje al grupo.",
+                        url=reverse("chat_grupo", kwargs={"grupo_id": grupo.pk})
+                    )
+                return redirect("chat_grupo", grupo_id=grupo.pk)
 
     conversaciones = []
     for usuario in usuarios:
@@ -1135,18 +1166,70 @@ def chat_privado(request, usuario_id=None):
         reverse=True,
     )
 
+    # list of groups the user belongs to
+    grupos_usuario = GrupoChat.objects.filter(miembros=request.user)
+    grupos_lista = []
+    for g in grupos_usuario:
+        ultimo = g.mensajes.order_by("-creado_en").first()
+        grupos_lista.append({
+            "grupo": g,
+            "ultimo": ultimo,
+        })
+        
+    grupos_lista.sort(
+        key=lambda item: item["ultimo"].creado_en if item["ultimo"] else timezone.make_aware(datetime.min),
+        reverse=True,
+    )
+
     return render(
         request,
         "proyectos/chat_privado.html",
         {
             "conversaciones": conversaciones,
+            "grupos_lista": grupos_lista,
             "destinatario": destinatario,
+            "grupo": grupo,
             "mensajes_chat": mensajes_chat,
             "form": form,
             "total_no_leidos": mensajes_no_leidos(request.user),
             "destinatario_presencia": estado_presencia(destinatario) if destinatario else None,
+            "usuarios_sede": usuarios,
         },
     )
+
+
+@login_required
+def crear_grupo_chat(request):
+    if request.method == "POST":
+        nombre = request.POST.get("nombre", "").strip()
+        miembros_ids = request.POST.getlist("miembros")
+        
+        if not nombre:
+            messages.error(request, "El nombre del grupo es obligatorio.")
+            return redirect("chat_lista")
+            
+        grupo = GrupoChat.objects.create(
+            nombre=nombre,
+            creado_por=request.user,
+            sede=request.user.sede,
+        )
+        grupo.miembros.add(request.user)
+        for uid in miembros_ids:
+            if uid.isdigit():
+                grupo.miembros.add(uid)
+                
+        messages.success(request, f"Grupo '{nombre}' creado con éxito.")
+        return redirect("chat_grupo", grupo_id=grupo.pk)
+        
+    return redirect("chat_lista")
+
+
+@login_required
+def marcar_notificaciones_leidas(request):
+    request.user.notificaciones.filter(leido=False).update(leido=True)
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return JsonResponse({"ok": True})
+    return redirect(request.META.get("HTTP_REFERER", "dashboard"))
 
 
 @login_required
@@ -1755,9 +1838,16 @@ def url_etapa_para_fase(request, fase):
 
 def notificar_creador_fase_completada(request, fase):
     proyecto = fase.proyecto
+    url = url_etapa_para_fase(request, fase)
+    if proyecto.creador:
+        Notificacion.objects.create(
+            usuario=proyecto.creador,
+            titulo="Etapa Completada",
+            mensaje=f"Se completó la etapa '{fase.etiqueta}: {fase.nombre}' del proyecto '{proyecto.nombre}'.",
+            url=url
+        )
     if not proyecto.creador or not proyecto.creador.email:
         return False
-    url = url_etapa_para_fase(request, fase)
     mensaje = (
         f"Hola {proyecto.creador.nombre or proyecto.creador.username},\n\n"
         f"Se completó la etapa '{fase.etiqueta}: {fase.nombre}' del proyecto '{proyecto.nombre}'.\n\n"
@@ -2364,6 +2454,27 @@ class ProyectoCreateView(LoginRequiredMixin, CreateView):
         sincronizar_avance_simple_desde_objetivos(self.object)
         # IA lee todo lo que el usuario escribió y genera la ruta de etapas y tareas
         generar_mesa_trabajo_inicial(self.object)
+        
+        # Notificar a todos los usuarios de la sede
+        usuarios_sede = Usuario.objects.filter(sede=self.object.sede, is_active=True).exclude(pk=self.request.user.pk)
+        for u in usuarios_sede:
+            Notificacion.objects.create(
+                usuario=u,
+                titulo="Nuevo Proyecto Creado",
+                mensaje=f"{self.request.user.nombre or self.request.user.username} ha creado el proyecto '{self.object.nombre}'.",
+                url=self.object.get_absolute_url()
+            )
+        
+        # Notificar a los otros responsables asignados
+        for r in self.object.responsables.all():
+            if r.pk != self.request.user.pk:
+                Notificacion.objects.create(
+                    usuario=r,
+                    titulo="Asignación a Proyecto",
+                    mensaje=f"Fuiste asignado como responsable del proyecto '{self.object.nombre}'.",
+                    url=self.object.get_absolute_url()
+                )
+
         notificar_creador_proyecto(self.request, self.object)
         notificar_responsables_proyecto(self.request, self.object)
         messages.success(
@@ -2394,10 +2505,24 @@ class ProyectoUpdateView(LoginRequiredMixin, UpdateView):
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
+        responsibles_antes = set(Proyecto.objects.get(pk=self.object.pk).responsables.values_list("pk", flat=True))
         response = super().form_valid(form)
         crear_fases_para_proyecto(self.object)
         sincronizar_trl_desde_resultados(self.object)
         sincronizar_avance_simple_desde_objetivos(self.object)
+        
+        # Detectar nuevos responsables asignados
+        responsibles_despues = set(self.object.responsables.all())
+        responsibles_nuevos = [r for r in responsibles_despues if r.pk not in responsibles_antes]
+        for r in responsibles_nuevos:
+            if r.pk != self.request.user.pk:
+                Notificacion.objects.create(
+                    usuario=r,
+                    titulo="Asignación a Proyecto",
+                    mensaje=f"Fuiste asignado como responsable al proyecto '{self.object.nombre}'.",
+                    url=self.object.get_absolute_url()
+                )
+        
         messages.success(self.request, "Proyecto actualizado correctamente.")
         return response
 
@@ -3174,6 +3299,16 @@ def crear_tarea(request, pk):
             tarea.fase = fase_desde_request(request, proyecto)
             tarea.save()
             recalcular_avance_por_tareas(proyecto)
+            
+            # Crear notificación de base de datos para el responsable de la tarea
+            if tarea.responsable and tarea.responsable_id != request.user.pk:
+                Notificacion.objects.create(
+                    usuario=tarea.responsable,
+                    titulo="Nueva Tarea Asignada",
+                    mensaje=f"Te asignaron la tarea '{tarea.nombre}' en el proyecto '{proyecto.nombre}'.",
+                    url=proyecto.get_absolute_url() + "trabajo/"
+                )
+
             correo_enviado = notificar_tarea_asignada(request, tarea)
             if correo_enviado:
                 messages.success(request, "Tarea creada correctamente. Responsable notificado por correo.")
@@ -3244,12 +3379,24 @@ def editar_tarea(request, pk):
     tarea = get_object_or_404(Tarea.objects.filter(proyecto__sede=sede_usuario(request.user)), pk=pk)
     if not exigir_permiso_edicion_proyecto(request, tarea.proyecto):
         return redirect("proyecto_trabajo", pk=tarea.proyecto_id)
+    
+    responsable_anterior_id = tarea.responsable_id
     form = TareaForm(instance=tarea, sede=tarea.proyecto.sede)
     if request.method == "POST":
         form = TareaForm(request.POST, instance=tarea, sede=tarea.proyecto.sede)
         if form.is_valid():
-            form.save()
+            tarea = form.save()
             recalcular_avance_por_tareas(tarea.proyecto)
+            
+            # Crear notificación si se asignó un nuevo responsable o cambió
+            if tarea.responsable and tarea.responsable_id != responsable_anterior_id and tarea.responsable_id != request.user.pk:
+                Notificacion.objects.create(
+                    usuario=tarea.responsable,
+                    titulo="Tarea Asignada",
+                    mensaje=f"Te asignaron la tarea '{tarea.nombre}' en el proyecto '{tarea.proyecto.nombre}'.",
+                    url=tarea.proyecto.get_absolute_url() + "trabajo/"
+                )
+                
             messages.success(request, "Tarea actualizada correctamente.")
             return redirect(url_retorno_segura(request, f"/proyectos/{tarea.proyecto_id}/trabajo/"))
     return render(

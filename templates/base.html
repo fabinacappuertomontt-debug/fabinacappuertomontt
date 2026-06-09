@@ -181,6 +181,43 @@
                         </strong>
                     </div>
                     <div class="app-topbar-meta">
+                        <!-- Dropdown de Notificaciones -->
+                        <div class="dropdown me-2" id="notifDropdownContainer">
+                            <button class="btn btn-link text-decoration-none position-relative p-0 d-flex align-items-center" type="button" id="notifDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="color: var(--inacap-red, #cf3f4f); font-size: 1.25rem; min-height: 38px; background: transparent; border: 0;">
+                                <i class="bi bi-bell-fill"></i>
+                                {% if notificaciones_no_leidas_count %}
+                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem; padding: 4px 6px;" id="notifBadge">
+                                        {{ notificaciones_no_leidas_count }}
+                                    </span>
+                                {% endif %}
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-lg py-2 border-0 mt-2" aria-labelledby="notifDropdown" style="width: 320px; border-radius: 12px; font-size: 0.85rem; max-height: 400px; overflow-y: auto;">
+                                <li class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center bg-light">
+                                    <strong class="text-dark"><i class="bi bi-bell"></i> Notificaciones</strong>
+                                    {% if notificaciones_no_leidas_count %}
+                                        <button class="btn btn-link text-danger p-0 small text-decoration-none fw-bold" id="markAllReadBtn" style="font-size: 0.75rem; background: transparent; border: 0;">Marcar todo leído</button>
+                                    {% endif %}
+                                </li>
+                                <div id="notifListContainer">
+                                    {% for notif in notificaciones_recientes %}
+                                        <li>
+                                            <a class="dropdown-item px-3 py-2 border-bottom d-flex flex-column gap-1 {% if not notif.leido %}bg-light-subtle fw-semibold{% endif %}" href="{% if notif.url %}{{ notif.url }}{% else %}#{% endif %}" style="white-space: normal;">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <span class="text-danger" style="font-size: 0.8rem; font-weight: 800;">{{ notif.titulo }}</span>
+                                                    <small class="text-muted" style="font-size: 0.7rem;">{{ notif.creado_en|date:"d/m H:i" }}</small>
+                                                </div>
+                                                <p class="mb-0 text-dark" style="font-size: 0.8rem; line-height: 1.3;">{{ notif.mensaje }}</p>
+                                            </a>
+                                        </li>
+                                    {% empty %}
+                                        <li class="px-3 py-4 text-center text-muted" id="notifEmptyState">
+                                            <i class="bi bi-bell-slash d-block fs-3 mb-2"></i>
+                                            <span>No tienes notificaciones</span>
+                                        </li>
+                                    {% endfor %}
+                                </div>
+                            </ul>
+                        </div>
                         {% if request.tema == 'pro' %}
                             <span><i class="bi bi-building"></i> {{ user.get_sede_display|default:"Tu empresa" }}</span>
                             <span><i class="bi bi-kanban"></i> TrackFlow Pro</span>
@@ -269,6 +306,36 @@
                 setCollapsed(localStorage.getItem(storageKey) === "true");
                 sidebarToggle.addEventListener("click", () => {
                     setCollapsed(!appLayout.classList.contains("sidebar-collapsed"));
+                });
+            }
+
+            // AJAX for marking all notifications as read
+            const markAllReadBtn = document.getElementById("markAllReadBtn");
+            if (markAllReadBtn) {
+                markAllReadBtn.addEventListener("click", async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const csrfToken = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+                    try {
+                        const response = await fetch("{% url 'marcar_notificaciones_leidas' %}", {
+                            method: "POST",
+                            headers: {
+                                "X-CSRFToken": csrfToken,
+                                "X-Requested-With": "XMLHttpRequest"
+                            }
+                        });
+                        const data = await response.json();
+                        if (data.ok) {
+                            const badge = document.getElementById("notifBadge");
+                            if (badge) badge.remove();
+                            document.querySelectorAll("#notifListContainer a").forEach(item => {
+                                item.classList.remove("bg-light-subtle", "fw-semibold");
+                            });
+                            markAllReadBtn.remove();
+                        }
+                    } catch (err) {
+                        console.error("Error marking notifications as read:", err);
+                    }
                 });
             }
         });
