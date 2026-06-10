@@ -3185,6 +3185,57 @@ def inventario_agregar_stock(request, pk):
 
 
 @login_required
+def inventario_editar(request, pk):
+    item = get_object_or_404(inventario_de_sede(request.user), pk=pk, activo=True)
+    if not usuario_puede_gestionar_inventario(request.user):
+        messages.error(request, "No tienes permisos para gestionar el inventario.")
+        return redirect("inventario_lista")
+
+    form = ItemInventarioForm(instance=item)
+    if request.method == "POST":
+        form = ItemInventarioForm(request.POST, instance=item)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"El ítem '{item.nombre}' ha sido actualizado correctamente.")
+            return redirect("inventario_lista")
+
+    return render(
+        request,
+        "proyectos/inventario_form.html",
+        {
+            "form": form,
+            "titulo": "Editar ítem",
+            "descripcion": f"Modifica los datos del ítem: {item.nombre}",
+            "boton": "Guardar cambios",
+            "volver_url": "inventario_lista",
+            "captura_codigo_barra": True,
+        },
+    )
+
+
+@login_required
+def inventario_eliminar(request, pk):
+    item = get_object_or_404(inventario_de_sede(request.user), pk=pk, activo=True)
+    if not usuario_puede_gestionar_inventario(request.user):
+        messages.error(request, "No tienes permisos para gestionar el inventario.")
+        return redirect("inventario_lista")
+
+    if request.method == "POST":
+        item.activo = False
+        item.save()
+        messages.success(request, f"Ítem '{item.nombre}' eliminado del inventario.")
+        return redirect("inventario_lista")
+
+    return render(
+        request,
+        "proyectos/inventario_confirmar_eliminar.html",
+        {
+            "item": item,
+        },
+    )
+
+
+@login_required
 def registrar_uso_inventario(request, pk):
     proyecto = get_object_or_404(proyectos_de_sede(request.user), pk=pk)
     form = UsoInventarioForm(sede=proyecto.sede)

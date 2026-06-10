@@ -82,7 +82,13 @@
                         {% endif %}
                         {% if item.bajo_stock %}<em>Bajo stock</em>{% endif %}
                         {% if puede_gestionar_inventario %}
-                            <a class="btn btn-sm btn-outline-primary" href="{% url 'inventario_agregar_stock' item.pk %}">Agregar stock</a>
+                            <div style="display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 10px;">
+                                <a class="btn btn-sm btn-outline-primary" href="{% url 'inventario_agregar_stock' item.pk %}"><i class="bi bi-plus"></i> Agregar stock</a>
+                                <div style="display: flex; gap: 4px; width: 100%;">
+                                    <a class="btn btn-sm btn-outline-secondary" style="flex: 1;" href="{% url 'inventario_editar' item.pk %}"><i class="bi bi-pencil"></i> Editar</a>
+                                    <a class="btn btn-sm btn-outline-danger" style="flex: 1;" href="{% url 'inventario_eliminar' item.pk %}"><i class="bi bi-trash"></i> Eliminar</a>
+                                </div>
+                            </div>
                         {% endif %}
                     </div>
                 </article>

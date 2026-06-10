@@ -92,3 +92,41 @@ class InventarioTests(TestCase):
         self.assertEqual(mov.cantidad, 20.0)
         self.assertEqual(mov.motivo, "donacion")
         self.assertEqual(mov.usuario, self.user)
+
+    def test_editar_item_inventario(self):
+        url = reverse("inventario_editar", args=[self.item.pk])
+        post_data = {
+            "nombre": "Resistencia 10k Modificada",
+            "tipo": "componente",
+            "area": "electronica",
+            "categoria": "Resistencias",
+            "codigo_barra": "123456789",
+            "cantidad": "15.00",
+            "unidad": "unidad",
+            "stock_minimo": "5.00",
+            "estado": "disponible",
+            "ubicacion": "Cajon A1",
+            "observacion": "Nueva observacion"
+        }
+        response = self.client.post(url, post_data)
+        if response.status_code == 200:
+            print("Form errors:", response.context["form"].errors if "form" in response.context else "No form in context")
+        self.assertEqual(response.status_code, 302)
+        
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.nombre, "Resistencia 10k Modificada")
+        self.assertEqual(self.item.tipo, "componente")
+        self.assertEqual(self.item.ubicacion, "Cajon A1")
+
+    def test_eliminar_item_inventario(self):
+        url = reverse("inventario_eliminar", args=[self.item.pk])
+        # GET shows confirmation page
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        
+        # POST deletes item (sets activo=False)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 302)
+        
+        self.item.refresh_from_db()
+        self.assertFalse(self.item.activo)
