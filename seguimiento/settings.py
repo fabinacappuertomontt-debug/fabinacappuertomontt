@@ -131,3 +131,8 @@ AI_TIMEOUT_SECONDS = int(os.getenv("AI_TIMEOUT_SECONDS", "25"))
 # Seguridad SSL/HTTPS en Azure
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+# Seguridad de Sesiones (Recomendado para computadores compartidos en laboratorios)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_AGE = 14400  # Expiración absoluta a las 4 horas
+
+

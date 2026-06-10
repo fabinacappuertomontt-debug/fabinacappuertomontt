@@ -9,7 +9,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path(
         "login/",
-        auth_views.LoginView.as_view(template_name="registration/login.html"),
+        auth_views.LoginView.as_view(template_name="registration/login.html", redirect_authenticated_user=True),
         name="login",
     ),
     path(
@@ -43,7 +43,7 @@ urlpatterns = [
     ),
     path(
         "pro/login/",
-        auth_views.LoginView.as_view(template_name="registration/login_pro.html"),
+        auth_views.LoginView.as_view(template_name="registration/login_pro.html", redirect_authenticated_user=True),
         name="login_pro",
     ),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),

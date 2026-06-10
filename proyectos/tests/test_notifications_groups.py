@@ -266,3 +266,14 @@ class NotificationAndGroupChatTests(TestCase):
         response = self.client.get(url)
         # Should raise 404
         self.assertEqual(response.status_code, 404)
+
+    def test_login_redirect_for_authenticated_users(self):
+        # We are already logged in as self.creator
+        url = reverse("login")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+
+        # Test organizacion_login redirect
+        url_org = reverse("organizacion_login", args=["inacap"])
+        response_org = self.client.get(url_org)
+        self.assertEqual(response_org.status_code, 302)

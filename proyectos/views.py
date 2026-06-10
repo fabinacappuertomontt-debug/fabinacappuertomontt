@@ -822,6 +822,8 @@ def superadmin_logout(request):
 
 
 def organizacion_login(request, organizacion_slug):
+    if request.user.is_authenticated:
+        return redirect("dashboard")
     organizacion = organizacion_por_slug_login(organizacion_slug)
     form = AuthenticationForm(request)
 
