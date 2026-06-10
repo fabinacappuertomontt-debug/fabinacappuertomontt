@@ -24,6 +24,9 @@
             {% if proyecto.usa_trl %}
                 <a class="btn btn-outline-primary" href="{% url 'proyecto_ia_trl' proyecto.pk %}">Asistente IA</a>
             {% endif %}
+            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalPDF">
+                <i class="bi bi-file-earmark-pdf me-1"></i> Descargar PDF
+            </button>
             {% if puede_editar_proyecto %}
                 <a class="btn btn-outline-primary" href="{% url 'proyecto_editar' proyecto.pk %}">Editar datos</a>
             {% endif %}
@@ -531,4 +534,70 @@
         <article><span>Observaciones</span><strong>{{ proyecto.observaciones.all|length }}</strong><p>Comentarios de seguimiento</p></article>
     </section>
 </div>
+
+<!-- Modal Descargar PDF -->
+<div class="modal fade" id="modalPDF" tabindex="-1" aria-labelledby="modalPDFLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 16px; border: none; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+            <div class="modal-header text-white d-flex align-items-center" style="background: linear-gradient(135deg, var(--inacap-red, #cf3f4f), #1e293b); padding: 20px 24px;">
+                <h5 class="modal-title mb-0" id="modalPDFLabel" style="font-weight: 800; letter-spacing: 0.5px;">
+                    <i class="bi bi-file-earmark-pdf-fill me-2"></i>Descargar PDF del Proyecto
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="opacity: 0.8;"></button>
+            </div>
+            <div class="modal-body" style="padding: 24px; background-color: #f8fafc;">
+                <p class="text-muted mb-4" style="font-size: 0.9rem;">Seleccione el formato y contenido que desea incluir en el documento PDF:</p>
+                
+                <div class="d-flex flex-column gap-3">
+                    <!-- Opción 1: Todo -->
+                    <a href="{% url 'proyecto_descargar_pdf' proyecto.pk %}?modo=todo" class="d-flex align-items-center p-3 bg-white border rounded shadow-sm text-decoration-none text-dark hover-shadow-transition" style="border-color: #e2e8f0; transition: all 0.2s ease-in-out;">
+                        <div class="p-3 rounded-circle me-3" style="background-color: #fee2e2; color: #cf3f4f; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; min-width: 48px;">
+                            <i class="bi bi-file-earmark-medical-fill fs-4"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <strong class="d-block mb-1" style="color: #1e293b; font-size: 0.95rem;">Reporte Completo (Todo)</strong>
+                            <span class="text-muted d-block" style="font-size: 0.8rem; line-height: 1.2;">Incluye portada, objetivos, resultados, indicadores, listado de evidencias y galería de imágenes.</span>
+                        </div>
+                        <i class="bi bi-chevron-right text-muted ms-2"></i>
+                    </a>
+
+                    <!-- Opción 2: Evidencias y Objetivos -->
+                    <a href="{% url 'proyecto_descargar_pdf' proyecto.pk %}?modo=evidencias_objetivos" class="d-flex align-items-center p-3 bg-white border rounded shadow-sm text-decoration-none text-dark hover-shadow-transition" style="border-color: #e2e8f0; transition: all 0.2s ease-in-out;">
+                        <div class="p-3 rounded-circle me-3" style="background-color: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; min-width: 48px;">
+                            <i class="bi bi-list-task fs-4"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <strong class="d-block mb-1" style="color: #1e293b; font-size: 0.95rem;">Evidencias y Objetivos</strong>
+                            <span class="text-muted d-block" style="font-size: 0.8rem; line-height: 1.2;">Incluye portada, objetivos, resultados, indicadores y listado de evidencias (sin imágenes).</span>
+                        </div>
+                        <i class="bi bi-chevron-right text-muted ms-2"></i>
+                    </a>
+
+                    <!-- Opción 3: Solo imágenes -->
+                    <a href="{% url 'proyecto_descargar_pdf' proyecto.pk %}?modo=imagenes" class="d-flex align-items-center p-3 bg-white border rounded shadow-sm text-decoration-none text-dark hover-shadow-transition" style="border-color: #e2e8f0; transition: all 0.2s ease-in-out;">
+                        <div class="p-3 rounded-circle me-3" style="background-color: #fef3c7; color: #d97706; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; min-width: 48px;">
+                            <i class="bi bi-images fs-4"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <strong class="d-block mb-1" style="color: #1e293b; font-size: 0.95rem;">Solo Imágenes (Galería)</strong>
+                            <span class="text-muted d-block" style="font-size: 0.8rem; line-height: 1.2;">Incluye portada y galería de todas las imágenes subidas como evidencias.</span>
+                        </div>
+                        <i class="bi bi-chevron-right text-muted ms-2"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0" style="padding: 16px 24px;">
+                <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal" style="border-radius: 8px; font-weight: 700;">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.hover-shadow-transition:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+    border-color: #cbd5e1 !important;
+}
+</style>
 {% endblock %}

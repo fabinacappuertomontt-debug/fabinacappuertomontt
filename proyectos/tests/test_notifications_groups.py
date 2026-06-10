@@ -277,3 +277,42 @@ class NotificationAndGroupChatTests(TestCase):
         url_org = reverse("organizacion_login", args=["inacap"])
         response_org = self.client.get(url_org)
         self.assertEqual(response_org.status_code, 302)
+
+    def test_descargar_proyecto_pdf(self):
+        # Create a project in puerto_montt (same sede as self.creator)
+        proyecto = Proyecto.objects.create(
+            nombre="Proyecto PDF Test",
+            descripcion="Prueba de generación de PDF.",
+            tipo_proyecto="innovacion",
+            metodologia="trl",
+            sede="puerto_montt",
+            organizacion=self.org,
+            creador=self.creator,
+            fecha_inicio=date(2026, 1, 1),
+            fecha_fin=date(2026, 6, 30)
+        )
+        
+        # Test 1: Authorized download - "todo" mode
+        url = reverse("proyecto_descargar_pdf", args=[proyecto.pk])
+        response = self.client.get(url + "?modo=todo")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("Content-Type"), "application/pdf")
+        self.assertIn("attachment; filename=", response.headers.get("Content-Disposition", ""))
+        self.assertIn(f"proyecto_{proyecto.pk}_todo.pdf", response.headers.get("Content-Disposition", ""))
+
+        # Test 2: Authorized download - "evidencias_objetivos" mode
+        response = self.client.get(url + "?modo=evidencias_objetivos")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("Content-Type"), "application/pdf")
+        self.assertIn(f"proyecto_{proyecto.pk}_evidencias_objetivos.pdf", response.headers.get("Content-Disposition", ""))
+
+        # Test 3: Authorized download - "imagenes" mode
+        response = self.client.get(url + "?modo=imagenes")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("Content-Type"), "application/pdf")
+        self.assertIn(f"proyecto_{proyecto.pk}_imagenes.pdf", response.headers.get("Content-Disposition", ""))
+
+        # Test 4: Unauthorized download - User from different sede (santiago)
+        self.client.login(username="diff_user@test.cl", password="password123")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)

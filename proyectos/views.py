@@ -5,7 +5,7 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
-from django.http import JsonResponse
+from django.http import FileResponse, JsonResponse
 from django.db import close_old_connections, transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Avg, Count, F, Q
@@ -24,6 +24,15 @@ import logging
 import secrets
 import threading
 import time
+import io
+import os
+from PIL import Image as PILImage
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.pdfgen import canvas
 
 from .forms import (
     AjusteStockForm,
@@ -3556,6 +3565,318 @@ def actualizar_indicador(request, pk, indicador_id):
             notificar_creador_fase_completada(request, fase)
 
     return JsonResponse({"ok": True})
+
+
+class NumberedCanvas(canvas.Canvas):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_page_states = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        num_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self.draw_page_number(num_pages)
+            super().showPage()
+        super().save()
+
+    def draw_page_number(self, page_count):
+        if self._pageNumber == 1:
+            return
+        self.saveState()
+        self.setFont("Helvetica", 8)
+        self.setFillColor(colors.HexColor("#64748b"))
+        
+        # Header text
+        self.drawString(54, self._pagesize[1] - 36, "Crea INACAP Puerto Montt - Reporte de Proyecto")
+        
+        # Header line
+        self.setStrokeColor(colors.HexColor("#e2e8f0"))
+        self.setLineWidth(0.5)
+        self.line(54, self._pagesize[1] - 42, self._pagesize[0] - 54, self._pagesize[1] - 42)
+        
+        # Footer line
+        self.line(54, 48, self._pagesize[0] - 54, 48)
+        
+        # Footer text
+        text = f"Página {self._pageNumber} de {page_count}"
+        self.drawRightString(self._pagesize[0] - 54, 36, text)
+        self.restoreState()
+
+
+@login_required
+def descargar_proyecto_pdf(request, pk):
+    proyecto = get_object_or_404(proyectos_de_sede(request.user), pk=pk)
+    modo = request.GET.get("modo", "todo")
+    if modo not in ("todo", "evidencias_objetivos", "imagenes"):
+        modo = "todo"
+        
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        leftMargin=54,
+        rightMargin=54,
+        topMargin=54,
+        bottomMargin=54
+    )
+    
+    styles = getSampleStyleSheet()
+    
+    # Custom styles
+    TitleStyle = ParagraphStyle(
+        'DocTitle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=22,
+        leading=26,
+        textColor=colors.HexColor("#142033"),
+        spaceAfter=12
+    )
+    
+    Heading1Style = ParagraphStyle(
+        'DocHeading1',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=12,
+        leading=15,
+        textColor=colors.white,
+        spaceBefore=15,
+        spaceAfter=10,
+        keepWithNext=True
+    )
+    
+    ObjectiveStyle = ParagraphStyle(
+        'DocObjective',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=10,
+        leading=13,
+        textColor=colors.HexColor("#142033"),
+        spaceBefore=8,
+        spaceAfter=4,
+        keepWithNext=True
+    )
+    
+    ResultStyle = ParagraphStyle(
+        'DocResult',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=9,
+        leading=12,
+        textColor=colors.HexColor("#24324a"),
+        leftIndent=15,
+        spaceAfter=3,
+        keepWithNext=True
+    )
+    
+    IndicatorStyle = ParagraphStyle(
+        'DocIndicator',
+        parent=styles['Normal'],
+        fontName='Helvetica-Oblique',
+        fontSize=9,
+        leading=11,
+        textColor=colors.HexColor("#475569"),
+        leftIndent=30,
+        spaceAfter=2
+    )
+    
+    BodyStyle = ParagraphStyle(
+        'DocBody',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=9,
+        leading=13,
+        textColor=colors.HexColor("#24324a"),
+        spaceAfter=6
+    )
+    
+    MetaLabelStyle = ParagraphStyle(
+        'DocMetaLabel',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=9,
+        leading=11,
+        textColor=colors.HexColor("#64748b")
+    )
+    
+    MetaValueStyle = ParagraphStyle(
+        'DocMetaValue',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=9,
+        leading=11,
+        textColor=colors.HexColor("#142033")
+    )
+    
+    story = []
+    
+    # ─── PORTADA (PÁGINA 1) ───
+    # Brand line
+    story.append(Paragraph("<font color='#cf3f4f'><b>CREA INACAP</b></font>", ParagraphStyle('Brand', fontName='Helvetica-Bold', fontSize=12, leading=14)))
+    story.append(Spacer(1, 15))
+    
+    # Title
+    story.append(Paragraph(proyecto.nombre, TitleStyle))
+    
+    # Red accent bar
+    accent_bar = Table([['']], colWidths=[letter[0] - 108], rowHeights=[3])
+    accent_bar.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#cf3f4f")),
+        ('LEFTPADDING', (0,0), (-1,-1), 0),
+        ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ('TOPPADDING', (0,0), (-1,-1), 0),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+    ]))
+    story.append(accent_bar)
+    story.append(Spacer(1, 15))
+    
+    # Metadata table
+    responsables_lista = ", ".join(r.nombre or r.username for r in proyecto.responsables.all())
+    meta_data = [
+        [Paragraph("Sede", MetaLabelStyle), Paragraph(proyecto.get_sede_display(), MetaValueStyle)],
+        [Paragraph("Metodología", MetaLabelStyle), Paragraph(proyecto.get_metodologia_display(), MetaValueStyle)],
+    ]
+    if proyecto.usa_trl:
+        meta_data.append([Paragraph("Ruta TRL", MetaLabelStyle), Paragraph(f"TRL {proyecto.trl_inicial} a TRL {proyecto.trl_objetivo}", MetaValueStyle)])
+    meta_data.extend([
+        [Paragraph("Estado", MetaLabelStyle), Paragraph(proyecto.get_estado_display(), MetaValueStyle)],
+        [Paragraph("Creador", MetaLabelStyle), Paragraph(proyecto.creador.nombre if proyecto.creador else "N/A", MetaValueStyle)],
+        [Paragraph("Responsables", MetaLabelStyle), Paragraph(responsables_lista or "Sin asignar", MetaValueStyle)],
+        [Paragraph("Fecha Generado", MetaLabelStyle), Paragraph(timezone.localtime(timezone.now()).strftime("%d/%m/%Y %H:%M"), MetaValueStyle)],
+    ])
+    
+    meta_table = Table(meta_data, colWidths=[120, letter[0] - 108 - 120])
+    meta_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#f8fafc")),
+        ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#e2e8f0")),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor("#e2e8f0")),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('LEFTPADDING', (0,0), (-1,-1), 10),
+        ('RIGHTPADDING', (0,0), (-1,-1), 10),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+    ]))
+    story.append(meta_table)
+    story.append(Spacer(1, 15))
+    
+    # Description
+    story.append(Paragraph("<b>Descripción del Proyecto:</b>", ParagraphStyle('DescLabel', fontName='Helvetica-Bold', fontSize=10, leading=12, spaceAfter=6)))
+    story.append(Paragraph(proyecto.descripcion or "Sin descripción registrada.", BodyStyle))
+    story.append(PageBreak())
+    
+    # Helper to append styled section header
+    def append_section_header(title):
+        header_p = Paragraph(f"<font color='white'><b>{title}</b></font>", Heading1Style)
+        h_table = Table([[header_p]], colWidths=[letter[0] - 108])
+        h_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#142033")),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+            ('LEFTPADDING', (0,0), (-1,-1), 10),
+            ('RIGHTPADDING', (0,0), (-1,-1), 10),
+        ]))
+        story.append(h_table)
+        story.append(Spacer(1, 10))
+        
+    # ─── OBJETIVOS (PÁGINA 2+) ───
+    if modo in ("todo", "evidencias_objetivos"):
+        objetivos = proyecto.objetivos.prefetch_related('resultados__indicadores')
+        if objetivos.exists():
+            append_section_header("📋 Objetivos, Resultados e Indicadores")
+            for obj in objetivos:
+                obj_story = []
+                obj_story.append(Paragraph(f"<b>{obj.orden}. Objetivo Específico:</b> {obj.descripcion}", ObjectiveStyle))
+                for res in obj.resultados.all():
+                    res_status = " <font color='#16a34a'><b>[✓ Cumplido]</b></font>" if res.estado == "cumplido" else ""
+                    obj_story.append(Paragraph(f"• <b>Resultado Esperado:</b> {res.descripcion}{res_status}", ResultStyle))
+                    for ind in res.indicadores.all():
+                        ind_status = "<font color='#16a34a'><b>[✓ Cumplido]</b></font>" if ind.cumplido else "<font color='#dc2626'><b>[Pendiente]</b></font>"
+                        val_text = f" (Valor: {ind.valor_actual})" if ind.valor_actual else ""
+                        obj_story.append(Paragraph(f"» <b>Indicador:</b> {ind.descripcion} — {ind_status}{val_text}", IndicatorStyle))
+                
+                story.append(KeepTogether(obj_story))
+                story.append(Spacer(1, 10))
+            story.append(Spacer(1, 10))
+            
+        # ─── EVIDENCIAS ───
+        evidencias = proyecto.evidencias.all().select_related("fase", "tarea")
+        if evidencias.exists():
+            append_section_header("📎 Evidencias Subidas")
+            for ev in evidencias:
+                fase_text = f" — {ev.fase.etiqueta}: {ev.fase.nombre}" if ev.fase else ""
+                tarea_text = f" (Tarea: {ev.tarea.nombre})" if ev.tarea else ""
+                ev_header = f"<b>{ev.nombre or ev.archivo.name}</b>{fase_text}{tarea_text}"
+                story.append(Paragraph(ev_header, BodyStyle))
+                if ev.descripcion:
+                    story.append(Paragraph(f"<font color='#64748b'>{ev.descripcion}</font>", ParagraphStyle('EvDesc', fontName='Helvetica', fontSize=8, leading=11, leftIndent=10, spaceAfter=4)))
+                story.append(Spacer(1, 4))
+            story.append(Spacer(1, 10))
+            
+    # ─── IMÁGENES (PÁGINA 2+) ───
+    if modo in ("todo", "imagenes"):
+        imagenes = proyecto.evidencias.filter(archivo__iregex=r'\.(jpg|jpeg|png|gif|webp)$')
+        if imagenes.exists():
+            append_section_header("🖼️ Galería de Imágenes")
+            cells = []
+            for img in imagenes:
+                cell_story = []
+                try:
+                    img.archivo.open('rb')
+                    img_data = img.archivo.read()
+                    img.archivo.close()
+                    img_io = io.BytesIO(img_data)
+                    
+                    with PILImage.open(img_io) as pil_img:
+                        width, height = pil_img.size
+                        
+                    target_w = 220
+                    aspect = height / width
+                    target_h = target_w * aspect
+                    
+                    if target_h > 160:
+                        target_h = 160
+                        target_w = target_h / aspect
+                        
+                    img_io.seek(0)
+                    rl_img = RLImage(img_io, width=target_w, height=target_h)
+                    cell_story.append(rl_img)
+                except Exception as e:
+                    cell_story.append(Paragraph(f"[Error al cargar imagen: {e}]", ParagraphStyle('ImgErr', fontName='Helvetica', fontSize=8, textColor=colors.red)))
+                
+                caption = img.nombre or "Evidencia"
+                cell_story.append(Spacer(1, 4))
+                cell_story.append(Paragraph(caption, ParagraphStyle('ImgCaption', fontName='Helvetica', fontSize=8, leading=10, alignment=1, textColor=colors.HexColor("#64748b"))))
+                cells.append(cell_story)
+                
+            rows = [cells[i:i + 2] for i in range(0, len(cells), 2)]
+            if rows and len(rows[-1]) == 1:
+                rows[-1].append([])
+                
+            if rows:
+                t_gallery = Table(rows, colWidths=[(letter[0] - 108)/2.0, (letter[0] - 108)/2.0])
+                t_gallery.setStyle(TableStyle([
+                    ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                    ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                    ('TOPPADDING', (0,0), (-1,-1), 8),
+                    ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+                ]))
+                story.append(t_gallery)
+
+    doc.build(story, canvasmaker=NumberedCanvas)
+    buffer.seek(0)
+    
+    nombre_pdf = f"proyecto_{proyecto.pk}_{modo}.pdf"
+    return FileResponse(
+        buffer,
+        as_attachment=True,
+        filename=nombre_pdf,
+        content_type='application/pdf'
+    )
 
 
 
