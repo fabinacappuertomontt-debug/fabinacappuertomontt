@@ -43,7 +43,7 @@
                         <div class="text-danger small mt-1">{{ form.descripcion.errors }}</div>
                         {% endif %}
                     </div>
-                    <div class="col-md-8">
+                    <div class="col-md-6">
                         <label class="form-label fw-bold">Archivo de Configuración (Opcional)</label>
                         {{ form.archivo_configuracion }}
                         <div class="form-text small">Adjunta el perfil exportado (.json, .3mf, .ini, etc.)</div>
@@ -51,10 +51,50 @@
                         <div class="text-danger small mt-1">{{ form.archivo_configuracion.errors }}</div>
                         {% endif %}
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label fw-bold">Ícono (Bootstrap Icons)</label>
-                        {{ form.icono }}
-                        <div class="form-text small">Ej: bi-printer, bi-box, bi-pc-display</div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Logo Oficial (Opcional)</label>
+                        {{ form.logo }}
+                        <div class="form-text small">Sube una imagen (PNG, JPG) para usar en lugar del ícono.</div>
+                        {% if form.logo.errors %}
+                        <div class="text-danger small mt-1">{{ form.logo.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="col-12 mt-4">
+                        <label class="form-label fw-bold">O selecciona un Ícono</label>
+                        {{ form.icono }} <!-- Hidden input -->
+                        <div class="accordion" id="accordionIconos">
+                          <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingIconos">
+                              <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#collapseIconos" aria-expanded="false" aria-controls="collapseIconos">
+                                <span id="selected-icon-preview" class="me-2"><i class="bi {{ form.icono.value|default:'bi-pc-display' }} text-primary"></i></span> 
+                                Seleccionar ícono (si no subes un logo)
+                              </button>
+                            </h2>
+                            <div id="collapseIconos" class="accordion-collapse collapse" aria-labelledby="headingIconos" data-bs-parent="#accordionIconos">
+                              <div class="accordion-body bg-light p-3">
+                                <div class="d-flex flex-wrap gap-2" id="icon-selector">
+                                    <!-- Algunos iconos comunes para elegir -->
+                                    <button type="button" class="btn btn-outline-secondary p-2 icon-btn" data-icon="bi-pc-display" style="width: 45px; height: 45px;" title="bi-pc-display"><i class="bi bi-pc-display fs-5"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary p-2 icon-btn" data-icon="bi-printer" style="width: 45px; height: 45px;" title="bi-printer"><i class="bi bi-printer fs-5"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary p-2 icon-btn" data-icon="bi-box" style="width: 45px; height: 45px;" title="bi-box"><i class="bi bi-box fs-5"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary p-2 icon-btn" data-icon="bi-cpu" style="width: 45px; height: 45px;" title="bi-cpu"><i class="bi bi-cpu fs-5"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary p-2 icon-btn" data-icon="bi-brush" style="width: 45px; height: 45px;" title="bi-brush"><i class="bi bi-brush fs-5"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary p-2 icon-btn" data-icon="bi-bezier2" style="width: 45px; height: 45px;" title="bi-bezier2"><i class="bi bi-bezier2 fs-5"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary p-2 icon-btn" data-icon="bi-code-slash" style="width: 45px; height: 45px;" title="bi-code-slash"><i class="bi bi-code-slash fs-5"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary p-2 icon-btn" data-icon="bi-motherboard" style="width: 45px; height: 45px;" title="bi-motherboard"><i class="bi bi-motherboard fs-5"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary p-2 icon-btn" data-icon="bi-tools" style="width: 45px; height: 45px;" title="bi-tools"><i class="bi bi-tools fs-5"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary p-2 icon-btn" data-icon="bi-wrench" style="width: 45px; height: 45px;" title="bi-wrench"><i class="bi bi-wrench fs-5"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary p-2 icon-btn" data-icon="bi-vector-pen" style="width: 45px; height: 45px;" title="bi-vector-pen"><i class="bi bi-vector-pen fs-5"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary p-2 icon-btn" data-icon="bi-scissors" style="width: 45px; height: 45px;" title="bi-scissors"><i class="bi bi-scissors fs-5"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary p-2 icon-btn" data-icon="bi-palette" style="width: 45px; height: 45px;" title="bi-palette"><i class="bi bi-palette fs-5"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary p-2 icon-btn" data-icon="bi-usb-drive" style="width: 45px; height: 45px;" title="bi-usb-drive"><i class="bi bi-usb-drive fs-5"></i></button>
+                                </div>
+                                <div class="form-text mt-2 small">Al hacer clic en un ícono, se asignará a este programa.</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                         {% if form.icono.errors %}
                         <div class="text-danger small mt-1">{{ form.icono.errors }}</div>
                         {% endif %}
@@ -72,4 +112,34 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const iconButtons = document.querySelectorAll('.icon-btn');
+    const hiddenInput = document.getElementById('id_icono');
+    const preview = document.getElementById('selected-icon-preview');
+
+    iconButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Remove active from all
+            iconButtons.forEach(b => b.classList.remove('active'));
+            // Add active to clicked
+            this.classList.add('active');
+            
+            // Get icon class
+            const iconClass = this.getAttribute('data-icon');
+            
+            // Set hidden input value
+            if (hiddenInput) {
+                hiddenInput.value = iconClass;
+            }
+            
+            // Update preview
+            if (preview) {
+                preview.innerHTML = `<i class="bi ${iconClass} text-primary"></i>`;
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

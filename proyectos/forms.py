@@ -979,13 +979,13 @@ class MensajePrivadoForm(BootstrapFormMixin, forms.ModelForm):
 class SoftwareConfiguracionForm(forms.ModelForm):
     class Meta:
         model = SoftwareConfiguracion
-        fields = ['nombre', 'tipo', 'descripcion', 'archivo_configuracion', 'icono']
+        fields = ['nombre', 'tipo', 'descripcion', 'archivo_configuracion', 'logo', 'icono']
         widgets = {
             'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: OrcaSlicer'}),
             'tipo': forms.Select(attrs={'class': 'form-select'}),
             'descripcion': forms.Textarea(attrs={'class': 'form-control', 'rows': 3,
                 'placeholder': 'Para qué se usa en el laboratorio...'}),
             'archivo_configuracion': forms.ClearableFileInput(attrs={'class': 'form-control'}),
-            'icono': forms.TextInput(attrs={'class': 'form-control',
-                'placeholder': 'ti-printer (opcional)'}),
+            'logo': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+            'icono': forms.TextInput(attrs={'class': 'form-control d-none', 'id': 'id_icono'}),
         }

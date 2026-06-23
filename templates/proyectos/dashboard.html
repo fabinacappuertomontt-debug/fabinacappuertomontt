@@ -15,7 +15,12 @@
       <div class="d-flex flex-wrap gap-2">
         {% for sw in software_estandar_list|slice:":6" %}
         <span class="badge bg-light text-dark border shadow-sm d-flex align-items-center gap-1 py-2 px-3" style="font-weight: 600; border-radius: 6px;">
-          <i class="bi {{ sw.icono }} text-primary"></i> {{ sw.nombre }}
+          {% if sw.logo %}
+          <img src="{{ sw.logo.url }}" alt="{{ sw.nombre }}" style="width: 16px; height: 16px; object-fit: contain;">
+          {% else %}
+          <i class="bi {{ sw.icono }} text-primary"></i>
+          {% endif %}
+          {{ sw.nombre }}
         </span>
         {% endfor %}
         {% if software_estandar_list|length > 6 %}

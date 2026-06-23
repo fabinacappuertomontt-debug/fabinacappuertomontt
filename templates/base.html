@@ -546,7 +546,11 @@
                                   <h6 class="text-uppercase small fw-bold mt-4 mb-2 text-danger" style="letter-spacing: 0.5px;">{{ grupo.grouper }}</h6>
                                   {% for sw in grupo.list %}
                                   <div class="d-flex align-items-start gap-3 p-3 mb-2 bg-light border-0" style="border-radius: 8px;">
+                                    {% if sw.logo %}
+                                    <img src="{{ sw.logo.url }}" alt="{{ sw.nombre }}" style="width: 24px; height: 24px; object-fit: contain; margin-top: 4px;">
+                                    {% else %}
                                     <i class="bi {{ sw.icono }} fs-4 text-primary mt-1"></i>
+                                    {% endif %}
                                     <div class="flex-grow-1">
                                       <div class="d-flex justify-content-between align-items-start">
                                         <h6 class="mb-1" style="font-weight: 700; color: #1e293b;">{{ sw.nombre }}</h6>

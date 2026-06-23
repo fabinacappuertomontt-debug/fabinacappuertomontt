@@ -1139,9 +1139,15 @@ class SoftwareConfiguracion(models.Model):
     archivo_configuracion = models.FileField(
         upload_to='software_config/', blank=True, null=True
     )
+    logo = models.ImageField(
+        upload_to='software_logos/', blank=True, null=True,
+        help_text="Opcional: Sube el logo oficial del programa"
+    )
     icono = models.CharField(
-        max_length=50, blank=True, default='ti-app-window',
-        help_text="Nombre de ícono Tabler, ej: ti-printer, ti-cube"
+        max_length=50,
+        default='bi-pc-display',
+        blank=True,
+        help_text="Clase del ícono (ej. bi-printer, bi-box, bi-pc-display)"
     )
     creado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,

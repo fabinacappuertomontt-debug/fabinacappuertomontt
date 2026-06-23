@@ -36,7 +36,11 @@
                         <tr>
                             <td class="ps-4">
                                 <div class="d-flex align-items-center gap-2">
+                                    {% if item.logo %}
+                                    <img src="{{ item.logo.url }}" alt="{{ item.nombre }}" style="width: 24px; height: 24px; object-fit: contain;">
+                                    {% else %}
                                     <i class="bi {{ item.icono }} text-primary fs-5"></i>
+                                    {% endif %}
                                     <strong>{{ item.nombre }}</strong>
                                 </div>
                             </td>
