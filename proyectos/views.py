@@ -56,9 +56,10 @@ from .forms import (
     UsoInventarioForm,
     UsuarioRegistroForm,
     UsuarioUpdateForm,
+    SoftwareConfiguracionForm,
 )
 from .gemini_service import analizar_borrador_trl, analizar_etapa_trl, analizar_trl, generar_mesa_trabajo_ia, generar_estructura_proyecto_ia
-from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Area, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario, MovimientoStock, GrupoChat, Notificacion
+from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Area, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario, MovimientoStock, GrupoChat, Notificacion, SoftwareConfiguracion
 
 logger = logging.getLogger("proyectos.views")
 
@@ -3879,4 +3880,47 @@ def descargar_proyecto_pdf(request, pk):
     )
 
 
+@login_required
+def software_lista(request):
+    items = SoftwareConfiguracion.objects.select_related('creado_por')
+    return render(request, 'proyectos/software_lista.html', {'items': items})
 
+
+@login_required
+def software_crear(request):
+    if request.method == 'POST':
+        form = SoftwareConfiguracionForm(request.POST, request.FILES)
+        if form.is_valid():
+            sw = form.save(commit=False)
+            sw.creado_por = request.user
+            sw.save()
+            messages.success(request, f'"{sw.nombre}" agregado correctamente.')
+            return redirect('software_lista')
+    else:
+        form = SoftwareConfiguracionForm()
+    return render(request, 'proyectos/software_form.html', {'form': form, 'modo': 'crear'})
+
+
+@login_required
+def software_editar(request, pk):
+    sw = get_object_or_404(SoftwareConfiguracion, pk=pk)
+    if request.method == 'POST':
+        form = SoftwareConfiguracionForm(request.POST, request.FILES, instance=sw)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'"{sw.nombre}" actualizado.')
+            return redirect('software_lista')
+    else:
+        form = SoftwareConfiguracionForm(instance=sw)
+    return render(request, 'proyectos/software_form.html', {'form': form, 'modo': 'editar', 'sw': sw})
+
+
+@login_required
+def software_eliminar(request, pk):
+    sw = get_object_or_404(SoftwareConfiguracion, pk=pk)
+    if request.method == 'POST':
+        nombre = sw.nombre
+        sw.delete()
+        messages.success(request, f'"{nombre}" eliminado.')
+        return redirect('software_lista')
+    return render(request, 'proyectos/software_confirmar_eliminar.html', {'sw': sw})

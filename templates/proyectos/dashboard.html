@@ -3,6 +3,33 @@
 {% block title %}Panel general{% endblock %}
 
 {% block content %}
+
+<!-- Software card summary -->
+<div class="card mb-4" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.05);">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center" style="border-bottom: 1px solid rgba(0,0,0,0.05); border-radius: 12px 12px 0 0;">
+    <span style="font-weight: 700; color: #1e293b;"><i class="bi bi-tools text-primary me-2"></i> Software y Config. del laboratorio</span>
+    <a href="{% url 'software_lista' %}" class="btn btn-sm btn-outline-primary" style="border-radius: 6px;">Ver catálogo</a>
+  </div>
+  <div class="card-body">
+    {% if software_estandar_list %}
+      <div class="d-flex flex-wrap gap-2">
+        {% for sw in software_estandar_list|slice:":6" %}
+        <span class="badge bg-light text-dark border shadow-sm d-flex align-items-center gap-1 py-2 px-3" style="font-weight: 600; border-radius: 6px;">
+          <i class="bi {{ sw.icono }} text-primary"></i> {{ sw.nombre }}
+        </span>
+        {% endfor %}
+        {% if software_estandar_list|length > 6 %}
+        <a href="{% url 'software_lista' %}" class="badge bg-light text-primary border shadow-sm py-2 px-3 text-decoration-none" style="font-weight: 600; border-radius: 6px;">
+            +{{ software_estandar_list|length|add:"-6" }} más
+        </a>
+        {% endif %}
+      </div>
+    {% else %}
+      <p class="text-muted small mb-0"><i class="bi bi-info-circle"></i> No hay software registrado aún. Usa el catálogo para configurarlo.</p>
+    {% endif %}
+  </div>
+</div>
+
 <section class="progress-board" aria-label="Linea de avance de proyectos">
     <header class="progress-board-header">
         <div>

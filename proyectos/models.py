@@ -5,6 +5,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
+from django.conf import settings
 
 
 
@@ -1121,3 +1122,44 @@ class MensajePrivado(models.Model):
         if self.grupo:
             return f"{self.remitente} -> Grupo: {self.grupo.nombre}"
         return f"{self.remitente} -> {self.destinatario}"
+
+
+class SoftwareConfiguracion(models.Model):
+    TIPO_CHOICES = [
+        ('modelado', 'Modelado 3D'),
+        ('slicer', 'Slicer / Impresión'),
+        ('electronica', 'Electrónica / PCB'),
+        ('diseno', 'Diseño gráfico / Vinilo'),
+        ('otro', 'Otro'),
+    ]
+
+    nombre = models.CharField(max_length=100)
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default='otro')
+    descripcion = models.TextField(blank=True)
+    archivo_configuracion = models.FileField(
+        upload_to='software_config/', blank=True, null=True
+    )
+    icono = models.CharField(
+        max_length=50, blank=True, default='ti-app-window',
+        help_text="Nombre de ícono Tabler, ej: ti-printer, ti-cube"
+    )
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='software_creado'
+    )
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['tipo', 'nombre']
+        verbose_name = "Software / Configuración"
+        verbose_name_plural = "Software / Configuraciones"
+
+    def __str__(self):
+        return f"{self.nombre} ({self.get_tipo_display()})"
+
+    @property
+    def nombre_archivo(self):
+        if self.archivo_configuracion:
+            return self.archivo_configuracion.name.split('/')[-1]
+        return None

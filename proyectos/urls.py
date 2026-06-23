@@ -62,4 +62,9 @@ urlpatterns = [
     path("proyectos/<int:pk>/observaciones/nueva/", views.crear_observacion, name="observacion_crear"),
     path("proyectos/<int:pk>/inventario/usar/", views.registrar_uso_inventario, name="inventario_usar"),
     path("proyectos/<int:pk>/indicadores/<int:indicador_id>/actualizar/", views.actualizar_indicador, name="indicador_actualizar"),
+    
+    path('software/', views.software_lista, name='software_lista'),
+    path('software/crear/', views.software_crear, name='software_crear'),
+    path('software/<int:pk>/editar/', views.software_editar, name='software_editar'),
+    path('software/<int:pk>/eliminar/', views.software_eliminar, name='software_eliminar'),
 ]

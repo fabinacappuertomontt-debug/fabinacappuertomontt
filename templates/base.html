@@ -114,6 +114,10 @@
                             <i class="bi bi-patch-question-fill" style="color: var(--inacap-red, #cf3f4f);"></i>
                             <span>Guía & Tutorial</span>
                         </a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'software_lista' or request.resolver_match.url_name == 'software_crear' or request.resolver_match.url_name == 'software_editar' %}is-active{% endif %}" href="{% url 'software_lista' %}">
+                            <i class="bi bi-tools text-primary"></i>
+                            <span>Software y Config.</span>
+                        </a>
                     </nav>
                 </div>
 
@@ -524,36 +528,71 @@
 
                         <!-- Pestaña Software -->
                         <div class="tab-pane fade" id="nav-software" role="tabpanel" aria-labelledby="nav-software-tab">
-                            <div class="p-3 bg-white" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+                          <div class="p-3 bg-white" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+                              <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h4 style="font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 8px;">
-                                    <i class="bi bi-tools text-primary"></i> Software Estándar y Configuraciones
+                                    <i class="bi bi-tools text-primary"></i> Software Estándar
                                 </h4>
-                                <p class="text-muted mb-4" style="line-height: 1.6; font-weight: 500;">
-                                    Aquí encontrarás los programas y herramientas estándar recomendadas por el laboratorio para modelado y manufactura.
-                                </p>
-                                <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <div class="p-3 border-0 bg-light h-100" style="border-radius: 8px;">
-                                            <strong class="d-block text-danger mb-2" style="font-size: 1.1rem;"><i class="bi bi-box"></i> Para Modelado 3D</strong>
-                                            <h5 style="font-weight: 700; color: #1e293b;">Fusion personal</h5>
-                                            <span class="small text-muted" style="font-weight: 500;">Utilizado para el diseño paramétrico, ensamble de piezas mecánicas y creación de componentes a medida.</span>
+                                {% if user.is_authenticated %}
+                                <a href="{% url 'software_crear' %}" class="btn btn-sm btn-primary" style="border-radius: 8px;">
+                                  <i class="bi bi-plus-lg"></i> Agregar
+                                </a>
+                                {% endif %}
+                              </div>
+
+                              {% if software_estandar_list %}
+                                {% regroup software_estandar_list by get_tipo_display as grupos %}
+                                {% for grupo in grupos %}
+                                  <h6 class="text-uppercase small fw-bold mt-4 mb-2 text-danger" style="letter-spacing: 0.5px;">{{ grupo.grouper }}</h6>
+                                  {% for sw in grupo.list %}
+                                  <div class="d-flex align-items-start gap-3 p-3 mb-2 bg-light border-0" style="border-radius: 8px;">
+                                    <i class="bi {{ sw.icono }} fs-4 text-primary mt-1"></i>
+                                    <div class="flex-grow-1">
+                                      <div class="d-flex justify-content-between align-items-start">
+                                        <h6 class="mb-1" style="font-weight: 700; color: #1e293b;">{{ sw.nombre }}</h6>
+                                        <div class="d-flex gap-1">
+                                          {% if sw.archivo_configuracion %}
+                                          <a href="{{ sw.archivo_configuracion.url }}" target="_blank" class="btn btn-sm btn-success"
+                                             title="Descargar configuración" style="padding: 2px 8px; border-radius: 6px;">
+                                            <i class="bi bi-download"></i>
+                                          </a>
+                                          {% endif %}
+                                          {% if user.is_authenticated %}
+                                          <a href="{% url 'software_editar' sw.pk %}" class="btn btn-sm btn-outline-secondary" title="Editar" style="padding: 2px 8px; border-radius: 6px;">
+                                            <i class="bi bi-pencil-fill"></i>
+                                          </a>
+                                          {% endif %}
                                         </div>
+                                      </div>
+                                      <p class="small text-muted mb-2" style="font-weight: 500;">{{ sw.descripcion }}</p>
+                                      
+                                      <div class="d-flex justify-content-between align-items-center mt-2">
+                                          {% if sw.archivo_configuracion %}
+                                          <span class="badge bg-white text-dark border shadow-sm">
+                                            <i class="bi bi-file-earmark-code"></i> {{ sw.nombre_archivo }}
+                                          </span>
+                                          {% else %}
+                                          <span></span>
+                                          {% endif %}
+                                          <div class="text-muted" style="font-size:11px; font-weight: 500;">
+                                            {% if sw.creado_por %}
+                                                Por {{ sw.creado_por.get_full_name|default:sw.creado_por.username }}
+                                            {% else %}
+                                                Por Sistema
+                                            {% endif %}
+                                          </div>
+                                      </div>
                                     </div>
-                                    <div class="col-md-6">
-                                        <div class="p-3 border-0 bg-light h-100" style="border-radius: 8px;">
-                                            <strong class="d-block text-primary mb-2" style="font-size: 1.1rem;"><i class="bi bi-printer"></i> Para Imprimir (Slicer)</strong>
-                                            <h5 style="font-weight: 700; color: #1e293b;">OrcaSlicer</h5>
-                                            <span class="small text-muted" style="font-weight: 500;">Software de corte (slicer) utilizado para preparar y optimizar los modelos tridimensionales para la impresión 3D.</span>
-                                        </div>
-                                    </div>
+                                  </div>
+                                  {% endfor %}
+                                {% endfor %}
+                              {% else %}
+                                <div class="text-center py-5">
+                                  <i class="bi bi-pc-display text-muted" style="font-size: 3rem; opacity: 0.5;"></i>
+                                  <p class="text-muted mt-3 fw-bold">Aún no hay software registrado.</p>
                                 </div>
-                                <div class="mt-4 p-3 border border-warning bg-warning bg-opacity-10" style="border-radius: 8px;">
-                                    <h6 style="font-weight: 800; color: #b45309; display: flex; align-items: center; gap: 8px;"><i class="bi bi-gear-fill"></i> Set de Configuración de Impresión</h6>
-                                    <p class="text-dark small mb-0 mt-2" style="font-weight: 500;">
-                                        Se recomienda utilizar el perfil de configuración estandarizado para OrcaSlicer disponible en el equipo para garantizar los mejores resultados de tolerancias y calidad visual en las impresiones.
-                                    </p>
-                                </div>
-                            </div>
+                              {% endif %}
+                          </div>
                         </div>
 
                     </div>

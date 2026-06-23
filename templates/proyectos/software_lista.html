@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Software y Configuraciones{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1 fw-bold" style="color: #1e293b;">
+                <i class="bi bi-tools text-primary"></i> Software Estándar y Configuraciones
+            </h2>
+            <p class="text-muted mb-0">Catálogo de programas y perfiles usados en el laboratorio</p>
+        </div>
+        <a href="{% url 'software_crear' %}" class="btn btn-primary" style="border-radius: 8px;">
+            <i class="bi bi-plus-lg"></i> Agregar Software
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm" style="border-radius: 12px;">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">Programa</th>
+                            <th>Tipo</th>
+                            <th>Descripción</th>
+                            <th>Archivo Config.</th>
+                            <th>Agregado por</th>
+                            <th class="text-end pe-4">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td class="ps-4">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="bi {{ item.icono }} text-primary fs-5"></i>
+                                    <strong>{{ item.nombre }}</strong>
+                                </div>
+                            </td>
+                            <td><span class="badge bg-secondary">{{ item.get_tipo_display }}</span></td>
+                            <td><span class="text-muted small text-truncate d-inline-block" style="max-width: 250px;">{{ item.descripcion }}</span></td>
+                            <td>
+                                {% if item.archivo_configuracion %}
+                                <a href="{{ item.archivo_configuracion.url }}" target="_blank" class="badge bg-success text-decoration-none">
+                                    <i class="bi bi-download"></i> {{ item.nombre_archivo }}
+                                </a>
+                                {% else %}
+                                <span class="text-muted small">No adjunto</span>
+                                {% endif %}
+                            </td>
+                            <td class="small text-muted">
+                                {% if item.creado_por %}
+                                    {{ item.creado_por.get_full_name|default:item.creado_por.username }}
+                                {% else %}
+                                    Sistema
+                                {% endif %}
+                            </td>
+                            <td class="text-end pe-4">
+                                <a href="{% url 'software_editar' item.pk %}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </a>
+                                <a href="{% url 'software_eliminar' item.pk %}" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                                    <i class="bi bi-trash-fill"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5">
+                                <i class="bi bi-pc-display text-muted" style="font-size: 2.5rem; opacity: 0.5;"></i>
+                                <p class="text-muted mt-3 fw-bold mb-0">No hay programas registrados aún.</p>
+                                <p class="text-muted small">Haz clic en "Agregar Software" para empezar.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

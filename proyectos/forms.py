@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 
-from .models import Area, Avance, Evidencia, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Observacion, Organizacion, Proyecto, ResultadoEsperado, Tarea, TRL_DEFINICIONES, UsoInventario, Usuario, sumar_meses_y_dias, MovimientoStock
+from .models import Area, Avance, Evidencia, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Observacion, Organizacion, Proyecto, ResultadoEsperado, Tarea, TRL_DEFINICIONES, UsoInventario, Usuario, sumar_meses_y_dias, MovimientoStock, SoftwareConfiguracion
 
 
 
@@ -974,3 +974,18 @@ class MensajePrivadoForm(BootstrapFormMixin, forms.ModelForm):
             raise forms.ValidationError("Escribe un mensaje o adjunta un archivo.")
         cleaned["texto"] = texto
         return cleaned
+
+
+class SoftwareConfiguracionForm(forms.ModelForm):
+    class Meta:
+        model = SoftwareConfiguracion
+        fields = ['nombre', 'tipo', 'descripcion', 'archivo_configuracion', 'icono']
+        widgets = {
+            'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: OrcaSlicer'}),
+            'tipo': forms.Select(attrs={'class': 'form-select'}),
+            'descripcion': forms.Textarea(attrs={'class': 'form-control', 'rows': 3,
+                'placeholder': 'Para qué se usa en el laboratorio...'}),
+            'archivo_configuracion': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+            'icono': forms.TextInput(attrs={'class': 'form-control',
+                'placeholder': 'ti-printer (opcional)'}),
+        }
