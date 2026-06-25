@@ -57,9 +57,10 @@ from .forms import (
     UsuarioRegistroForm,
     UsuarioUpdateForm,
     SoftwareConfiguracionForm,
+    CarpetaArchivosForm,
 )
 from .gemini_service import analizar_borrador_trl, analizar_etapa_trl, analizar_trl, generar_mesa_trabajo_ia, generar_estructura_proyecto_ia
-from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Area, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario, MovimientoStock, GrupoChat, Notificacion, SoftwareConfiguracion
+from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Area, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario, MovimientoStock, GrupoChat, Notificacion, SoftwareConfiguracion, CarpetaArchivos, ArchivoAdjunto
 
 logger = logging.getLogger("proyectos.views")
 
@@ -3924,3 +3925,71 @@ def software_eliminar(request, pk):
         messages.success(request, f'"{nombre}" eliminado.')
         return redirect('software_lista')
     return render(request, 'proyectos/software_confirmar_eliminar.html', {'sw': sw})
+
+
+@login_required
+def software_detalle(request, pk):
+    """Vista tipo explorador: muestra las carpetas dentro de un software"""
+    sw = get_object_or_404(SoftwareConfiguracion, pk=pk)
+    carpetas = sw.carpetas.select_related('creado_por').prefetch_related('archivos')
+    return render(request, 'proyectos/software_detalle.html', {
+        'sw': sw, 'carpetas': carpetas
+    })
+
+
+@login_required
+def carpeta_crear(request, software_pk):
+    sw = get_object_or_404(SoftwareConfiguracion, pk=software_pk)
+    if request.method == 'POST':
+        form = CarpetaArchivosForm(request.POST)
+        if form.is_valid():
+            carpeta = form.save(commit=False)
+            carpeta.software = sw
+            carpeta.creado_por = request.user
+            carpeta.save()
+            messages.success(request, f'Carpeta "{carpeta.nombre}" creada.')
+            return redirect('software_detalle', pk=sw.pk)
+    else:
+        form = CarpetaArchivosForm()
+    return render(request, 'proyectos/carpeta_form.html', {'form': form, 'sw': sw})
+
+
+@login_required
+def carpeta_detalle(request, pk):
+    """Dentro de la carpeta: lista de archivos + subir nuevos"""
+    carpeta = get_object_or_404(CarpetaArchivos, pk=pk)
+
+    if request.method == 'POST':
+        archivos = request.FILES.getlist('archivos')
+        if not archivos:
+            messages.error(request, 'Selecciona al menos un archivo.')
+        else:
+            for f in archivos:
+                ArchivoAdjunto.objects.create(
+                    carpeta=carpeta, archivo=f, subido_por=request.user
+                )
+            messages.success(request, f'{len(archivos)} archivo(s) subido(s).')
+        return redirect('carpeta_detalle', pk=carpeta.pk)
+
+    return render(request, 'proyectos/carpeta_detalle.html', {'carpeta': carpeta})
+
+
+@login_required
+def carpeta_eliminar(request, pk):
+    carpeta = get_object_or_404(CarpetaArchivos, pk=pk)
+    sw_pk = carpeta.software.pk
+    if request.method == 'POST':
+        carpeta.delete()
+        messages.success(request, 'Carpeta eliminada.')
+        return redirect('software_detalle', pk=sw_pk)
+    return render(request, 'proyectos/carpeta_confirmar_eliminar.html', {'carpeta': carpeta})
+
+
+@login_required
+def archivo_eliminar(request, pk):
+    archivo = get_object_or_404(ArchivoAdjunto, pk=pk)
+    carpeta_pk = archivo.carpeta.pk
+    if request.method == 'POST':
+        archivo.delete()
+        messages.success(request, 'Archivo eliminado.')
+    return redirect('carpeta_detalle', pk=carpeta_pk)

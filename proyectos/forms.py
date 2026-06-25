@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 
-from .models import Area, Avance, Evidencia, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Observacion, Organizacion, Proyecto, ResultadoEsperado, Tarea, TRL_DEFINICIONES, UsoInventario, Usuario, sumar_meses_y_dias, MovimientoStock, SoftwareConfiguracion
+from .models import Area, Avance, Evidencia, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Observacion, Organizacion, Proyecto, ResultadoEsperado, Tarea, TRL_DEFINICIONES, UsoInventario, Usuario, sumar_meses_y_dias, MovimientoStock, SoftwareConfiguracion, CarpetaArchivos
 
 
 
@@ -979,13 +979,32 @@ class MensajePrivadoForm(BootstrapFormMixin, forms.ModelForm):
 class SoftwareConfiguracionForm(forms.ModelForm):
     class Meta:
         model = SoftwareConfiguracion
-        fields = ['nombre', 'tipo', 'descripcion', 'archivo_configuracion', 'logo', 'icono']
+        fields = ['nombre', 'tipo', 'proyecto_asociado', 'descripcion', 'logo', 'icono']
         widgets = {
             'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: OrcaSlicer'}),
             'tipo': forms.Select(attrs={'class': 'form-select'}),
+            'proyecto_asociado': forms.Select(attrs={'class': 'form-select'}),
             'descripcion': forms.Textarea(attrs={'class': 'form-control', 'rows': 3,
                 'placeholder': 'Para qué se usa en el laboratorio...'}),
-            'archivo_configuracion': forms.ClearableFileInput(attrs={'class': 'form-control'}),
             'logo': forms.ClearableFileInput(attrs={'class': 'form-control'}),
             'icono': forms.TextInput(attrs={'class': 'form-control d-none', 'id': 'id_icono'}),
         }
+
+class CarpetaArchivosForm(forms.ModelForm):
+    class Meta:
+        model = CarpetaArchivos
+        fields = ['nombre']
+        widgets = {
+            'nombre': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: Filamentos PLA, Impresoras Ender...'
+            }),
+        }
+
+class MultipleFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+class ArchivoAdjuntoForm(forms.Form):
+    archivos = forms.FileField(
+        widget=MultipleFileInput(attrs={'multiple': True, 'class': 'form-control'})
+    )

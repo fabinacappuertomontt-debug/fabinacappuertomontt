@@ -1136,8 +1136,10 @@ class SoftwareConfiguracion(models.Model):
     nombre = models.CharField(max_length=100)
     tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default='otro')
     descripcion = models.TextField(blank=True)
-    archivo_configuracion = models.FileField(
-        upload_to='software_config/', blank=True, null=True
+    proyecto_asociado = models.ForeignKey(
+        'Proyecto', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='software_configuraciones',
+        help_text="Opcional: Si este software se usa para un proyecto específico."
     )
     logo = models.ImageField(
         upload_to='software_logos/', blank=True, null=True,
@@ -1164,8 +1166,63 @@ class SoftwareConfiguracion(models.Model):
     def __str__(self):
         return f"{self.nombre} ({self.get_tipo_display()})"
 
+class CarpetaArchivos(models.Model):
+    software = models.ForeignKey(
+        SoftwareConfiguracion, on_delete=models.CASCADE,
+        related_name='carpetas'
+    )
+    nombre = models.CharField(max_length=100)
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True
+    )
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['nombre']
+        unique_together = ['software', 'nombre']
+
+    def __str__(self):
+        return f"{self.software.nombre} / {self.nombre}"
+
     @property
-    def nombre_archivo(self):
-        if self.archivo_configuracion:
-            return self.archivo_configuracion.name.split('/')[-1]
-        return None
+    def total_archivos(self):
+        return self.archivos.count()
+
+class ArchivoAdjunto(models.Model):
+    carpeta = models.ForeignKey(
+        CarpetaArchivos, on_delete=models.CASCADE,
+        related_name='archivos'
+    )
+    archivo = models.FileField(upload_to='software_config/archivos/')
+    nombre_original = models.CharField(max_length=255, blank=True)
+    subido_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True
+    )
+    fecha_subida = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha_subida']
+
+    def save(self, *args, **kwargs):
+        if self.archivo and not self.nombre_original:
+            self.nombre_original = self.archivo.name.split('/')[-1]
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.nombre_original
+
+    @property
+    def extension(self):
+        return self.nombre_original.split('.')[-1].lower() if '.' in self.nombre_original else ''
+
+    @property
+    def icono_extension(self):
+        mapa = {
+            'pdf': 'bi-file-earmark-pdf', 'doc': 'bi-file-earmark-word', 'docx': 'bi-file-earmark-word',
+            'json': 'bi-filetype-json', 'ini': 'bi-gear', '3mf': 'bi-box',
+            'jpg': 'bi-file-image', 'jpeg': 'bi-file-image', 'png': 'bi-file-image',
+            'xlsx': 'bi-file-earmark-excel', 'zip': 'bi-file-zip',
+        }
+        return mapa.get(self.extension, 'bi-file-earmark')

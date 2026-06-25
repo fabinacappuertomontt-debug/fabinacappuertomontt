@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-5 text-center">
+      <div class="card border-danger mb-3">
+        <div class="card-body py-5">
+          <i class="bi bi-exclamation-triangle text-danger display-1 mb-3"></i>
+          <h3 class="card-title text-danger">¿Eliminar Carpeta?</h3>
+          <p class="card-text">
+            Estás a punto de eliminar la carpeta <strong>"{{ carpeta.nombre }}"</strong>.<br>
+            Se borrarán permanentemente sus <strong>{{ carpeta.total_archivos }} archivo(s)</strong> adjunto(s).
+          </p>
+          <form method="post" class="mt-4">
+            {% csrf_token %}
+            <a href="{% url 'software_detalle' carpeta.software.pk %}" class="btn btn-light me-2">Cancelar</a>
+            <button type="submit" class="btn btn-danger">Sí, eliminar todo</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

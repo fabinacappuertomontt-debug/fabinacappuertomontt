@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h4 class="mb-0">
+        {% if sw.logo %}
+        <img src="{{ sw.logo.url }}" alt="{{ sw.nombre }}" style="width: 28px; height: 28px; object-fit: contain; margin-top: -4px;">
+        {% else %}
+        <i class="bi {{ sw.icono }}" style="color:#534AB7"></i>
+        {% endif %}
+        {{ sw.nombre }}
+      </h4>
+      <p class="text-muted small mb-0">{{ sw.descripcion }}</p>
+    </div>
+    <a href="{% url 'carpeta_crear' sw.pk %}" class="btn btn-primary">
+      <i class="bi bi-folder-plus"></i> Nueva carpeta
+    </a>
+  </div>
+
+  {% if carpetas %}
+  <div class="row g-3">
+    {% for carpeta in carpetas %}
+    <div class="col-md-4 col-sm-6">
+      <a href="{% url 'carpeta_detalle' carpeta.pk %}" class="text-decoration-none">
+        <div class="card h-100 hover-shadow" style="transition:.15s">
+          <div class="card-body text-center py-4">
+            <i class="bi bi-folder fs-1" style="color:#f0ad4e"></i>
+            <h6 class="mt-2 mb-0 text-dark">{{ carpeta.nombre }}</h6>
+            <small class="text-muted">{{ carpeta.total_archivos }} archivo(s)</small>
+          </div>
+        </div>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center text-muted py-5">
+    <i class="bi bi-folder-x fs-1 d-block mb-2"></i>
+    Aún no hay carpetas. Crea la primera para organizar los archivos.
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

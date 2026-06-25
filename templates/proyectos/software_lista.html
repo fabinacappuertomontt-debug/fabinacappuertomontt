@@ -26,7 +26,7 @@
                             <th class="ps-4">Programa</th>
                             <th>Tipo</th>
                             <th>Descripción</th>
-                            <th>Archivo Config.</th>
+                            <th>Carpetas</th>
                             <th>Agregado por</th>
                             <th class="text-end pe-4">Acciones</th>
                         </tr>
@@ -41,19 +41,22 @@
                                     {% else %}
                                     <i class="bi {{ item.icono }} text-primary fs-5"></i>
                                     {% endif %}
-                                    <strong>{{ item.nombre }}</strong>
+                                    <strong><a href="{% url 'software_detalle' item.pk %}" class="text-decoration-none text-dark">{{ item.nombre }}</a></strong>
                                 </div>
                             </td>
-                            <td><span class="badge bg-secondary">{{ item.get_tipo_display }}</span></td>
+                            <td>
+                                <span class="badge bg-secondary mb-1">{{ item.get_tipo_display }}</span>
+                                {% if item.proyecto_asociado %}
+                                <div class="mt-1">
+                                    <small class="text-muted"><i class="bi bi-briefcase"></i> Usado en: <a href="{% url 'proyecto_detalle' item.proyecto_asociado.pk %}" class="text-decoration-none">{{ item.proyecto_asociado.nombre }}</a></small>
+                                </div>
+                                {% endif %}
+                            </td>
                             <td><span class="text-muted small text-truncate d-inline-block" style="max-width: 250px;">{{ item.descripcion }}</span></td>
                             <td>
-                                {% if item.archivo_configuracion %}
-                                <a href="{{ item.archivo_configuracion.url }}" target="_blank" class="badge bg-success text-decoration-none">
-                                    <i class="bi bi-download"></i> {{ item.nombre_archivo }}
+                                <a href="{% url 'software_detalle' item.pk %}" class="badge bg-info text-decoration-none">
+                                    <i class="bi bi-folder2-open"></i> {{ item.carpetas.count }} carpetas
                                 </a>
-                                {% else %}
-                                <span class="text-muted small">No adjunto</span>
-                                {% endif %}
                             </td>
                             <td class="small text-muted">
                                 {% if item.creado_por %}

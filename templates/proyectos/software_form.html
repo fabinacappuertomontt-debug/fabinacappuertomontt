@@ -44,11 +44,11 @@
                         {% endif %}
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label fw-bold">Archivo de Configuración (Opcional)</label>
-                        {{ form.archivo_configuracion }}
-                        <div class="form-text small">Adjunta el perfil exportado (.json, .3mf, .ini, etc.)</div>
-                        {% if form.archivo_configuracion.errors %}
-                        <div class="text-danger small mt-1">{{ form.archivo_configuracion.errors }}</div>
+                        <label class="form-label fw-bold">Proyecto Asociado (Opcional)</label>
+                        {{ form.proyecto_asociado }}
+                        <div class="form-text small">Indica a qué proyecto de la base de datos corresponde este software/configuración.</div>
+                        {% if form.proyecto_asociado.errors %}
+                        <div class="text-danger small mt-1">{{ form.proyecto_asociado.errors }}</div>
                         {% endif %}
                     </div>
                     <div class="col-md-6">

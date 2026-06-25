@@ -67,4 +67,9 @@ urlpatterns = [
     path('software/crear/', views.software_crear, name='software_crear'),
     path('software/<int:pk>/editar/', views.software_editar, name='software_editar'),
     path('software/<int:pk>/eliminar/', views.software_eliminar, name='software_eliminar'),
+    path('software/<int:pk>/', views.software_detalle, name='software_detalle'),
+    path('software/<int:software_pk>/carpeta/crear/', views.carpeta_crear, name='carpeta_crear'),
+    path('carpeta/<int:pk>/', views.carpeta_detalle, name='carpeta_detalle'),
+    path('carpeta/<int:pk>/eliminar/', views.carpeta_eliminar, name='carpeta_eliminar'),
+    path('archivo/<int:pk>/eliminar/', views.archivo_eliminar, name='archivo_eliminar'),
 ]
