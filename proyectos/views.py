@@ -166,9 +166,15 @@ def filtrar_por_sede(queryset, user, campo="sede"):
 def proyectos_de_sede(user):
     if usuario_es_superadmin(user):
         return Proyecto.objects.all()
+    # Siempre filtrar por sede del usuario como primera barrera
     queryset = filtrar_por_sede(Proyecto.objects.all(), user)
-    if organizacion_usuario(user):
-        queryset = queryset.filter(organizacion=organizacion_usuario(user))
+    # Siempre filtrar por organización: si el usuario tiene org, mostrar solo esa org;
+    # si no tiene org asignada, no mostrar proyectos de ninguna org (evita filtración cruzada)
+    org = organizacion_usuario(user)
+    if org:
+        queryset = queryset.filter(organizacion=org)
+    else:
+        queryset = queryset.filter(organizacion__isnull=True)
     if area_usuario(user) and not usuario_es_admin_organizacion(user):
         queryset = queryset.filter(area=area_usuario(user))
     if usuario_es_rol_trabajo(user) and not usuario_es_admin_laboratorio(user):
