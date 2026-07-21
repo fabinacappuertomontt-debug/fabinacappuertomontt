@@ -238,6 +238,33 @@ class SuperadminEmpresasTests(TestCase):
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url).status_code, 200)
 
+    # --- el superadmin no entra al espacio de una empresa -------------------
+
+    def test_el_superadmin_no_cae_en_el_espacio_de_trabajo(self):
+        # Sin empresa propia veria los datos de todas sumados en un solo tablero,
+        # que no es el espacio de nadie. Su lugar es el panel de control.
+        for nombre in ["dashboard", "proyecto_lista", "inventario_lista", "panel_general"]:
+            with self.subTest(vista=nombre):
+                respuesta = self.client.get(reverse(nombre))
+                self.assertRedirects(respuesta, reverse("superadmin_organizaciones"))
+
+    def test_el_superadmin_si_puede_usar_el_panel_de_control(self):
+        respuesta = self.client.get(reverse("superadmin_organizaciones"))
+        self.assertEqual(respuesta.status_code, 200)
+
+    def test_el_admin_de_una_empresa_si_entra_a_su_espacio(self):
+        organizacion = Organizacion.objects.create(nombre="UACh", slug="uach")
+        admin = Usuario.objects.create_user(
+            username="admin-uach",
+            email="admin@uach.cl",
+            password="password123",
+            rol=Usuario.Rol.ADMIN_ORGANIZACION,
+            organizacion=organizacion,
+        )
+        cliente = Client()
+        cliente.force_login(admin)
+        self.assertEqual(cliente.get(reverse("dashboard")).status_code, 200)
+
     # --- permisos -----------------------------------------------------------
 
     def test_un_usuario_normal_no_entra_al_panel(self):
