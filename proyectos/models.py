@@ -479,6 +479,34 @@ class Proyecto(models.Model):
         return nivel
 
     @property
+    def niveles_trl_sin_resultados(self):
+        """Niveles TRL del recorrido que todavia no tienen resultados definidos.
+
+        Como el avance es secuencial, un nivel vacio detiene el proyecto aunque
+        los niveles siguientes esten completos. Sin este aviso el usuario ve un
+        TRL que no sube y no tiene forma de saber por que.
+        """
+        if not self.usa_trl:
+            return []
+        con_resultados = {
+            resultado.trl_objetivo
+            for resultado in self.resultados_trl
+        }
+        return [
+            trl
+            for trl in range(self.trl_inicial_efectivo + 1, self.trl_objetivo_efectivo + 1)
+            if trl not in con_resultados
+        ]
+
+    @property
+    def trl_bloqueado_por_falta_de_resultados(self):
+        """Primer nivel vacio que esta frenando el avance, si lo hay."""
+        for trl in self.niveles_trl_sin_resultados:
+            if trl > self.nivel_actual:
+                return trl
+        return None
+
+    @property
     def nivel_actual(self):
         if self.usa_trl:
             return self.calcular_trl_desde_resultados()

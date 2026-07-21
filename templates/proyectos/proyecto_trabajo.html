@@ -27,9 +27,25 @@
         </div>
     </header>
 
+    {% if trl_bloqueado %}
+        <div class="alert alert-warning rounded-4">
+            <strong>El nivel TRL no puede avanzar: falta definir resultados para TRL {{ trl_bloqueado }}.</strong>
+            <p class="mb-0 mt-1">
+                La madurez se gana nivel por nivel, así que un nivel sin resultados detiene el proyecto
+                aunque los siguientes estén listos. Agrega al menos un resultado esperado con TRL {{ trl_bloqueado }}
+                desde la edición del proyecto.
+            </p>
+        </div>
+    {% endif %}
+
     <section class="workspace-summary-strip workspace-summary-strip-compact" aria-label="Resumen de trabajo">
         <article><span>{% if proyecto.usa_trl %}Nivel actual{% else %}Fase actual{% endif %}</span><strong>{{ proyecto.nivel_actual|default:"0" }}</strong><p>{{ proyecto.nivel_actual_texto }}</p></article>
-        <article><span>{% if proyecto.usa_trl %}Madurez por fases{% else %}Avance por objetivos{% endif %}</span><strong>{{ avance_madurez }}%</strong><p>Criterios completados</p></article>
+        {% if proyecto.usa_trl %}
+            {# El % lineal engaña: subir de TRL 6 a 7 cuesta mucho más que de 2 a 3. #}
+            <article><span>Madurez alcanzada</span><strong>TRL {{ proyecto.nivel_actual }} de {{ proyecto.trl_objetivo_efectivo }}</strong><p>Parte en TRL {{ proyecto.trl_inicial_efectivo }}</p></article>
+        {% else %}
+            <article><span>Avance por objetivos</span><strong>{{ avance_madurez }}%</strong><p>Criterios completados</p></article>
+        {% endif %}
         <article><span>Tareas</span><strong>{{ tareas_completadas|length }}/{{ proyecto.tareas.all|length }}</strong><p>Completadas sobre total</p></article>
         <article><span>Inventario usado</span><strong>{{ usos_inventario|length }}</strong><p>Materiales y equipos</p></article>
         <article><span>Estado</span><strong>{{ proyecto.get_estado_display }}</strong><p>{{ proyecto.texto_alerta }}</p></article>

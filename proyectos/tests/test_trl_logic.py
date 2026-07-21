@@ -185,6 +185,41 @@ class TrlStressLogicTests(TestCase):
         self.assertEqual(proyecto.fases.get(trl=6).estado, "en_proceso")
         self.assertEqual(proyecto.fases.get(trl=5).estado, "pendiente")
 
+    def test_avisa_cuando_un_nivel_trl_no_tiene_resultados_definidos(self):
+        # El proyecto va de TRL 3 a 7 y solo hay resultados para 4, 5, 6 y 7.
+        # Si se borran los de TRL 5, el avance queda tapado en 4 y el usuario
+        # necesita saber por que.
+        proyecto = self.crear_proyecto_trl()
+        resultados = self.crear_estructura_trl(proyecto)
+        ResultadoEsperado.objects.filter(pk=resultados[1].pk).delete()
+
+        self.cumplir_resultado(resultados[0])
+        sincronizar_trl_desde_resultados(proyecto)
+        proyecto.refresh_from_db()
+
+        self.assertEqual(proyecto.nivel_actual, 4)
+        self.assertIn(5, proyecto.niveles_trl_sin_resultados)
+        self.assertEqual(proyecto.trl_bloqueado_por_falta_de_resultados, 5)
+
+    def test_sin_niveles_vacios_no_hay_bloqueo(self):
+        proyecto = self.crear_proyecto_trl()
+        self.crear_estructura_trl(proyecto)
+
+        self.assertEqual(proyecto.niveles_trl_sin_resultados, [])
+        self.assertIsNone(proyecto.trl_bloqueado_por_falta_de_resultados)
+
+    def test_el_trabajo_muestra_el_nivel_alcanzado_y_no_un_porcentaje(self):
+        # El % lineal sugiere que falta la mitad cuando en realidad los ultimos
+        # niveles son los caros. Se muestra el nivel sobre el objetivo.
+        proyecto = self.crear_proyecto_trl()
+        self.crear_estructura_trl(proyecto)
+        self.client.force_login(self.usuario)
+
+        respuesta = self.client.get(reverse("proyecto_trabajo", kwargs={"pk": proyecto.pk}))
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, "TRL 3 de 7")
+
     def test_plazo_de_resultado_se_calcula_desde_fecha_inicio(self):
         proyecto = self.crear_proyecto_trl()
         resultado = self.crear_estructura_trl(proyecto)[0]
@@ -790,7 +825,9 @@ class GeminiAssistantTests(TestCase):
             "descripcion": "Prototipo inicial con sensores.",
         })
 
-        self.assertEqual(respuesta["trl_estimado"], "TRL 3")
+        # El modelo respondio "TRL 3" y se guarda solo el numero, para que la
+        # interfaz no muestre dos formatos distintos del mismo dato.
+        self.assertEqual(respuesta["trl_estimado"], "3")
         self.assertEqual(respuesta["tareas_sugeridas"], ["Registrar resultados de prueba"])
         self.assertEqual(urlopen_mock.call_count, 1)
 

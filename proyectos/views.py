@@ -3006,6 +3006,7 @@ def proyecto_trabajo(request, pk):
         "usos_inventario": proyecto.usos_inventario.select_related("item", "usuario")[:6],
         "alertas_inventario": inventario_de_sede(request.user).filter(activo=True, tipo=ItemInventario.Tipo.FUNGIBLE, cantidad__isnull=False, cantidad__lte=F("stock_minimo"))[:5],
         "objetivos_trl": estructura_trl_proyecto(proyecto),
+        "trl_bloqueado": proyecto.trl_bloqueado_por_falta_de_resultados,
         "es_admin_laboratorio": usuario_es_admin_laboratorio(request.user),
         "puede_editar_proyecto": usuario_puede_editar_proyecto(request.user, proyecto),
     }
