@@ -1,0 +1,42 @@
+{% extends "control/base.html" %}
+
+{% block titulo %}Eliminar {{ organizacion.nombre }}{% endblock %}
+
+{% block contenido %}
+<header class="topbar">
+    <div>
+        <h1>Eliminar empresa</h1>
+        <p>Esta acción no se puede deshacer.</p>
+    </div>
+    <a class="btn-control-suave" href="{% url 'superadmin_organizacion_detalle' organizacion.pk %}">Cancelar</a>
+</header>
+
+<div class="panel-card" style="max-width: 720px;">
+    <div class="alert alert-danger rounded-4">
+        <strong>Vas a eliminar «{{ organizacion.nombre }}» de forma permanente.</strong>
+        <p class="mb-0 mt-2">
+            Se borrarán <strong>{{ organizacion.total_usuarios }} usuario(s)</strong> y
+            <strong>{{ organizacion.total_proyectos }} proyecto(s)</strong>, junto con su inventario,
+            software, carpetas y archivos.
+        </p>
+    </div>
+
+    <p class="text-muted">
+        Si solo quieres cortarles el acceso temporalmente,
+        <a href="{% url 'superadmin_organizacion_detalle' organizacion.pk %}">desactívala</a>
+        en vez de borrarla: conserva todos los datos y se puede revertir.
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+        <label class="form-label" for="confirmacion">
+            Para confirmar, escribe el nombre exacto de la empresa:
+        </label>
+        <input class="form-control mb-3" type="text" id="confirmacion" name="confirmacion"
+               placeholder="{{ organizacion.nombre }}" autocomplete="off" required>
+        <button class="btn-control" type="submit">
+            <i class="bi bi-trash"></i> Eliminar definitivamente
+        </button>
+    </form>
+</div>
+{% endblock %}

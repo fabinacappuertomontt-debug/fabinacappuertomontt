@@ -1,17 +1,17 @@
 /* ================================================================
    TrackFlow — Tema comercial pro
-   Sobreescribe el tema INACAP: morado/violeta en lugar de rojo
+   Sobreescribe el tema base: morado/violeta en lugar de rojo
    Se carga DESPUÉS de styles.css en base.html cuando request.tema='pro'
    ================================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-/* ---------- Variables: reemplaza los colores INACAP ---------- */
+/* ---------- Variables: reemplaza los colores de marca ---------- */
 :root {
-  --inacap-red:       #7c3aed;   /* violeta principal */
-  --inacap-red-dark:  #6d28d9;   /* violeta oscuro */
-  --inacap-red-soft:  #ede9fe;   /* violeta pálido */
-  --inacap-blue-soft: #ddd6fe;
+  --marca:       #7c3aed;   /* violeta principal */
+  --marca-oscura:  #6d28d9;   /* violeta oscuro */
+  --marca-suave:  #ede9fe;   /* violeta pálido */
+  --marca-azul-suave: #ddd6fe;
   --ink:   #18181b;
   --muted: #71717a;
   --line:  #e4e4e7;
@@ -152,7 +152,7 @@ a {
   background: #a78bfa;
 }
 
-/* ---------- Sidebar brand: logo TrackFlow en vez de INACAP ---------- */
+/* ---------- Sidebar brand: logo TrackFlow en vez del de la empresa ---------- */
 .trackflow-brand-icon {
   align-items: center;
   background: linear-gradient(135deg, #7c3aed, #a78bfa);

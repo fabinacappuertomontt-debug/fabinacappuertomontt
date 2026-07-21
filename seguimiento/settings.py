@@ -40,6 +40,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "proyectos.middleware.UltimaActividadMiddleware",
+    "proyectos.middleware.CambioPasswordObligatorioMiddleware",
     "proyectos.middleware.TemaMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -135,5 +136,18 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # Seguridad de Sesiones (Recomendado para computadores compartidos en laboratorios)
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_COOKIE_AGE = 14400  # Expiración absoluta a las 4 horas
+
+# En produccion el sitio se sirve solo por HTTPS, asi que las cookies no deben
+# viajar nunca en claro. Se activa solo con DEBUG=False para no romper el
+# desarrollo local, que corre sobre HTTP.
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = True
+    # Django reconoce el HTTPS del proxy de Azure via SECURE_PROXY_SSL_HEADER,
+    # asi que la redireccion no entra en bucle.
+    SECURE_HSTS_SECONDS = 31536000  # 1 año
+    # Sin includeSubDomains ni preload: son decisiones dificiles de revertir y
+    # convendria tomarlas al montar el dominio propio.
 
 

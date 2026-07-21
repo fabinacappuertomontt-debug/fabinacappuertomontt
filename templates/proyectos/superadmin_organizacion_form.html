@@ -1,154 +1,69 @@
-{% load static %}
-<!doctype html>
-<html lang="es">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Panel privado | Nueva organización</title>
-    <link rel="icon" type="image/svg+xml" href="{% static 'img/inacap-favicon.svg' %}">
-    <link rel="shortcut icon" type="image/svg+xml" href="{% static 'img/inacap-favicon.svg' %}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <style>
-        body {
-            min-height: 100vh;
-            margin: 0;
-            background: linear-gradient(135deg, #151226 0%, #0f0f10 45%, #141312 100%);
-            color: #f8f5ef;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        }
+{% extends "control/base.html" %}
 
-        .private-wrap {
-            max-width: 980px;
-            margin: 0 auto;
-            padding: 42px 20px;
-        }
+{% block titulo %}{% if modo == 'editar' %}Editar empresa{% else %}Nueva empresa{% endif %}{% endblock %}
 
-        .private-head,
-        .private-form {
-            background: rgba(43, 42, 40, .95);
-            border: 1px solid #44413d;
-            border-radius: 14px;
-            box-shadow: 0 24px 70px rgba(0, 0, 0, .28);
-        }
+{% block contenido %}
+<header class="topbar">
+    <div>
+        <h1>{% if modo == 'editar' %}Editar {{ organizacion.nombre }}{% else %}Nueva empresa{% endif %}</h1>
+        <p>
+            {% if modo == 'editar' %}
+                Cambia la marca y las reglas de acceso. El encargado se gestiona desde la ficha.
+            {% else %}
+                Define la marca de la empresa y la cuenta de su encargado. Le enviaremos las credenciales por correo.
+            {% endif %}
+        </p>
+    </div>
+    <a class="btn-control-suave" href="{% if modo == 'editar' %}{% url 'superadmin_organizacion_detalle' organizacion.pk %}{% else %}{% url 'superadmin_organizaciones' %}{% endif %}">
+        Cancelar
+    </a>
+</header>
 
-        .private-head {
-            padding: 22px;
-            margin-bottom: 18px;
-            display: flex;
-            justify-content: space-between;
-            gap: 16px;
-            align-items: center;
-        }
+<form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
 
-        .private-head span {
-            color: #d63b36;
-            font-size: .78rem;
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: .08em;
-        }
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger rounded-4">{{ form.non_field_errors }}</div>
+    {% endif %}
 
-        .private-head h1 {
-            margin: 4px 0 6px;
-            font-weight: 950;
-        }
+    <div class="panel-card mb-4">
+        <div class="section-title"><h2>Identidad</h2></div>
+        <div class="row g-3">
+            {% include "control/_campo.html" with campo=form.nombre %}
+            {% include "control/_campo.html" with campo=form.slug %}
+            {% include "control/_campo.html" with campo=form.alias_login %}
+            {% include "control/_campo.html" with campo=form.dominio_correo %}
+        </div>
+    </div>
 
-        .private-head p,
-        .form-text {
-            color: #b9b2a8;
-        }
+    <div class="panel-card mb-4">
+        <div class="section-title"><h2>Marca</h2></div>
+        <div class="row g-3 align-items-start">
+            {% include "control/_campo.html" with campo=form.logo ancho="col-md-4" %}
+            {% include "control/_campo.html" with campo=form.color_principal ancho="col-md-4" %}
+            {% include "control/_campo.html" with campo=form.color_secundario ancho="col-md-4" %}
+        </div>
+        <div class="form-check mt-3">
+            {{ form.activa }}
+            <label class="form-check-label fw-bold" for="{{ form.activa.id_for_label }}">{{ form.activa.label }}</label>
+            {% if form.activa.help_text %}<div class="form-text">{{ form.activa.help_text }}</div>{% endif %}
+            {% for error in form.activa.errors %}<div class="text-danger small fw-bold">{{ error }}</div>{% endfor %}
+        </div>
+    </div>
 
-        .private-form {
-            padding: 24px;
-        }
-
-        .form-label,
-        .form-check-label {
-            color: #f8f5ef;
-            font-weight: 800;
-        }
-
-        .form-control,
-        .form-select {
-            background: #161514;
-            border-color: #5b554f;
-            color: #fff;
-        }
-
-        .form-control:focus,
-        .form-select:focus {
-            background: #161514;
-            color: #fff;
-            border-color: #d63b36;
-            box-shadow: 0 0 0 .2rem rgba(214, 59, 54, .18);
-        }
-
-        .btn-private-primary {
-            background: #d63b36;
-            border: 1px solid #d63b36;
-            color: #fff;
-            font-weight: 900;
-        }
-
-        .btn-private-primary:hover {
-            background: #b82f2b;
-            color: #fff;
-        }
-
-        .btn-private-outline {
-            border: 1px solid #736c64;
-            color: #fff;
-            font-weight: 900;
-        }
-
-        .btn-private-outline:hover {
-            border-color: #fff;
-            color: #fff;
-        }
-    </style>
-</head>
-<body>
-    <main class="private-wrap">
-        <header class="private-head">
-            <div>
-                <span>Panel privado</span>
-                <h1>Nueva organización</h1>
-                <p>Crea un cliente con su encargado, login propio, logo, colores y datos separados.</p>
-            </div>
-            <div class="d-flex gap-2">
-                <a class="btn btn-private-outline" href="{% url 'superadmin_organizaciones' %}">Volver</a>
-                <a class="btn btn-private-outline" href="{% url 'superadmin_logout' %}">Salir</a>
-            </div>
-        </header>
-
-        <form method="post" class="private-form" enctype="multipart/form-data">
-            {% csrf_token %}
-            {{ form.non_field_errors }}
+    {% if modo != 'editar' %}
+        <div class="panel-card mb-4">
+            <div class="section-title"><h2>Encargado</h2></div>
+            <p class="text-muted">Será el administrador de la empresa. Recibirá por correo su usuario y una contraseña temporal.</p>
             <div class="row g-3">
-                {% for field in form %}
-                    <div class="{% if field.name == 'logo' or field.name == 'activa' %}col-12{% else %}col-md-6{% endif %}">
-                        <div class="mb-2 {% if field.field.widget.input_type == 'checkbox' %}form-check{% endif %}">
-                            {% if field.field.widget.input_type == 'checkbox' %}
-                                {{ field }}
-                                <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                            {% else %}
-                                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                                {{ field }}
-                            {% endif %}
-                            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-                            {% for error in field.errors %}
-                                <div class="text-danger small">{{ error }}</div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                {% endfor %}
+                {% include "control/_campo.html" with campo=form.encargado_nombre %}
+                {% include "control/_campo.html" with campo=form.encargado_email %}
             </div>
-            <div class="d-flex gap-2 mt-4">
-                <button class="btn btn-private-primary" type="submit">Crear organización</button>
-                <a class="btn btn-private-outline" href="{% url 'superadmin_organizaciones' %}">Cancelar</a>
-            </div>
-        </form>
-    </main>
-</body>
-</html>
+        </div>
+    {% endif %}
+
+    <button class="btn-control" type="submit">
+        {% if modo == 'editar' %}Guardar cambios{% else %}Crear empresa y enviar acceso{% endif %}
+    </button>
+</form>
+{% endblock %}

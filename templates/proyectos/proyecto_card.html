@@ -1,3 +1,4 @@
+{% load static %}
 <article class="project-course-card course-{{ proyecto.nivel_alerta }}">
     <a class="project-course-cover" href="{{ proyecto.get_absolute_url }}" aria-label="Abrir {{ proyecto.nombre }}">
         <span class="project-cover-band"></span>
@@ -6,7 +7,7 @@
         {% else %}
             <span class="project-cover-photo" aria-hidden="true"></span>
             <span class="project-cover-logo">
-                <img src="https://portal.inacap.cl/documents/d/guest/logofooter60a" alt="INACAP">
+                <img src="{% static 'img/favicon-plataforma.svg' %}" alt="{{ proyecto.organizacion.nombre|default:'Plataforma TRL' }}">
                 <strong>{{ proyecto.nombre|slice:":6"|upper }}</strong>
             </span>
         {% endif %}

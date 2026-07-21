@@ -1,0 +1,153 @@
+{% extends "control/base.html" %}
+
+{% block titulo %}{{ organizacion.nombre }}{% endblock %}
+
+{% block contenido %}
+<header class="topbar">
+    <div class="org-line">
+        <span class="org-mark" style="--org-color: {{ organizacion.color_principal|default:'#2563eb' }}; width:64px; height:64px; font-size:1.6rem;">{{ organizacion.nombre|first|upper }}</span>
+        <div>
+            <h1>{{ organizacion.nombre }}</h1>
+            <p>
+                {% if organizacion.activa %}<span class="status-active">Activa</span>{% else %}<span class="status-inactive">Inactiva</span>{% endif %}
+                <span class="ms-2">{{ organizacion.dominio_correo|default:"sin dominio configurado" }}</span>
+            </p>
+        </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a class="btn-control-suave" href="{% url 'superadmin_organizaciones' %}">Volver</a>
+        <a class="btn-control" href="{% url 'superadmin_organizacion_editar' organizacion.pk %}">
+            <i class="bi bi-pencil"></i> Editar
+        </a>
+    </div>
+</header>
+
+{% if credenciales %}
+    <div class="credenciales">
+        <strong class="d-block mb-2">
+            <i class="bi bi-key"></i>
+            Credenciales del encargado
+            {% if credenciales.enviado %}(enviadas por correo){% else %}(el correo no salió, entrégalas a mano){% endif %}
+        </strong>
+        <p class="mb-2 text-muted">Se muestran una sola vez. Si sales de esta página ya no podrás verlas: tendrás que generarlas de nuevo.</p>
+        <div class="d-flex gap-3 flex-wrap">
+            <div>
+                <div class="text-muted small fw-bold">Usuario</div>
+                <code>{{ credenciales.email }}</code>
+            </div>
+            <div>
+                <div class="text-muted small fw-bold">Contraseña temporal</div>
+                <code>{{ credenciales.password }}</code>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+<section class="stats-grid">
+    <article class="stat-card">
+        <span>Usuarios</span>
+        <strong>{{ organizacion.total_usuarios }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>Proyectos</span>
+        <strong>{{ organizacion.total_proyectos }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>Áreas activas</span>
+        <strong>{{ areas|length }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>Creada</span>
+        <strong style="font-size:1.3rem;">{{ organizacion.fecha_creacion|date:"d/m/Y" }}</strong>
+    </article>
+</section>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="panel-card h-100">
+            <div class="section-title"><h2>Acceso</h2></div>
+            <p class="text-muted">Este es el enlace que usa la empresa para entrar:</p>
+            <code class="d-block p-3 rounded-3 mb-3" style="background:#f8fafc; border:1px solid var(--control-line); word-break:break-all;">{{ url_login }}</code>
+
+            <div class="section-title mt-4"><h2>Encargado</h2></div>
+            {% if organizacion.encargado %}
+                <p class="mb-1"><strong>{{ organizacion.encargado.nombre|default:organizacion.encargado.username }}</strong></p>
+                <p class="text-muted mb-3">{{ organizacion.encargado.email }}</p>
+                {% if organizacion.encargado.debe_cambiar_password %}
+                    <p class="text-warning fw-bold small"><i class="bi bi-exclamation-triangle"></i> Todavía no ha cambiado su contraseña temporal.</p>
+                {% endif %}
+                <form method="post" action="{% url 'superadmin_organizacion_reset_credenciales' organizacion.pk %}"
+                      onsubmit="return confirm('Se generará una contraseña nueva y se enviará por correo. La actual dejará de servir. ¿Continuar?');">
+                    {% csrf_token %}
+                    <button class="btn-control-suave" type="submit">
+                        <i class="bi bi-arrow-repeat"></i> Generar contraseña nueva
+                    </button>
+                </form>
+            {% else %}
+                <p class="text-muted">Esta empresa no tiene encargado asignado.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="panel-card h-100">
+            <div class="section-title"><h2>Áreas</h2></div>
+            {% for area in areas %}
+                <div class="d-flex justify-content-between border-bottom py-2">
+                    <span>{{ area.nombre }}</span>
+                    {% if area.es_fab %}<span class="pill">Principal</span>{% endif %}
+                </div>
+            {% empty %}
+                <p class="text-muted">Sin áreas creadas.</p>
+            {% endfor %}
+
+            <div class="section-title mt-4"><h2>Zona de riesgo</h2></div>
+            <p class="text-muted">Desactivar bloquea el acceso pero conserva todo. Eliminar borra usuarios y proyectos sin vuelta atrás.</p>
+            <div class="d-flex gap-2 flex-wrap">
+                <form method="post" action="{% url 'superadmin_organizacion_estado' organizacion.pk %}">
+                    {% csrf_token %}
+                    <button class="btn-control-suave" type="submit">
+                        {% if organizacion.activa %}
+                            <i class="bi bi-pause-circle"></i> Desactivar
+                        {% else %}
+                            <i class="bi bi-play-circle"></i> Activar
+                        {% endif %}
+                    </button>
+                </form>
+                <a class="btn-control" href="{% url 'superadmin_organizacion_eliminar' organizacion.pk %}">
+                    <i class="bi bi-trash"></i> Eliminar empresa
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<section class="mt-4">
+    <div class="section-title"><h2>Usuarios de {{ organizacion.nombre }}</h2></div>
+    <div class="panel-card sin-padding table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th></tr>
+            </thead>
+            <tbody>
+                {% for usuario in usuarios %}
+                    <tr>
+                        <td><strong>{{ usuario.nombre|default:usuario.username }}</strong></td>
+                        <td>{{ usuario.email }}</td>
+                        <td><span class="pill">{{ usuario.get_rol_display }}</span></td>
+                        <td>
+                            {% if usuario.is_active %}
+                                <span class="status-active">Activo</span>
+                            {% else %}
+                                <span class="status-inactive">Inactivo</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="4"><div class="empty-state">Esta empresa todavía no tiene usuarios.</div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

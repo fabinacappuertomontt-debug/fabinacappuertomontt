@@ -323,7 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ${nombre ? `<div class="label-nombre">${nombre}</div>` : ''}
     <svg viewBox="0 0 240 55" width="240" height="55">${svgEl ? svgEl.innerHTML : ''}</svg>
     <div class="label-codigo">${codigo}</div>
-    <div class="label-fab">INACAP Puerto Montt</div>
+    <div class="label-fab">{{ user.organizacion.nombre|default:"Plataforma TRL" }}</div>
   </div>
   <script>window.onload = () => { window.print(); }<\/script>
 </body>

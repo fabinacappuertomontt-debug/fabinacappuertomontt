@@ -19,7 +19,7 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
     empresa_externa = forms.BooleanField(
         required=False,
         label="¿Empresa externa?",
-        help_text="Marca esta opción solo si el proyecto trabaja con una empresa o institución externa a INACAP.",
+        help_text="Marca esta opción solo si el proyecto trabaja con una empresa o institución externa a tu organización.",
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
     fecha_inicio = forms.DateField(
@@ -596,52 +596,79 @@ class IngresoStockExistenteForm(BootstrapFormMixin, forms.Form):
 
 
 
-class OrganizacionSuperadminForm(BootstrapFormMixin, forms.ModelForm):
-    encargado_nombre = forms.CharField(label="Nombre del encargado", max_length=150)
-    encargado_email = forms.EmailField(label="Correo del encargado")
+class OrganizacionBaseSuperadminForm(BootstrapFormMixin, forms.ModelForm):
+    """Campos de marca y acceso que solo el superadmin controla."""
 
     class Meta:
         model = Organizacion
         fields = [
             "nombre",
             "slug",
+            "alias_login",
             "logo",
             "color_principal",
             "color_secundario",
             "dominio_correo",
             "activa",
-            "encargado_nombre",
-            "encargado_email",
         ]
         labels = {
-            "nombre": "Nombre de la organización",
+            "nombre": "Nombre de la empresa",
             "slug": "Identificador único",
+            "alias_login": "Atajo de acceso",
             "logo": "Logo",
             "color_principal": "Color principal",
             "color_secundario": "Color secundario",
             "dominio_correo": "Dominio de correo",
-            "activa": "Organización activa",
+            "activa": "Empresa activa",
         }
         help_texts = {
-            "slug": "Ejemplo: inacap-puerto-montt. Se usa internamente para identificar la organización.",
-            "dominio_correo": "Ejemplo: inacap.cl. No incluyas @.",
+            "slug": "Ejemplo: duoc-puerto-montt. Identifica la empresa internamente y no debería cambiar.",
+            "alias_login": "Opcional. Acorta la URL de acceso, por ejemplo 'duoc' en vez del identificador completo.",
+            "dominio_correo": "Ejemplo: duoc.cl. No incluyas @. Se usa para reconocer a sus usuarios.",
+            "activa": "Si la desactivas, nadie de esa empresa podrá entrar.",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field_name in ["color_principal", "color_secundario"]:
-            self.fields[field_name].widget = forms.TextInput(attrs={"type": "color", "class": "form-control form-control-color"})
+            self.fields[field_name].widget = forms.TextInput(
+                attrs={"type": "color", "class": "form-control form-control-color"}
+            )
         self.fields["activa"].widget.attrs.setdefault("class", "form-check-input")
 
     def clean_dominio_correo(self):
-        dominio = (self.cleaned_data.get("dominio_correo") or "").strip().lower().lstrip("@")
-        return dominio
+        return (self.cleaned_data.get("dominio_correo") or "").strip().lower().lstrip("@")
+
+    def clean_alias_login(self):
+        # El alias vive en una columna unica: hay que guardar NULL, no cadena vacia,
+        # para que varias empresas puedan quedarse sin alias.
+        return (self.cleaned_data.get("alias_login") or "").strip().lower() or None
+
+
+class OrganizacionSuperadminForm(OrganizacionBaseSuperadminForm):
+    """Alta de una empresa nueva junto con la cuenta de su encargado."""
+
+    encargado_nombre = forms.CharField(label="Nombre del encargado", max_length=150)
+    encargado_email = forms.EmailField(
+        label="Correo del encargado",
+        help_text="Ahí llegan las credenciales de acceso. Debe ser un correo real.",
+    )
+
+    class Meta(OrganizacionBaseSuperadminForm.Meta):
+        fields = OrganizacionBaseSuperadminForm.Meta.fields + [
+            "encargado_nombre",
+            "encargado_email",
+        ]
 
     def clean_encargado_email(self):
         email = self.cleaned_data["encargado_email"].strip().lower()
         if Usuario.objects.filter(email__iexact=email).exists():
             raise forms.ValidationError("Ya existe un usuario con este correo.")
         return email
+
+
+class OrganizacionSuperadminEditForm(OrganizacionBaseSuperadminForm):
+    """Edicion de una empresa existente. El encargado se gestiona aparte."""
 
 
 class SuperadminLoginForm(forms.Form):
@@ -664,7 +691,7 @@ class SuperadminLoginForm(forms.Form):
 
 
 PALETAS_ORGANIZACION = {
-    "inacap": ("#cf3f4f", "#1f334d"),
+    "clasica": ("#cf3f4f", "#1f334d"),
     "pacifico": ("#2563eb", "#0f766e"),
     "bosque": ("#059669", "#14532d"),
     "cobalto": ("#4f46e5", "#0f172a"),
@@ -702,7 +729,7 @@ class OrganizacionAdminForm(BootstrapFormMixin, forms.ModelForm):
             "tamano_letra": "Ajusta la lectura general de la plataforma.",
             "mostrar_usuarios": "Activa o desactiva el acceso visible al modulo de usuarios.",
             "modo_oscuro": "Aplica una base visual oscura para el panel.",
-            "dominio_correo": "Ejemplo: inacapmail.cl. Se usa para validar accesos por organización.",
+            "dominio_correo": "Ejemplo: empresa.cl. Se usa para validar accesos por organización.",
         }
 
     def __init__(self, *args, **kwargs):
@@ -845,6 +872,22 @@ class PerfilUsuarioForm(BootstrapFormMixin, forms.ModelForm):
         }
 
 
+def correo_es_institucional(email):
+    """True si el correo pertenece al dominio de alguna organizacion activa.
+
+    Reemplaza la lista fija de dominios: cada empresa declara el suyo
+    en su ficha y el registro lo respeta sin tocar el codigo.
+    """
+    email = (email or "").strip().lower()
+    if "@" not in email:
+        return False
+    dominio = email.rsplit("@", 1)[1]
+    return any(
+        organizacion.dominio_normalizado == dominio
+        for organizacion in Organizacion.objects.filter(activa=True).exclude(dominio_correo="")
+    )
+
+
 class RegistroPublicoForm(BootstrapFormMixin, UserCreationForm):
     rol = forms.ChoiceField(
         choices=[
@@ -868,7 +911,7 @@ class RegistroPublicoForm(BootstrapFormMixin, UserCreationForm):
             "sede": "Sede",
         }
         help_texts = {
-            "institucion": "Obligatorio si no usas un correo INACAP.",
+            "institucion": "Obligatorio si no usas un correo institucional registrado.",
             "area": "Selecciona el area a la que perteneces. Tu cuenta quedara separada por esa area.",
         }
 
@@ -879,8 +922,8 @@ class RegistroPublicoForm(BootstrapFormMixin, UserCreationForm):
         # En caso de recarga (POST fallido), el area elegida ya viene con valor;
         # cargamos las areas de ambas organizaciones para que la validación funcione.
         self.fields["area"].queryset = Area.objects.filter(
-            organizacion__slug__in=["fab-inacap-puerto-montt", "crea-inacap-osorno"],
             activa=True,
+            organizacion__activa=True,
         ).order_by("organizacion__nombre", "nombre")
         self.fields["area"].empty_label = "Selecciona tu area"
         self.fields["area"].required = True
@@ -897,7 +940,7 @@ class RegistroPublicoForm(BootstrapFormMixin, UserCreationForm):
         cleaned = super().clean()
         email = (cleaned.get("email") or "").strip().lower()
         institucion = (cleaned.get("institucion") or "").strip()
-        if email and not email.endswith(("@inacap.cl", "@inacapmail.cl")) and not institucion:
+        if email and not correo_es_institucional(email) and not institucion:
             self.add_error("institucion", "Indica tu institución o empresa para solicitar aprobación.")
         if not cleaned.get("area"):
             self.add_error("area", "Selecciona el area a la que perteneces.")
@@ -917,21 +960,13 @@ class RegistroPublicoForm(BootstrapFormMixin, UserCreationForm):
         usuario.institucion = self.cleaned_data.get("institucion", "").strip()
         usuario.rol = self.cleaned_data.get("rol") or Usuario.Rol.ALUMNO
         usuario.area = self.cleaned_data.get("area")
-        # Asignar organizacion y sede según el area seleccionada
+        # La organizacion sale del area elegida; la sede es la que indico el usuario.
         if usuario.area:
             usuario.organizacion = usuario.area.organizacion
-            # Inferir sede según el slug de la organización
-            org_slug = getattr(usuario.area.organizacion, "slug", "")
-            if org_slug == "crea-inacap-osorno":
-                from .models import Sede
-                usuario.sede = Sede.OSORNO
-            else:
-                from .models import Sede
-                usuario.sede = Sede.PUERTO_MONTT
         usuario.is_active = False
         usuario.is_staff = False
         usuario.is_superuser = False
-        if email.endswith(("@inacap.cl", "@inacapmail.cl")):
+        if correo_es_institucional(email):
             usuario.correo_verificado = False
             usuario.estado_registro = Usuario.EstadoRegistro.VERIFICACION_CORREO
         else:

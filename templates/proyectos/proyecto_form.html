@@ -44,7 +44,7 @@
         <header class="ai-project-header">
             <div>
                 <span>Asistente IA</span>
-                <strong>IA INACAP Proyectos</strong>
+                <strong>Asistente IA</strong>
             </div>
             <button type="button" data-ai-close aria-label="Cerrar asistente IA">
                 <i class="bi bi-x-lg" aria-hidden="true"></i>
@@ -52,7 +52,7 @@
         </header>
         <div class="ai-project-chat" data-ai-result>
             <div class="ai-message ai-message-assistant">
-                <strong>IA INACAP Proyectos</strong>
+                <strong>Asistente IA</strong>
                 <p class="mb-0">Hola. Puedo revisar lo que llevas escrito y sugerir TRL, objetivos, indicadores o proximos pasos.</p>
             </div>
         </div>
@@ -285,7 +285,7 @@
                                 <div style="margin-left: 2.5rem;">
                                     {{ form.empresa_externa }}
                                     <label class="form-check-label fw-semibold" for="{{ form.empresa_externa.id_for_label }}">¿Empresa externa?</label>
-                                    <small class="text-muted d-block" style="font-size: 0.75rem;">El proyecto incluye una institución externa a INACAP</small>
+                                    <small class="text-muted d-block" style="font-size: 0.75rem;">El proyecto incluye una institución externa a tu organización</small>
                                 </div>
                             </div>
                             
@@ -460,7 +460,7 @@
                 if (!selected) {
                     result.innerHTML = `
                         <div class="ai-message ai-message-assistant">
-                            <strong>IA INACAP Proyectos</strong>
+                            <strong>Asistente IA</strong>
                             <p class="mb-2">¡Hola! Para ayudarte a crear tu proyecto, por favor selecciona la metodología:</p>
                             <div class="d-flex flex-column gap-2 mt-2" data-ai-init-options>
                                 <button class="btn btn-sm btn-outline-danger text-start w-100 p-2" type="button" data-ai-select-methodology="simple" style="border-color: rgba(197, 58, 67, 0.3);">
@@ -478,7 +478,7 @@
                     const label = selected === "trl" ? "Proyecto con TRL" : "Proyecto Simple";
                     result.innerHTML = `
                         <div class="ai-message ai-message-assistant">
-                            <strong>IA INACAP Proyectos</strong>
+                            <strong>Asistente IA</strong>
                             <p class="mb-1">Metodología seleccionada: <strong>${label}</strong>.</p>
                             <p class="mb-2 text-muted" style="font-size: 0.8rem;">Escribe una idea o resumen de tu proyecto para poder generar los objetivos y rellenar el formulario por ti.</p>
                             <button class="btn btn-link btn-sm p-0 text-danger" type="button" data-ai-reset-methodology style="font-size: 0.75rem; text-decoration: none;">
@@ -510,7 +510,7 @@
                             : "Escribe tu idea para generar los objetivos e indicadores del proyecto y rellenar el formulario por ti.";
                         result.innerHTML += `
                             <div class="ai-message ai-message-assistant">
-                                <strong>IA INACAP Proyectos</strong>
+                                <strong>Asistente IA</strong>
                                 <p class="mb-1">Has seleccionado: <strong>${label}</strong>.</p>
                                 <p class="mb-0">${desc}</p>
                             </div>
@@ -647,7 +647,7 @@
                 const hasFormSugerido = !!analysis.formulario_sugerido;
                 let html = `
                     <div class="ai-message ai-message-assistant">
-                        <strong>IA INACAP Proyectos</strong>
+                        <strong>Asistente IA</strong>
                         <div class="ai-result-stack">
                 `;
                 if (analysis.trl_estimado) {
@@ -722,7 +722,7 @@
                 };
                 button.disabled = true;
                 appendUserMessage(mensaje);
-                result.innerHTML += `<div class="ai-message ai-message-assistant ai-message-loading" data-ai-loading><strong>IA INACAP Proyectos</strong><p class="mb-0">Analizando tu borrador...</p></div>`;
+                result.innerHTML += `<div class="ai-message ai-message-assistant ai-message-loading" data-ai-loading><strong>Asistente IA</strong><p class="mb-0">Analizando tu borrador...</p></div>`;
                 result.scrollTop = result.scrollHeight;
                 try {
                     const response = await fetch(aiAssistant.dataset.aiUrl, {
