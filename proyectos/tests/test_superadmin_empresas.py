@@ -32,12 +32,51 @@ class SuperadminEmpresasTests(TestCase):
             "color_principal": "#0033a0",
             "color_secundario": "#101828",
             "dominio_correo": "duoc.cl",
-            "activa": "on",
             "encargado_nombre": "Ana Pérez",
             "encargado_email": "ana@duoc.cl",
         }
         datos.update(extra)
         return self.client.post(reverse("superadmin_organizacion_crear"), datos)
+
+    # --- el enlace del correo tiene que funcionar --------------------------
+
+    def test_la_empresa_nueva_nace_activa_y_su_enlace_funciona(self):
+        # El alta no ofrece "activa": si naciera desactivada, el correo que se
+        # manda al encargado llevaria un enlace que devuelve 404.
+        self.crear_empresa()
+        organizacion = Organizacion.objects.get(slug="duoc-uc")
+        self.assertTrue(organizacion.activa)
+
+        anonimo = Client()
+        respuesta = anonimo.get(organizacion.url_login)
+        self.assertEqual(respuesta.status_code, 200)
+
+    def test_el_enlace_del_correo_lleva_a_una_pagina_que_existe(self):
+        self.crear_empresa()
+        cuerpo = mail.outbox[0].body
+        ruta = "/login/" + cuerpo.split("/login/")[1].split("\n")[0].strip()
+
+        anonimo = Client()
+        self.assertEqual(anonimo.get(ruta).status_code, 200)
+
+    def test_el_slug_se_normaliza_a_minusculas(self):
+        # Las URLs distinguen mayusculas: con slug "Demotrl", /login/demotrl/ falla.
+        self.crear_empresa(nombre="DemoTrl", slug="DemoTrl", alias_login="")
+        organizacion = Organizacion.objects.get(nombre="DemoTrl")
+        self.assertEqual(organizacion.slug, "demotrl")
+
+        anonimo = Client()
+        self.assertEqual(anonimo.get("/login/demotrl/").status_code, 200)
+
+    def test_la_ficha_avisa_cuando_la_empresa_esta_desactivada(self):
+        self.crear_empresa()
+        organizacion = Organizacion.objects.get(slug="duoc-uc")
+        self.client.post(reverse("superadmin_organizacion_estado", args=[organizacion.pk]))
+
+        respuesta = self.client.get(
+            reverse("superadmin_organizacion_detalle", args=[organizacion.pk])
+        )
+        self.assertContains(respuesta, "Esta empresa está desactivada")
 
     # --- alta ---------------------------------------------------------------
 

@@ -66,6 +66,15 @@
     <div class="col-lg-6">
         <div class="panel-card h-100">
             <div class="section-title"><h2>Acceso</h2></div>
+            {% if not organizacion.activa %}
+                <div class="alert alert-warning rounded-4">
+                    <strong>Esta empresa está desactivada.</strong>
+                    <p class="mb-0 mt-1">
+                        El enlace de abajo devuelve «no encontrado» y nadie de esta empresa puede entrar,
+                        incluido su encargado. Actívala en la Zona de riesgo para habilitar el acceso.
+                    </p>
+                </div>
+            {% endif %}
             <p class="text-muted">Este es el enlace que usa la empresa para entrar:</p>
             <code class="d-block p-3 rounded-3 mb-3" style="background:#f8fafc; border:1px solid var(--control-line); word-break:break-all;">{{ url_login }}</code>
 

@@ -43,12 +43,14 @@
             {% include "control/_campo.html" with campo=form.color_principal ancho="col-md-4" %}
             {% include "control/_campo.html" with campo=form.color_secundario ancho="col-md-4" %}
         </div>
-        <div class="form-check mt-3">
-            {{ form.activa }}
-            <label class="form-check-label fw-bold" for="{{ form.activa.id_for_label }}">{{ form.activa.label }}</label>
-            {% if form.activa.help_text %}<div class="form-text">{{ form.activa.help_text }}</div>{% endif %}
-            {% for error in form.activa.errors %}<div class="text-danger small fw-bold">{{ error }}</div>{% endfor %}
-        </div>
+        {% if form.activa %}
+            <div class="form-check mt-3">
+                {{ form.activa }}
+                <label class="form-check-label fw-bold" for="{{ form.activa.id_for_label }}">{{ form.activa.label }}</label>
+                {% if form.activa.help_text %}<div class="form-text">{{ form.activa.help_text }}</div>{% endif %}
+                {% for error in form.activa.errors %}<div class="text-danger small fw-bold">{{ error }}</div>{% endfor %}
+            </div>
+        {% endif %}
     </div>
 
     {% if modo != 'editar' %}

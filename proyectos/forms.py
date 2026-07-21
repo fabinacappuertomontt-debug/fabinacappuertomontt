@@ -601,6 +601,8 @@ class OrganizacionBaseSuperadminForm(BootstrapFormMixin, forms.ModelForm):
 
     class Meta:
         model = Organizacion
+        # "activa" no va aca: una empresa nueva siempre nace activa. Se desactiva
+        # despues desde su ficha, que es una accion consciente y reversible.
         fields = [
             "nombre",
             "slug",
@@ -609,7 +611,6 @@ class OrganizacionBaseSuperadminForm(BootstrapFormMixin, forms.ModelForm):
             "color_principal",
             "color_secundario",
             "dominio_correo",
-            "activa",
         ]
         labels = {
             "nombre": "Nombre de la empresa",
@@ -634,10 +635,18 @@ class OrganizacionBaseSuperadminForm(BootstrapFormMixin, forms.ModelForm):
             self.fields[field_name].widget = forms.TextInput(
                 attrs={"type": "color", "class": "form-control form-control-color"}
             )
-        self.fields["activa"].widget.attrs.setdefault("class", "form-check-input")
+        if "activa" in self.fields:
+            # BootstrapFormMixin ya puso form-control con setdefault, y en Bootstrap 5
+            # eso dibuja el checkbox como una caja enorme. Hay que sobrescribirlo.
+            self.fields["activa"].widget.attrs["class"] = "form-check-input"
 
     def clean_dominio_correo(self):
         return (self.cleaned_data.get("dominio_correo") or "").strip().lower().lstrip("@")
+
+    def clean_slug(self):
+        # Las URLs distinguen mayusculas: si el slug se guarda como "Demotrl",
+        # /login/demotrl/ no encuentra la empresa.
+        return (self.cleaned_data.get("slug") or "").strip().lower()
 
     def clean_alias_login(self):
         # El alias vive en una columna unica: hay que guardar NULL, no cadena vacia,
@@ -669,6 +678,9 @@ class OrganizacionSuperadminForm(OrganizacionBaseSuperadminForm):
 
 class OrganizacionSuperadminEditForm(OrganizacionBaseSuperadminForm):
     """Edicion de una empresa existente. El encargado se gestiona aparte."""
+
+    class Meta(OrganizacionBaseSuperadminForm.Meta):
+        fields = OrganizacionBaseSuperadminForm.Meta.fields + ["activa"]
 
 
 class SuperadminLoginForm(forms.Form):
