@@ -1103,20 +1103,23 @@ def indicadores_sugeridos_json(request):
     organizacion = organizacion_usuario(request.user)
     usados = []
     if organizacion:
-        # Se ordenan por cuantas veces se usaron: los repetidos son los que de
-        # verdad sirven para comparar proyectos entre si. Se descartan los muy
-        # cortos ("1") y los muy largos, que suelen ser texto pegado por error.
-        usados = list(
-            IndicadorResultado.objects.filter(
-                resultado__objetivo__proyecto__organizacion=organizacion
-            )
-            .annotate(largo=Length("descripcion"))
-            .filter(largo__gte=12, largo__lte=160)
-            .values("descripcion")
-            .annotate(veces=Count("id"))
-            .order_by("-veces", "descripcion")
-            .values_list("descripcion", flat=True)[:30]
-        )
+        # Se ordenan por cuantas veces se usaron: reutilizar el mismo indicador
+        # entre proyectos es justamente lo que permite compararlos despues.
+        usados = [
+            {
+                "id": entrada.pk,
+                "nombre": entrada.nombre,
+                "tipo": entrada.tipo,
+                "tipo_texto": entrada.get_tipo_display(),
+                "unidad": entrada.unidad,
+                "medio_verificacion": entrada.medio_verificacion,
+                "medible": entrada.es_medible,
+                "veces": entrada.veces,
+            }
+            for entrada in organizacion.indicadores_catalogo.filter(activo=True)
+            .annotate(veces=Count("usos"))
+            .order_by("-veces", "nombre")[:40]
+        ]
 
     metodologia = request.GET.get("metodologia", "")
     if metodologia == Proyecto.Metodologia.SIMPLE:

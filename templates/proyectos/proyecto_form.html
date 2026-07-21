@@ -1035,6 +1035,20 @@
         // por nivel. Evita que el usuario se quede mirando un campo vacio.
         const datalistIndicadores = document.getElementById("catalogo-indicadores");
         let ultimaConsultaIndicadores = "";
+        let catalogoIndicadores = [];
+
+        // El <select> del indicador: lo ya catalogado arriba, crear uno nuevo al final.
+        const opcionesCatalogo = (indicador) => {
+            const elegido = indicador.catalogo_id ? String(indicador.catalogo_id) : "";
+            const opciones = catalogoIndicadores.map((entrada) => {
+                const detalle = entrada.medible && entrada.unidad ? ` (en ${entrada.unidad})` : "";
+                return `<option value="${entrada.id}" ${elegido === String(entrada.id) ? "selected" : ""}>${escapeHtml(entrada.nombre)}${escapeHtml(detalle)}</option>`;
+            });
+            const cabecera = catalogoIndicadores.length
+                ? `<option value="" ${elegido ? "" : "selected"}>— Elige un indicador —</option>`
+                : `<option value="" selected>— Todavía no hay indicadores en tu organización —</option>`;
+            return cabecera + opciones.join("") + `<option value="nuevo" ${indicador.descripcion && !elegido ? "selected" : ""}>+ Crear un indicador nuevo</option>`;
+        };
         const cargarIndicadoresSugeridos = () => {
             if (!datalistIndicadores) return;
             const parametros = new URLSearchParams({ metodologia: currentMethodologyValue() });
@@ -1051,16 +1065,17 @@
             fetch(`/proyectos/indicadores-sugeridos/?${consulta}`)
                 .then((r) => r.ok ? r.json() : Promise.reject(new Error("sin catalogo")))
                 .then((datos) => {
+                    catalogoIndicadores = datos.usados || [];
+                    // El datalist alimenta el campo de "indicador nuevo" con las
+                    // sugerencias por nivel, para no partir de cero.
                     const opciones = [];
-                    (datos.usados || []).forEach((texto) => {
-                        opciones.push(`<option value="${escapeHtml(texto)}">Ya usado en tu organización</option>`);
-                    });
                     (datos.catalogo || []).forEach((grupo) => {
                         (grupo.opciones || []).forEach((texto) => {
                             opciones.push(`<option value="${escapeHtml(texto)}">${escapeHtml(grupo.grupo)}</option>`);
                         });
                     });
                     datalistIndicadores.innerHTML = opciones.join("");
+                    render();
                 })
                 .catch(() => { ultimaConsultaIndicadores = ""; });
         };
@@ -1259,15 +1274,43 @@
                         <div class="trl-indicator-editor">
                             <div class="trl-campo">
                                 <label class="form-label">¿Cómo vas a comprobar que se logró?</label>
+                                <select class="form-select" data-indicator-catalogo="${activeObjectiveIndex}" data-result-index="${activeResultIndex}">
+                                    ${opcionesCatalogo(activeIndicator)}
+                                </select>
+                                <div class="form-text">
+                                    Elige un indicador que tu organización ya usa. Reutilizar el mismo
+                                    permite comparar proyectos entre sí.
+                                </div>
+                            </div>
+
+                            <div class="trl-campo" data-indicador-nuevo ${activeIndicator.catalogo_id ? 'hidden' : ''}>
+                                <label class="form-label">Nombre del indicador nuevo</label>
                                 <input class="form-control" type="text" list="catalogo-indicadores"
                                        value="${escapeHtml(activeIndicator.descripcion || "")}"
                                        data-indicator-description="${activeObjectiveIndex}" data-result-index="${activeResultIndex}" data-indicator-index="0"
-                                       placeholder="Escribe o elige de la lista">
-                                <div class="form-text">
-                                    <i class="bi bi-list-ul" aria-hidden="true"></i>
-                                    Haz clic en el campo para ver indicadores ya usados en tu organización y sugerencias por nivel.
-                                </div>
+                                       placeholder="Ej: Ensayos de humedad exitosos">
+                                <div class="form-text">Quedará disponible para los demás proyectos de tu organización.</div>
                             </div>
+
+                            ${activeIndicator.medible ? `
+                                <div class="trl-medicion">
+                                    <div class="trl-medicion__campo">
+                                        <label class="form-label">Línea base</label>
+                                        <input class="form-control" type="number" step="any" value="${escapeHtml(activeIndicator.linea_base ?? "")}"
+                                               data-indicator-base="${activeObjectiveIndex}" data-result-index="${activeResultIndex}" placeholder="0">
+                                    </div>
+                                    <div class="trl-medicion__campo">
+                                        <label class="form-label">Meta</label>
+                                        <input class="form-control" type="number" step="any" value="${escapeHtml(activeIndicator.meta_valor ?? "")}"
+                                               data-indicator-meta="${activeObjectiveIndex}" data-result-index="${activeResultIndex}" placeholder="30">
+                                    </div>
+                                    <div class="trl-medicion__unidad">${escapeHtml(activeIndicator.unidad || "")}</div>
+                                </div>
+                                <div class="form-text">
+                                    <i class="bi bi-check2-square" aria-hidden="true"></i>
+                                    El sistema dará este indicador por cumplido solo cuando la medición alcance la meta.
+                                </div>
+                            ` : ""}
                         </div>
 
                         <details class="trl-avanzado">
@@ -1332,7 +1375,14 @@
                 const resultIndex = Number(target.dataset.resultIndex);
                 const indicatorIndex = Number(target.dataset.indicatorIndex);
                 const indicator = payload[objectiveIndex].resultados[resultIndex].indicadores[indicatorIndex];
-                if (target.dataset.indicatorDescription !== undefined) indicator.descripcion = target.value;
+                indicator.descripcion = target.value;
+            }
+            if (target.dataset.indicatorBase !== undefined || target.dataset.indicatorMeta !== undefined) {
+                const objectiveIndex = Number(target.dataset.indicatorBase ?? target.dataset.indicatorMeta);
+                const resultIndex = Number(target.dataset.resultIndex);
+                const indicator = payload[objectiveIndex].resultados[resultIndex].indicadores[0];
+                if (target.dataset.indicatorBase !== undefined) indicator.linea_base = target.value;
+                if (target.dataset.indicatorMeta !== undefined) indicator.meta_valor = target.value;
             }
             persist();
             if (shouldSyncEndDate) {
@@ -1343,6 +1393,28 @@
         trlBuilder.addEventListener("change", (event) => {
             const target = event.target;
             const payload = activePayload();
+            if (target.dataset.indicatorCatalogo !== undefined) {
+                const objectiveIndex = Number(target.dataset.indicatorCatalogo);
+                const resultIndex = Number(target.dataset.resultIndex);
+                const indicator = payload[objectiveIndex].resultados[resultIndex].indicadores[0];
+                const entrada = catalogoIndicadores.find((e) => String(e.id) === target.value);
+                if (entrada) {
+                    // Al elegir del catalogo, el nombre, el tipo y la unidad los
+                    // define la organizacion, no quien crea el proyecto.
+                    indicator.catalogo_id = entrada.id;
+                    indicator.descripcion = entrada.nombre;
+                    indicator.unidad = entrada.unidad || "";
+                    indicator.medible = !!entrada.medible;
+                } else {
+                    indicator.catalogo_id = null;
+                    indicator.unidad = "";
+                    indicator.medible = false;
+                    if (target.value === "nuevo") indicator.descripcion = "";
+                }
+                persist();
+                render();
+                return;
+            }
             if (target.dataset.selectResultObjective !== undefined) {
                 const state = activeState();
                 const sourceObjectiveIndex = state.activeObjectiveIndex;

@@ -1,8 +1,30 @@
+from decimal import Decimal, InvalidOperation
+
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 
-from .models import ENTORNO_POR_TRL, Area, Avance, Evidencia, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Observacion, Organizacion, Proyecto, ResultadoEsperado, Tarea, TRL_DEFINICIONES, UsoInventario, Usuario, sumar_meses_y_dias, MovimientoStock, SoftwareConfiguracion, CarpetaArchivos
+from .models import ENTORNO_POR_TRL, IndicadorCatalogo, TipoIndicador, Area, Avance, Evidencia, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Observacion, Organizacion, Proyecto, ResultadoEsperado, Tarea, TRL_DEFINICIONES, UsoInventario, Usuario, sumar_meses_y_dias, MovimientoStock, SoftwareConfiguracion, CarpetaArchivos
 
+
+
+def _entero_o_none(valor):
+    try:
+        return int(valor)
+    except (TypeError, ValueError):
+        return None
+
+
+def _decimal_o_none(valor):
+    """Convierte a numero lo que venga del formulario, o deja vacio.
+
+    Se acepta la coma como separador decimal porque es lo natural en Chile.
+    """
+    if valor in (None, ""):
+        return None
+    try:
+        return Decimal(str(valor).strip().replace(",", "."))
+    except (InvalidOperation, AttributeError):
+        return None
 
 
 class BootstrapFormMixin:
@@ -188,6 +210,11 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
                         continue
                     indicadores_limpios.append({
                         "descripcion": descripcion_indicador,
+                        "catalogo_id": _entero_o_none((indicador or {}).get("catalogo_id")),
+                        "unidad": str((indicador or {}).get("unidad", "")).strip()[:60],
+                        "linea_base": _decimal_o_none((indicador or {}).get("linea_base")),
+                        "meta_valor": _decimal_o_none((indicador or {}).get("meta_valor")),
+                        "valor_medido": _decimal_o_none((indicador or {}).get("valor_medido")),
                         "meta": str((indicador or {}).get("meta", "")).strip(),
                         "valor_actual": str((indicador or {}).get("valor_actual", "")).strip(),
                         "cumplido": bool((indicador or {}).get("cumplido")),
@@ -313,6 +340,12 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
         from .views import sincronizar_avance_simple_desde_objetivos, sincronizar_trl_desde_resultados
 
         payload_trl = self.cleaned_data.get("payload_trl") or []
+        # Solo se aceptan indicadores del catalogo de la propia empresa: el id
+        # viaja por el formulario y no se puede confiar en el.
+        catalogo_por_id = {
+            entrada.pk: entrada
+            for entrada in IndicadorCatalogo.objects.filter(organizacion=proyecto.organizacion)
+        }
         ObjetivoEspecifico.objects.filter(proyecto=proyecto).delete()
         for objetivo_data in payload_trl:
             objetivo = ObjetivoEspecifico.objects.create(
@@ -332,10 +365,19 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
                     observaciones=resultado_data["observaciones"],
                 )
                 for indicador_data in resultado_data["indicadores"]:
+                    catalogo = catalogo_por_id.get(indicador_data.get("catalogo_id"))
                     IndicadorResultado.objects.create(
                         resultado=resultado,
+                        catalogo=catalogo,
                         descripcion=indicador_data["descripcion"],
                         orden=indicador_data["orden"],
+                        # El tipo y la unidad los manda el catalogo: es el que
+                        # define como se mide ese indicador en toda la empresa.
+                        tipo=catalogo.tipo if catalogo else TipoIndicador.CUALITATIVO,
+                        unidad=(catalogo.unidad if catalogo else indicador_data["unidad"]),
+                        linea_base=indicador_data["linea_base"],
+                        meta_valor=indicador_data["meta_valor"],
+                        valor_medido=indicador_data["valor_medido"],
                         meta=indicador_data["meta"],
                         valor_actual=indicador_data["valor_actual"],
                         cumplido=indicador_data["cumplido"],

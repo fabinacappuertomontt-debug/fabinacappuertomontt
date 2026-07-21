@@ -1,5 +1,6 @@
 import calendar
 from datetime import date
+from decimal import Decimal
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models
@@ -698,14 +699,107 @@ class ResultadoEsperado(models.Model):
         return fecha.strftime("%m/%Y") if fecha else ""
 
 
+class TipoIndicador(models.TextChoices):
+    """Como se mide un indicador, que define si el sistema puede evaluarlo solo."""
+
+    NUMERICO = "numerico", "Cantidad"
+    PORCENTAJE = "porcentaje", "Porcentaje"
+    BINARIO = "binario", "Se logra o no se logra"
+    CUALITATIVO = "cualitativo", "Descriptivo"
+
+
+# Con estos tipos el sistema compara la medicion contra la meta y decide solo.
+TIPOS_INDICADOR_MEDIBLES = {TipoIndicador.NUMERICO, TipoIndicador.PORCENTAJE}
+
+
+class IndicadorCatalogo(models.Model):
+    """Indicador reutilizable de una organizacion.
+
+    Existe para que el indicador se elija en vez de escribirse. Cuando cada
+    persona lo teclea, "N de ensayos", "Numero de ensayos" y "cantidad de
+    pruebas" son tres registros distintos y ya no se puede comparar nada entre
+    proyectos.
+    """
+
+    organizacion = models.ForeignKey(
+        Organizacion,
+        on_delete=models.CASCADE,
+        related_name="indicadores_catalogo",
+    )
+    nombre = models.CharField(max_length=200)
+    tipo = models.CharField(
+        max_length=20,
+        choices=TipoIndicador.choices,
+        default=TipoIndicador.NUMERICO,
+    )
+    unidad = models.CharField(
+        max_length=60,
+        blank=True,
+        help_text="En que se expresa: ensayos, horas, personas, kg...",
+    )
+    medio_verificacion = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="De donde sale el dato: bitacora de laboratorio, informe, planilla...",
+    )
+    activo = models.BooleanField(default=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nombre"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organizacion", "nombre"], name="indicador_unico_por_organizacion"
+            )
+        ]
+        verbose_name = "indicador del catalogo"
+        verbose_name_plural = "indicadores del catalogo"
+
+    def __str__(self):
+        return f"{self.nombre} ({self.unidad})" if self.unidad else self.nombre
+
+    @property
+    def es_medible(self):
+        return self.tipo in TIPOS_INDICADOR_MEDIBLES
+
+
 class IndicadorResultado(models.Model):
     resultado = models.ForeignKey(
         ResultadoEsperado,
         on_delete=models.CASCADE,
         related_name="indicadores",
     )
+    catalogo = models.ForeignKey(
+        IndicadorCatalogo,
+        on_delete=models.SET_NULL,
+        related_name="usos",
+        blank=True,
+        null=True,
+        help_text="Indicador del catalogo de la organizacion, si se eligio uno.",
+    )
     descripcion = models.TextField()
     orden = models.PositiveSmallIntegerField(default=1)
+    tipo = models.CharField(
+        max_length=20,
+        choices=TipoIndicador.choices,
+        default=TipoIndicador.CUALITATIVO,
+    )
+    unidad = models.CharField(max_length=60, blank=True)
+    linea_base = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        help_text="Valor antes de empezar el proyecto.",
+    )
+    meta_valor = models.DecimalField(
+        max_digits=12, decimal_places=2, blank=True, null=True
+    )
+    valor_medido = models.DecimalField(
+        max_digits=12, decimal_places=2, blank=True, null=True
+    )
+    # Se conservan como texto para los indicadores cualitativos y para no perder
+    # lo que ya estaba cargado antes de que el indicador fuera medible.
     meta = models.CharField(max_length=200, blank=True)
     valor_actual = models.CharField(max_length=200, blank=True)
     cumplido = models.BooleanField(default=False)
@@ -715,6 +809,48 @@ class IndicadorResultado(models.Model):
 
     def __str__(self):
         return f"Indicador {self.orden} - {self.resultado}"
+
+    @property
+    def es_medible(self):
+        """Si el sistema puede decidir solo, sin que nadie marque una casilla."""
+        return self.tipo in TIPOS_INDICADOR_MEDIBLES and self.meta_valor is not None
+
+    @property
+    def nombre_visible(self):
+        return self.catalogo.nombre if self.catalogo else self.descripcion
+
+    @property
+    def avance_porcentaje(self):
+        """Cuanto se avanzo entre la linea base y la meta, en porcentaje."""
+        if not self.es_medible or self.valor_medido is None:
+            return None
+        base = self.linea_base if self.linea_base is not None else Decimal("0")
+        recorrido = self.meta_valor - base
+        if recorrido == 0:
+            return 100 if self.valor_medido >= self.meta_valor else 0
+        avance = (self.valor_medido - base) / recorrido * 100
+        return max(0, min(100, int(round(avance))))
+
+    def calcular_cumplido(self):
+        """Decide el cumplimiento a partir del dato, no de una opinion.
+
+        Los indicadores cualitativos y los de si/no conservan la marca manual:
+        ahi la persona es el instrumento de medicion.
+        """
+        if not self.es_medible:
+            return self.cumplido
+        if self.valor_medido is None:
+            return False
+        return self.valor_medido >= self.meta_valor
+
+    def save(self, *args, **kwargs):
+        # cumplido queda almacenado, no calculado al vuelo, porque hay consultas
+        # que filtran por el en base de datos.
+        self.cumplido = self.calcular_cumplido()
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and "cumplido" not in update_fields:
+            kwargs["update_fields"] = list(update_fields) + ["cumplido"]
+        super().save(*args, **kwargs)
 
 
 # Indicadores tipicos por nivel, para que nadie se quede mirando un campo vacio

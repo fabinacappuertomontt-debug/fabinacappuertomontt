@@ -10206,6 +10206,31 @@ button.stage-close-button {
     font-size: 0.9rem;
 }
 
+/* Linea base y meta se leen juntas, con la unidad al lado. */
+.trl-medicion {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem;
+    margin-top: 0.6rem;
+}
+
+.trl-medicion__campo {
+    flex: 0 0 7.5rem;
+}
+
+.trl-medicion__campo .form-label {
+    font-size: 0.82rem;
+    margin-bottom: 0.25rem;
+}
+
+.trl-medicion__unidad {
+    padding-bottom: 0.55rem;
+    color: #475569;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
 /* Lo secundario se pliega para que la pantalla muestre solo lo esencial. */
 .trl-avanzado {
     margin-top: 1.1rem;
