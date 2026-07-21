@@ -176,6 +176,10 @@
                     </div>
                     
                     <div class="trl-structure-list" data-trl-structure-list></div>
+
+                    {# Lo alimenta JS con los indicadores que la organizacion ya usa
+                       mas un catalogo por nivel, para no dejar el campo en blanco. #}
+                    <datalist id="catalogo-indicadores"></datalist>
                 </div>
                 {% for error in form.objetivo_especifico.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
                 {% for error in form.resultados_esperados.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
@@ -1026,6 +1030,41 @@
             return mode;
         };
         const usesTrlMethodology = () => currentMethodologyValue() === "trl";
+
+        // Catalogo de indicadores: lo que la organizacion ya usa mas sugerencias
+        // por nivel. Evita que el usuario se quede mirando un campo vacio.
+        const datalistIndicadores = document.getElementById("catalogo-indicadores");
+        let ultimaConsultaIndicadores = "";
+        const cargarIndicadoresSugeridos = () => {
+            if (!datalistIndicadores) return;
+            const parametros = new URLSearchParams({ metodologia: currentMethodologyValue() });
+            if (usesTrlMethodology()) {
+                const inicial = document.getElementById("id_trl_inicial");
+                const objetivo = document.getElementById("id_trl_objetivo");
+                if (inicial && inicial.value) parametros.set("trl_inicial", inicial.value);
+                if (objetivo && objetivo.value) parametros.set("trl_objetivo", objetivo.value);
+            }
+            const consulta = parametros.toString();
+            if (consulta === ultimaConsultaIndicadores) return;
+            ultimaConsultaIndicadores = consulta;
+
+            fetch(`/proyectos/indicadores-sugeridos/?${consulta}`)
+                .then((r) => r.ok ? r.json() : Promise.reject(new Error("sin catalogo")))
+                .then((datos) => {
+                    const opciones = [];
+                    (datos.usados || []).forEach((texto) => {
+                        opciones.push(`<option value="${escapeHtml(texto)}">Ya usado en tu organización</option>`);
+                    });
+                    (datos.catalogo || []).forEach((grupo) => {
+                        (grupo.opciones || []).forEach((texto) => {
+                            opciones.push(`<option value="${escapeHtml(texto)}">${escapeHtml(grupo.grupo)}</option>`);
+                        });
+                    });
+                    datalistIndicadores.innerHTML = opciones.join("");
+                })
+                .catch(() => { ultimaConsultaIndicadores = ""; });
+        };
+
         const formatDate = (date) => {
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -1197,41 +1236,53 @@
                         <div class="trl-result-list">
                             ${resultOptions}
                         </div>
-                        <div class="row g-3">
-                            <div class="col-md-7 trl-result-editor__field">
-                                <label class="form-label">Resultado esperado ${activeResultIndex + 1}</label>
-                                <input class="form-control" type="text" value="${escapeHtml(activeResult.descripcion || "")}" data-result-description="${activeObjectiveIndex}" data-result-index="${activeResultIndex}" placeholder="Resultado esperado">
+                        <div class="trl-campo">
+                            <label class="form-label">¿Qué resultado concreto esperas?</label>
+                            <input class="form-control" type="text" value="${escapeHtml(activeResult.descripcion || "")}" data-result-description="${activeObjectiveIndex}" data-result-index="${activeResultIndex}" placeholder="Ej: Prototipo del sensor validado en laboratorio">
+                            <div class="form-text">Algo que se pueda dar por logrado o no logrado, sin ambigüedad.</div>
+                        </div>
+
+                        <div class="trl-campo">
+                            <label class="form-label">¿En cuánto tiempo, desde que parte el proyecto?</label>
+                            <div class="trl-plazo">
+                                <div class="trl-plazo__campo">
+                                    <input class="form-control" type="number" min="0" inputmode="numeric" value="${escapeHtml(activeResult.meses || 0)}" data-result-months="${activeObjectiveIndex}" data-result-index="${activeResultIndex}">
+                                    <span>meses</span>
+                                </div>
+                                <div class="trl-plazo__campo">
+                                    <input class="form-control" type="number" min="0" inputmode="numeric" value="${escapeHtml(activeResult.dias || 0)}" data-result-days="${activeObjectiveIndex}" data-result-index="${activeResultIndex}">
+                                    <span>días</span>
+                                </div>
                             </div>
-                            <div class="col-md-5 trl-result-editor__field">
-                                <label class="form-label">Asociado a objetivo especifico</label>
+                        </div>
+
+                        <div class="trl-indicator-editor">
+                            <div class="trl-campo">
+                                <label class="form-label">¿Cómo vas a comprobar que se logró?</label>
+                                <input class="form-control" type="text" list="catalogo-indicadores"
+                                       value="${escapeHtml(activeIndicator.descripcion || "")}"
+                                       data-indicator-description="${activeObjectiveIndex}" data-result-index="${activeResultIndex}" data-indicator-index="0"
+                                       placeholder="Escribe o elige de la lista">
+                                <div class="form-text">
+                                    <i class="bi bi-list-ul" aria-hidden="true"></i>
+                                    Haz clic en el campo para ver indicadores ya usados en tu organización y sugerencias por nivel.
+                                </div>
+                            </div>
+                        </div>
+
+                        <details class="trl-avanzado">
+                            <summary>Opciones adicionales</summary>
+                            <div class="trl-campo mt-3">
+                                <label class="form-label">Notas o referencia del resultado</label>
+                                <textarea class="form-control" rows="2" data-result-notes="${activeObjectiveIndex}" data-result-index="${activeResultIndex}" placeholder="Opcional: cualquier detalle que ayude a entender este resultado">${escapeHtml(activeResult.observaciones || "")}</textarea>
+                            </div>
+                            <div class="trl-campo">
+                                <label class="form-label">Mover este resultado a otro objetivo</label>
                                 <select class="form-select" data-select-result-objective>
                                     ${objectiveOptions}
                                 </select>
                             </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Meses</label>
-                                <input class="form-control" type="number" min="0" value="${escapeHtml(activeResult.meses || 0)}" data-result-months="${activeObjectiveIndex}" data-result-index="${activeResultIndex}">
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Dias</label>
-                                <input class="form-control" type="number" min="0" value="${escapeHtml(activeResult.dias || 0)}" data-result-days="${activeObjectiveIndex}" data-result-index="${activeResultIndex}">
-                            </div>
-                            <div class="col-md-5 trl-result-editor__field">
-                                <label class="form-label">Resumen o referencia del resultado</label>
-                                <textarea class="form-control" rows="2" data-result-notes="${activeObjectiveIndex}" data-result-index="${activeResultIndex}" placeholder="Observaciones del resultado">${escapeHtml(activeResult.observaciones || "")}</textarea>
-                            </div>
-                        </div>
-                        <div class="trl-indicator-editor">
-                            <div class="row g-3 align-items-end">
-                                <div class="col-12">
-                                    <div class="trl-result-editor__title">Indicador asociado al resultado</div>
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label">Indicador</label>
-                                    <input class="form-control" type="text" value="${escapeHtml(activeIndicator.descripcion || "")}" data-indicator-description="${activeObjectiveIndex}" data-result-index="${activeResultIndex}" data-indicator-index="0">
-                                </div>
-                            </div>
-                        </div>
+                        </details>
                         ${activeObjective.resultados.length > 1 ? `<button class="btn btn-sm btn-outline-danger mt-3" type="button" data-remove-result="${activeResultIndex}">Quitar este resultado</button>` : ""}
                     </div>
                 </div>
@@ -1239,6 +1290,7 @@
             persist();
             syncProjectEndDate();
             syncTrlVisibility();
+            cargarIndicadoresSugeridos();
         };
 
         const syncTrlVisibility = () => {
