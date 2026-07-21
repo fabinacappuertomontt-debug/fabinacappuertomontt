@@ -89,6 +89,39 @@ class AislamientoOrganizacionTests(TestCase):
         self.assertEqual(respuesta.status_code, 200)
         self.assertNotContains(respuesta, "Filamento PLA INACAP")
 
+    def test_los_contadores_de_bienvenida_no_suman_otra_organizacion(self):
+        from datetime import date
+
+        from proyectos.models import Proyecto, Tarea
+
+        proyecto_inacap = Proyecto.objects.create(
+            nombre="Proyecto INACAP",
+            organizacion=self.inacap,
+            sede="puerto_montt",
+            fecha_inicio=date(2026, 1, 1),
+        )
+        Tarea.objects.create(proyecto=proyecto_inacap, nombre="Tarea ajena")
+
+        respuesta = self.client.get(reverse("dashboard"))
+        self.assertEqual(respuesta.status_code, 200)
+        # El usuario de Duoc comparte sede con INACAP, pero no su organizacion.
+        self.assertEqual(respuesta.context["tareas_pendientes"], 0)
+        self.assertEqual(respuesta.context["total_proyectos"], 0)
+
+    def test_el_enlace_de_una_empresa_no_abre_la_sesion_de_otra(self):
+        # Con sesion de Duoc abierta, entrar por la URL de INACAP no debe dejar
+        # pasar: cierra la sesion y muestra el acceso de INACAP.
+        respuesta = self.client.get(
+            reverse("organizacion_login", args=[self.inacap.slug]), follow=True
+        )
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertFalse(respuesta.context["user"].is_authenticated)
+        self.assertContains(respuesta, self.inacap.nombre)
+
+    def test_el_enlace_de_tu_propia_empresa_te_deja_pasar(self):
+        respuesta = self.client.get(reverse("organizacion_login", args=[self.duoc.slug]))
+        self.assertRedirects(respuesta, reverse("dashboard"))
+
     def test_usuario_sin_organizacion_no_ve_datos_de_nadie(self):
         huerfano = Usuario.objects.create_user(
             username="sin-org@test.cl",

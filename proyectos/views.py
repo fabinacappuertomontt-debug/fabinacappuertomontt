@@ -555,7 +555,7 @@ def dashboard(request):
     proyectos = proyectos_de_sede(request.user).prefetch_related("responsables", "tareas", "avances")
     contexto = {
         "total_proyectos": proyectos.count(),
-        "tareas_pendientes": Tarea.objects.filter(proyecto__sede=sede_usuario(request.user)).exclude(estado=Tarea.Estado.COMPLETADA).count(),
+        "tareas_pendientes": Tarea.objects.filter(proyecto__in=proyectos_de_sede(request.user)).exclude(estado=Tarea.Estado.COMPLETADA).count(),
         "proyectos_riesgo": [proyecto for proyecto in proyectos if proyecto.nivel_alerta in {"riesgo", "advertencia"}][:3],
         "es_admin_laboratorio": usuario_es_admin_laboratorio(request.user),
         "total_inventario": inventario_de_sede(request.user).filter(activo=True).count(),
@@ -760,11 +760,11 @@ def panel_general(request):
     contexto = {
         "total_proyectos": proyectos_qs.count(),
         "promedio_avance": proyectos_qs.aggregate(promedio=Avg("porcentaje_avance"))["promedio"] or 0,
-        "tareas_pendientes": Tarea.objects.filter(proyecto__sede=sede_usuario(request.user)).exclude(estado=Tarea.Estado.COMPLETADA).count(),
+        "tareas_pendientes": Tarea.objects.filter(proyecto__in=proyectos_de_sede(request.user)).exclude(estado=Tarea.Estado.COMPLETADA).count(),
         "proyectos_recientes": proyectos_qs[:5],
         "proyectos_riesgo": proyectos_riesgo[:5],
         "proyectos_atrasados": proyectos_atrasados[:5],
-        "ultimos_avances": Avance.objects.filter(proyecto__sede=sede_usuario(request.user)).select_related("proyecto", "responsable")[:5],
+        "ultimos_avances": Avance.objects.filter(proyecto__in=proyectos_de_sede(request.user)).select_related("proyecto", "responsable")[:5],
         "tareas_por_responsable": usuarios_de_sede(request.user).annotate(
             pendientes=Count(
                 "tareas_asignadas",
@@ -1117,9 +1117,21 @@ def cambiar_password_obligatorio(request):
 
 
 def organizacion_login(request, organizacion_slug):
-    if request.user.is_authenticated:
-        return redirect("dashboard")
     organizacion = organizacion_por_slug_login(organizacion_slug)
+
+    if request.user.is_authenticated:
+        # Si la sesion abierta es de esta misma empresa, se sigue de largo.
+        if getattr(request.user, "organizacion_id", None) == organizacion.id:
+            return redirect("dashboard")
+        # Si es de otra empresa, no se puede colar a esa sesion: el enlace del
+        # correo tiene que abrir siempre la puerta de la empresa que nombra.
+        logout(request)
+        messages.info(
+            request,
+            f"Cerramos la sesión anterior porque este acceso es de {organizacion.nombre}.",
+        )
+        return redirect("organizacion_login", organizacion_slug=organizacion_slug)
+
     form = AuthenticationForm(request)
 
     if request.method == "POST":
@@ -1373,8 +1385,8 @@ def perfil_editar(request):
 @login_required
 def usuario_detalle(request, pk):
     usuario = get_object_or_404(usuarios_de_sede(request.user), pk=pk)
-    proyectos = usuario.proyectos_responsable.filter(sede=sede_usuario(request.user))[:8]
-    tareas = usuario.tareas_asignadas.filter(proyecto__sede=sede_usuario(request.user)).exclude(estado=Tarea.Estado.COMPLETADA)[:8]
+    proyectos = usuario.proyectos_responsable.filter(pk__in=proyectos_de_sede(request.user))[:8]
+    tareas = usuario.tareas_asignadas.filter(proyecto__in=proyectos_de_sede(request.user)).exclude(estado=Tarea.Estado.COMPLETADA)[:8]
     return render(
         request,
         "proyectos/usuario_detalle.html",
@@ -3137,7 +3149,7 @@ def analizar_etapa_ia(request, pk, slug):
 @require_POST
 def decidir_revision_ia_etapa(request, pk):
     revision = get_object_or_404(
-        RevisionIAEtapa.objects.select_related("proyecto", "fase").filter(proyecto__sede=sede_usuario(request.user)),
+        RevisionIAEtapa.objects.select_related("proyecto", "fase").filter(proyecto__in=proyectos_de_sede(request.user)),
         pk=pk,
     )
     if not exigir_permiso_edicion_proyecto(request, revision.proyecto):
@@ -3371,7 +3383,7 @@ def inventario_lista(request):
         "alerta_actual": alerta,
         "total_items": inventario_de_sede(request.user).filter(activo=True).count(),
         "total_alertas": alertas.count(),
-        "usos_recientes": UsoInventario.objects.filter(proyecto__sede=sede_usuario(request.user)).select_related("proyecto", "item", "usuario")[:8],
+        "usos_recientes": UsoInventario.objects.filter(proyecto__in=proyectos_de_sede(request.user)).select_related("proyecto", "item", "usuario")[:8],
         "es_admin_laboratorio": usuario_es_admin_laboratorio(request.user),
         "puede_gestionar_inventario": usuario_puede_gestionar_inventario(request.user),
     }
