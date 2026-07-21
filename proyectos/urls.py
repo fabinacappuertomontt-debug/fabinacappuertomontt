@@ -22,6 +22,7 @@ urlpatterns = [
     path("control/organizaciones/<int:pk>/estado/", views.superadmin_organizacion_estado, name="superadmin_organizacion_estado"),
     path("control/organizaciones/<int:pk>/credenciales/", views.superadmin_organizacion_reset_credenciales, name="superadmin_organizacion_reset_credenciales"),
     path("control/organizaciones/<int:pk>/eliminar/", views.superadmin_organizacion_eliminar, name="superadmin_organizacion_eliminar"),
+    path("proyectos/indicadores-sugeridos/", views.indicadores_sugeridos_json, name="indicadores_sugeridos"),
     path("cuenta/cambiar-clave/", views.cambiar_password_obligatorio, name="cambiar_password_obligatorio"),
     path("", views.dashboard, name="dashboard"),
     path("panel/", views.panel_general, name="panel_general"),

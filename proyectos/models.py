@@ -717,6 +717,62 @@ class IndicadorResultado(models.Model):
         return f"Indicador {self.orden} - {self.resultado}"
 
 
+# Indicadores tipicos por nivel, para que nadie se quede mirando un campo vacio
+# sin saber que escribir. Son sugerencias: el equipo puede usarlas tal cual,
+# ajustarlas o escribir la suya.
+INDICADORES_SUGERIDOS_POR_TRL = {
+    1: [
+        "Informe de revision bibliografica con al menos 10 fuentes",
+        "Principio fisico o teorico identificado y documentado",
+    ],
+    2: [
+        "Concepto tecnologico descrito en una ficha tecnica",
+        "Aplicacion potencial definida con su usuario objetivo",
+    ],
+    3: [
+        "Prueba de concepto ejecutada con resultados registrados",
+        "Modelo o simulacion que respalda la factibilidad",
+    ],
+    4: [
+        "Componentes integrados y probados en laboratorio",
+        "Mediciones dentro del rango esperado en 3 ensayos consecutivos",
+        "Protocolo de ensayo de laboratorio documentado",
+    ],
+    5: [
+        "Validacion en entorno relevante con condiciones simuladas",
+        "Desempeno estable durante el periodo de prueba definido",
+        "Registro de fallas y acciones correctivas del periodo",
+    ],
+    6: [
+        "Prototipo completo demostrado fuera del laboratorio",
+        "Cumplimiento de los requisitos criticos definidos al inicio",
+        "Informe de demostracion firmado por la contraparte",
+    ],
+    7: [
+        "Prototipo operando en el lugar de uso final",
+        "Retroalimentacion documentada de usuarios finales reales",
+        "Horas de operacion continua sin intervencion del equipo",
+    ],
+    8: [
+        "Sistema completo probado y calificado segun norma aplicable",
+        "Documentacion tecnica y manual de uso entregados",
+    ],
+    9: [
+        "Sistema en operacion regular con usuarios finales",
+        "Indicadores de uso o produccion sostenidos en el tiempo",
+    ],
+}
+
+# Para proyectos simples, donde no hay niveles de madurez que guien la eleccion.
+INDICADORES_SUGERIDOS_SIMPLES = [
+    "Actividad ejecutada en la fecha comprometida",
+    "Numero de participantes o beneficiarios alcanzados",
+    "Documento o entregable aprobado por la contraparte",
+    "Encuesta de satisfaccion aplicada con resultado registrado",
+    "Presupuesto ejecutado dentro de lo planificado",
+]
+
+
 # Los saltos de entorno son el eje real de la escala TRL: laboratorio, entorno
 # relevante y entorno real. Se muestran junto al campo para que el equipo no
 # confunda "lo probamos en el taller" con "validado en entorno relevante".

@@ -9,6 +9,7 @@ from django.http import FileResponse, Http404, JsonResponse
 from django.db import close_old_connections, transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Avg, Count, F, Q
+from django.db.models.functions import Length
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -62,7 +63,7 @@ from .forms import (
     CarpetaArchivosForm,
 )
 from .gemini_service import analizar_borrador_trl, analizar_etapa_trl, analizar_trl, generar_mesa_trabajo_ia, generar_estructura_proyecto_ia
-from .models import ACTIVIDAD_FASES, ENTORNO_POR_TRL, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Area, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario, MovimientoStock, GrupoChat, Notificacion, SoftwareConfiguracion, CarpetaArchivos, ArchivoAdjunto
+from .models import ACTIVIDAD_FASES, ENTORNO_POR_TRL, INDICADORES_SUGERIDOS_POR_TRL, INDICADORES_SUGERIDOS_SIMPLES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Area, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario, MovimientoStock, GrupoChat, Notificacion, SoftwareConfiguracion, CarpetaArchivos, ArchivoAdjunto
 
 logger = logging.getLogger("proyectos.views")
 
@@ -1089,6 +1090,61 @@ def superadmin_login(request):
 def superadmin_logout(request):
     logout(request)
     return redirect("superadmin_login")
+
+
+@login_required
+def indicadores_sugeridos_json(request):
+    """Indicadores que el usuario puede elegir en vez de inventar uno.
+
+    Primero los que su propia organizacion ya usa, porque reutilizar el mismo
+    indicador entre proyectos es lo que permite compararlos despues. Luego un
+    catalogo por nivel TRL para quien parte de cero.
+    """
+    organizacion = organizacion_usuario(request.user)
+    usados = []
+    if organizacion:
+        # Se ordenan por cuantas veces se usaron: los repetidos son los que de
+        # verdad sirven para comparar proyectos entre si. Se descartan los muy
+        # cortos ("1") y los muy largos, que suelen ser texto pegado por error.
+        usados = list(
+            IndicadorResultado.objects.filter(
+                resultado__objetivo__proyecto__organizacion=organizacion
+            )
+            .annotate(largo=Length("descripcion"))
+            .filter(largo__gte=12, largo__lte=160)
+            .values("descripcion")
+            .annotate(veces=Count("id"))
+            .order_by("-veces", "descripcion")
+            .values_list("descripcion", flat=True)[:30]
+        )
+
+    metodologia = request.GET.get("metodologia", "")
+    if metodologia == Proyecto.Metodologia.SIMPLE:
+        catalogo = [
+            {"grupo": "Sugerencias para proyectos simples", "opciones": INDICADORES_SUGERIDOS_SIMPLES}
+        ]
+    else:
+        try:
+            desde = int(request.GET.get("trl_inicial") or 1)
+            hasta = int(request.GET.get("trl_objetivo") or 9)
+        except ValueError:
+            desde, hasta = 1, 9
+        desde = max(1, min(desde, 9))
+        hasta = max(desde, min(hasta, 9))
+        catalogo = [
+            {
+                "grupo": f"TRL {trl} · {TRL_DESCRIPCIONES.get(trl, '')}",
+                "opciones": INDICADORES_SUGERIDOS_POR_TRL.get(trl, []),
+            }
+            for trl in range(desde, hasta + 1)
+        ]
+
+    return JsonResponse(
+        {
+            "usados": usados,
+            "catalogo": [grupo for grupo in catalogo if grupo["opciones"]],
+        }
+    )
 
 
 @login_required
