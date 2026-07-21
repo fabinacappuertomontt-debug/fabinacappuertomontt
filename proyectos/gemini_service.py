@@ -32,8 +32,23 @@ PLAN_MESA_FALLBACK = {
 }
 
 
+# Se usa cuando el proyecto todavia no tiene organizacion; encaja en las frases
+# "...de [ORGANIZACION]." sin nombrar a ninguna empresa.
+MARCA_NEUTRA = "la organizacion usuaria"
+
+
+def _con_marca(plantilla, organizacion=None):
+    """Sustituye [ORGANIZACION] por el nombre real de la empresa.
+
+    Se usa replace y no format porque las plantillas llevan llaves literales
+    con los ejemplos de JSON que debe devolver el modelo.
+    """
+    nombre = (getattr(organizacion, "nombre", "") or "").strip() or MARCA_NEUTRA
+    return plantilla.replace("[ORGANIZACION]", nombre)
+
+
 TRL_CONTEXTO = """
-Eres un asistente IA integrado en una plataforma Django de seguimiento de proyectos Crea INACAP Puerto Montt.
+Eres un asistente IA integrado en la plataforma de seguimiento de proyectos de [ORGANIZACION].
 Tu objetivo es orientar, no decidir automaticamente.
 
 La pagina gestiona proyectos simples y proyectos con TRL.
@@ -92,7 +107,7 @@ Responde siempre en JSON valido con estas claves:
 
 
 ETAPA_IA_CONTEXTO = """
-Eres un revisor tecnico IA dentro de una plataforma Django de proyectos Crea INACAP Puerto Montt.
+Eres un revisor tecnico IA dentro de la plataforma de proyectos de [ORGANIZACION].
 Tu tarea es revisar una etapa de trabajo usando criterios, avances, evidencias, tareas y observaciones.
 No puedes aprobar automaticamente ni modificar el proyecto. Solo recomiendas.
 
@@ -113,7 +128,7 @@ Responde siempre en JSON valido con estas claves:
 
 
 MESA_TRABAJO_CONTEXTO = """
-Eres un planificador técnico IA para una plataforma Django de seguimiento de proyectos de Crea INACAP.
+Eres un planificador técnico IA para la plataforma de seguimiento de proyectos de [ORGANIZACION].
 El usuario ya completó el proyecto con su nombre, descripción, objetivo principal, objetivos específicos y resultados esperados. Tu tarea es generar la ruta de trabajo personalizada (las fases o etapas de desarrollo) y las tareas para la mesa de trabajo.
 
 Reglas obligatorias:
@@ -710,14 +725,15 @@ def _resumen_proyecto_modelo(proyecto):
 
 def analizar_trl(proyecto):
     resumen = _resumen_proyecto_modelo(proyecto)
-    prompt = f"{TRL_CONTEXTO}\n\nAnaliza este proyecto real del sistema:\n{json.dumps(resumen, ensure_ascii=False, indent=2)}"
+    contexto = _con_marca(TRL_CONTEXTO, getattr(proyecto, "organizacion", None))
+    prompt = f"{contexto}\n\nAnaliza este proyecto real del sistema:\n{json.dumps(resumen, ensure_ascii=False, indent=2)}"
     respuesta = _llamar_gemini(prompt)
     if _respuesta_fallo_trl(respuesta):
         respuesta = _llamar_groq(prompt)
     return respuesta
 
 
-def analizar_borrador_trl(datos):
+def analizar_borrador_trl(datos, organizacion=None):
     pregunta = str(datos.get("mensaje") or "").strip()
     metodologia = str(datos.get("metodologia") or "").strip().lower()
 
@@ -731,15 +747,17 @@ def analizar_borrador_trl(datos):
             "su proyecto o pide explicitamente completarlo, DEBES generar la estructura de 'formulario_sugerido' "
             "siguiendo el esquema especificado en el contexto, adaptandola a la metodologia elegida."
         )
-    prompt = f"{TRL_CONTEXTO}\n\n{instruccion}\n{json.dumps(datos, ensure_ascii=False, indent=2)}"
+    contexto = _con_marca(TRL_CONTEXTO, organizacion)
+    prompt = f"{contexto}\n\n{instruccion}\n{json.dumps(datos, ensure_ascii=False, indent=2)}"
     respuesta = _llamar_gemini(prompt)
     if _respuesta_fallo_trl(respuesta):
         respuesta = _llamar_groq(prompt)
     return respuesta
 
 
-def analizar_etapa_trl(datos):
-    prompt = f"{ETAPA_IA_CONTEXTO}\n\nAnaliza esta etapa real del sistema:\n{json.dumps(datos, ensure_ascii=False, indent=2)}"
+def analizar_etapa_trl(datos, organizacion=None):
+    contexto = _con_marca(ETAPA_IA_CONTEXTO, organizacion)
+    prompt = f"{contexto}\n\nAnaliza esta etapa real del sistema:\n{json.dumps(datos, ensure_ascii=False, indent=2)}"
     respuesta = _llamar_gemini_etapa(prompt)
     if _respuesta_fallo_etapa(respuesta):
         respuesta = _llamar_groq_etapa(prompt)
@@ -749,7 +767,8 @@ def analizar_etapa_trl(datos):
 def generar_mesa_trabajo_ia(proyecto, fases_validas):
     resumen = _resumen_proyecto_modelo(proyecto)
     resumen["fases_disponibles"] = list(fases_validas)
-    prompt = f"{MESA_TRABAJO_CONTEXTO}\n\nCrea la mesa de trabajo inicial para este proyecto:\n{json.dumps(resumen, ensure_ascii=False, indent=2)}"
+    contexto = _con_marca(MESA_TRABAJO_CONTEXTO, getattr(proyecto, "organizacion", None))
+    prompt = f"{contexto}\n\nCrea la mesa de trabajo inicial para este proyecto:\n{json.dumps(resumen, ensure_ascii=False, indent=2)}"
     logger.info("[IA] Generando mesa para proyecto %s (fases: %s)", proyecto.pk, fases_validas)
     plan = _llamar_gemini_mesa(prompt, fases_validas)
     if not plan.get("ok"):
@@ -769,7 +788,7 @@ def generar_mesa_trabajo_ia(proyecto, fases_validas):
 # ──────────────────────────────────────────────────────────────────────────────
 
 ESTRUCTURA_PROYECTO_CONTEXTO = """
-Eres un planificador académico IA para la plataforma Crea INACAP Puerto Montt.
+Eres un planificador académico IA para la plataforma de [ORGANIZACION].
 Tu tarea es crear la estructura de objetivos específicos, resultados esperados e indicadores
 para un proyecto que acaba de ser registrado en el sistema.
 
@@ -874,8 +893,9 @@ def generar_estructura_proyecto_ia(proyecto):
         "trl_objetivo": proyecto.trl_objetivo if proyecto.usa_trl else None,
         "duracion_meses_estimada": duracion_meses,
     }
+    contexto = _con_marca(ESTRUCTURA_PROYECTO_CONTEXTO, getattr(proyecto, "organizacion", None))
     prompt = (
-        f"{ESTRUCTURA_PROYECTO_CONTEXTO}\n\n"
+        f"{contexto}\n\n"
         f"Proyecto a estructurar:\n{json.dumps(resumen, ensure_ascii=False, indent=2)}"
     )
 
@@ -918,7 +938,7 @@ def generar_estructura_proyecto_ia(proyecto):
 # ──────────────────────────────────────────────────────────────────────────────
 
 TAREAS_ETAPA_CONTEXTO = """
-Eres un planificador técnico IA para la plataforma de proyectos Crea INACAP.
+Eres un planificador técnico IA para la plataforma de proyectos de [ORGANIZACION].
 Tu tarea es generar sugerencias de tareas concretas y de corta duración para una fase de trabajo específica de un proyecto.
 
 Proyecto:
@@ -945,7 +965,7 @@ Responde únicamente en formato JSON con la siguiente estructura exacta:
 """
 
 def generar_tareas_etapa_ia(proyecto, fase):
-    prompt = TAREAS_ETAPA_CONTEXTO.format(
+    prompt = _con_marca(TAREAS_ETAPA_CONTEXTO, getattr(proyecto, "organizacion", None)).format(
         nombre_proyecto=proyecto.nombre,
         descripcion_proyecto=proyecto.descripcion,
         objetivo_principal=proyecto.objetivo_principal,

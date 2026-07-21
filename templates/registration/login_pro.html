@@ -4,20 +4,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Crea INACAP Puerto Montt | Iniciar sesion</title>
-  <link rel="icon" type="image/svg+xml" href="{% static 'img/inacap-favicon.svg' %}">
-  <link rel="shortcut icon" type="image/svg+xml" href="{% static 'img/inacap-favicon.svg' %}">
+  <title>TrackFlow | Iniciar sesion</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon-plataforma.svg' %}">
+  <link rel="shortcut icon" type="image/svg+xml" href="{% static 'img/favicon-plataforma.svg' %}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=20260525-login-inacap">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=20260721-whitelabel">
 </head>
 <body>
 <div class="login-pro-shell">
   <section class="login-pro-story" aria-label="Presentacion institucional">
     <div class="login-pro-story-top">
-      <img src="https://portal.inacap.cl/documents/d/guest/logofooter60a" alt="INACAP">
-      <span>Crea INACAP Puerto Montt</span>
+      <img src="{% static 'img/favicon-plataforma.svg' %}" alt="TrackFlow">
+      <span>TrackFlow</span>
     </div>
 
     <div class="login-pro-story-main">
@@ -36,14 +36,14 @@
           <span>Revision orientativa</span>
         </article>
         <article>
-          <strong>Crea INACAP</strong>
+          <strong>TrackFlow</strong>
           <span>Puerto Montt</span>
         </article>
       </div>
     </div>
 
     <div class="login-pro-story-foot">
-      <span>Inspirado en el trabajo institucional de INACAP con datos, territorio y toma de decisiones.</span>
+      <span>Pensado para el trabajo institucional con datos, territorio y toma de decisiones.</span>
     </div>
   </section>
 
@@ -53,7 +53,7 @@
         <i class="bi bi-kanban-fill" aria-hidden="true"></i>
       </div>
       <h2 class="login-pro-brand">Acceso interno</h2>
-      <p class="login-pro-sub">Seguimiento de proyectos Crea INACAP</p>
+      <p class="login-pro-sub">Seguimiento de proyectos</p>
     </div>
 
     {% if form.errors %}
@@ -74,7 +74,7 @@
           type="text"
           id="id_username"
           name="username"
-          placeholder="nombre@inacapmail.cl"
+          placeholder="nombre@empresa.cl"
           autocomplete="username"
           autofocus
           required
@@ -101,7 +101,7 @@
     </form>
 
     <p class="login-pro-footer">
-      &copy; {% now "Y" %} Crea INACAP Puerto Montt. Uso interno.
+      &copy; {% now "Y" %} TrackFlow. Todos los derechos reservados.
     </p>
   </section>
 </div>

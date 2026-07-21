@@ -26,10 +26,10 @@
 
     <section class="welcome-hero">
         <div class="welcome-copy">
-            <span class="eyebrow">INACAP Puerto Montt</span>
+            <span class="eyebrow">{{ user.organizacion.nombre|default:"Plataforma TRL" }}</span>
             <h1>Bienvenido, {{ user.nombre|default:user.username }}</h1>
             <p>
-                Este espacio reune el seguimiento academico de Crea INACAP: proyectos, tareas, avances,
+                Este espacio reune el seguimiento de {{ user.organizacion.nombre|default:"tu organizacion" }}: proyectos, tareas, avances,
                 evidencias, observaciones e inventario del laboratorio en un solo lugar.
             </p>
         </div>
@@ -128,7 +128,7 @@
             <div class="welcome-help-grid">
                 <article class="welcome-help-card">
                     <strong>Vista general</strong>
-                    <p>La plataforma organiza el trabajo de Crea INACAP en proyectos, tareas, avances, observaciones, evidencias e inventario. Cada proyecto tiene responsables, fechas, estado y porcentaje de avance.</p>
+                    <p>La plataforma organiza el trabajo de {{ user.organizacion.nombre|default:"tu organizacion" }} en proyectos, tareas, avances, observaciones, evidencias e inventario. Cada proyecto tiene responsables, fechas, estado y porcentaje de avance.</p>
                 </article>
                 <article class="welcome-help-card">
                     <strong>Proyecto simple</strong>

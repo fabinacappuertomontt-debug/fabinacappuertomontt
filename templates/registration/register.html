@@ -8,11 +8,11 @@
     <section class="login-intro">
         <div class="login-brand-row">
             <span class="login-logo-mark">F</span>
-            <span id="registro-titulo-sede">Crea INACAP Puerto Montt</span>
+            <span id="registro-titulo-sede">Plataforma TRL</span>
         </div>
         <span class="eyebrow">Registro institucional</span>
         <h1>Crear acceso por sede y área</h1>
-        <p>Los correos INACAP se verifican con código. Cada cuenta queda asociada a su área para mantener separados usuarios y proyectos.</p>
+        <p>Los correos de dominio institucional se verifican con código. Cada cuenta queda asociada a su área para mantener separados usuarios y proyectos.</p>
         <figure class="login-campus">
             <img src="https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1200&q=80" alt="Equipo revisando planificación de proyecto">
             <figcaption>
@@ -22,7 +22,7 @@
         </figure>
         <div class="login-feature-grid">
             <article><strong>@</strong><span>Correo laboral</span></article>
-            <article><strong id="login-feature-sede">Crea INACAP</strong><span>Aprobacion externa</span></article>
+            <article><strong id="login-feature-sede">Plataforma TRL</strong><span>Aprobacion externa</span></article>
             <article><strong>ÁREA</strong><span>Equipo asignado</span></article>
         </div>
     </section>
@@ -31,7 +31,7 @@
             <div class="card-body">
                 <span class="eyebrow">Nuevo usuario</span>
                 <h2>Registrarse</h2>
-                <p>Si tu correo no es INACAP, el equipo Crea INACAP revisara la solicitud antes de activar tu cuenta.</p>
+                <p>Si tu correo no pertenece a un dominio institucional registrado, el equipo revisara la solicitud antes de activar tu cuenta.</p>
                 <form method="post" id="registro-form">
                     {% csrf_token %}
                     {{ form.non_field_errors }}
@@ -78,10 +78,7 @@
     var tituloSede   = document.getElementById('registro-titulo-sede');
     var featureSede  = document.getElementById('login-feature-sede');
 
-    var nombresOrg = {
-        'puerto_montt': 'Crea INACAP Puerto Montt',
-        'osorno':       'Crea INACAP Osorno',
-    };
+    var nombresOrg = {};
 
     function actualizarAreas(sede, valorActual) {
         fetch('/registro/areas/?sede=' + encodeURIComponent(sede))
@@ -99,13 +96,15 @@
                 data.areas.forEach(function (a) {
                     var opt = document.createElement('option');
                     opt.value = a.id;
-                    opt.textContent = a.nombre;
+                    // Se antepone la empresa: distintas empresas pueden tener areas
+                    // con el mismo nombre.
+                    opt.textContent = a.organizacion ? a.organizacion + ' · ' + a.nombre : a.nombre;
                     if (String(a.id) === String(valorActual)) opt.selected = true;
                     areaSelect.appendChild(opt);
                 });
 
                 // Actualizar textos decorativos
-                var nombre = nombresOrg[sede] || 'Crea INACAP';
+                var nombre = nombresOrg[sede] || 'Plataforma TRL';
                 if (tituloSede)  tituloSede.textContent  = nombre;
                 if (featureSede) featureSede.textContent = nombre;
             })
