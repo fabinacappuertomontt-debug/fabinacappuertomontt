@@ -177,8 +177,7 @@
                     
                     <div class="trl-structure-list" data-trl-structure-list></div>
 
-                    {# Lo alimenta JS con los indicadores que la organizacion ya usa
-                       mas un catalogo por nivel, para no dejar el campo en blanco. #}
+                    {# Lo alimenta JS con las sugerencias por nivel TRL. #}
                     <datalist id="catalogo-indicadores"></datalist>
                 </div>
                 {% for error in form.objetivo_especifico.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
