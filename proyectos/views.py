@@ -62,7 +62,7 @@ from .forms import (
     CarpetaArchivosForm,
 )
 from .gemini_service import analizar_borrador_trl, analizar_etapa_trl, analizar_trl, generar_mesa_trabajo_ia, generar_estructura_proyecto_ia
-from .models import ACTIVIDAD_FASES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Area, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario, MovimientoStock, GrupoChat, Notificacion, SoftwareConfiguracion, CarpetaArchivos, ArchivoAdjunto
+from .models import ACTIVIDAD_FASES, ENTORNO_POR_TRL, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Area, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario, MovimientoStock, GrupoChat, Notificacion, SoftwareConfiguracion, CarpetaArchivos, ArchivoAdjunto
 
 logger = logging.getLogger("proyectos.views")
 
@@ -2601,6 +2601,10 @@ def datos_revision_ia_etapa(proyecto, etapa, fase, tareas, avances, evidencias, 
             "objetivo": fase.objetivo,
             "estado": fase.get_estado_display(),
             "trabajo_realizado": fase.realizado,
+            # El entorno es lo que distingue un nivel TRL del siguiente, asi que
+            # la IA necesita verlo para poder cuestionarlo.
+            "entorno_validacion": fase.entorno_validacion,
+            "entorno_que_exige_este_nivel": ENTORNO_POR_TRL.get(fase.trl, ""),
             "trl": fase.trl if proyecto.usa_trl else "",
         } if fase else {},
         "siguiente_paso_sistema": {
@@ -3007,6 +3011,7 @@ def proyecto_trabajo(request, pk):
         "alertas_inventario": inventario_de_sede(request.user).filter(activo=True, tipo=ItemInventario.Tipo.FUNGIBLE, cantidad__isnull=False, cantidad__lte=F("stock_minimo"))[:5],
         "objetivos_trl": estructura_trl_proyecto(proyecto),
         "trl_bloqueado": proyecto.trl_bloqueado_por_falta_de_resultados,
+        "trl_sin_evidencia": proyecto.trl_bloqueado_por_falta_de_evidencia,
         "es_admin_laboratorio": usuario_es_admin_laboratorio(request.user),
         "puede_editar_proyecto": usuario_puede_editar_proyecto(request.user, proyecto),
     }
@@ -3314,6 +3319,7 @@ def fase_detalle(request, pk):
             "fase": fase,
             "proyecto": fase.proyecto,
             "form": form,
+            "entorno_exigido": ENTORNO_POR_TRL.get(fase.trl) if fase.proyecto.usa_trl else None,
         },
     )
 

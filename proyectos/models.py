@@ -131,6 +131,13 @@ class Organizacion(models.Model):
         blank=True,
         null=True,
     )
+    exige_evidencia_trl = models.BooleanField(
+        default=False,
+        help_text=(
+            "Si se activa, un nivel TRL solo se da por alcanzado cuando existe al menos "
+            "una evidencia cargada en esa etapa. El nivel deja de auto-declararse."
+        ),
+    )
     activa = models.BooleanField(default=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
@@ -461,6 +468,17 @@ class Proyecto(models.Model):
     def resultados_trl(self):
         return ResultadoEsperado.objects.filter(objetivo__proyecto=self).select_related("objetivo").prefetch_related("indicadores")
 
+    @property
+    def exige_evidencia_trl(self):
+        return bool(getattr(self.organizacion, "exige_evidencia_trl", False))
+
+    @property
+    def niveles_trl_con_evidencia(self):
+        """Niveles TRL que tienen al menos una evidencia cargada en su etapa."""
+        return set(
+            self.evidencias.filter(fase__isnull=False).values_list("fase__trl", flat=True)
+        )
+
     def calcular_trl_desde_resultados(self):
         if not self.usa_trl:
             return 0
@@ -468,15 +486,34 @@ class Proyecto(models.Model):
         resultados_por_trl = {}
         for resultado in self.resultados_trl:
             resultados_por_trl.setdefault(resultado.trl_objetivo, []).append(resultado)
+        # Marcar indicadores es una declaracion del propio equipo. Cuando la
+        # organizacion lo exige, ademas tiene que haber evidencia cargada: el
+        # nivel se demuestra, no se declara.
+        exige_evidencia = self.exige_evidencia_trl
+        con_evidencia = self.niveles_trl_con_evidencia if exige_evidencia else set()
         for trl in range(self.trl_inicial_efectivo + 1, self.trl_objetivo_efectivo + 1):
             resultados_nivel = resultados_por_trl.get(trl, [])
             if not resultados_nivel:
                 break
-            if all(resultado.esta_cumplido for resultado in resultados_nivel):
-                nivel = trl
-            else:
+            if not all(resultado.esta_cumplido for resultado in resultados_nivel):
                 break
+            if exige_evidencia and trl not in con_evidencia:
+                break
+            nivel = trl
         return nivel
+
+    @property
+    def trl_bloqueado_por_falta_de_evidencia(self):
+        """Nivel que tiene sus indicadores listos pero aun no tiene evidencia."""
+        if not self.usa_trl or not self.exige_evidencia_trl:
+            return None
+        siguiente = self.nivel_actual + 1
+        if siguiente > self.trl_objetivo_efectivo:
+            return None
+        resultados = [r for r in self.resultados_trl if r.trl_objetivo == siguiente]
+        if not resultados or not all(r.esta_cumplido for r in resultados):
+            return None
+        return siguiente if siguiente not in self.niveles_trl_con_evidencia else None
 
     @property
     def niveles_trl_sin_resultados(self):
@@ -680,6 +717,17 @@ class IndicadorResultado(models.Model):
         return f"Indicador {self.orden} - {self.resultado}"
 
 
+# Los saltos de entorno son el eje real de la escala TRL: laboratorio, entorno
+# relevante y entorno real. Se muestran junto al campo para que el equipo no
+# confunda "lo probamos en el taller" con "validado en entorno relevante".
+ENTORNO_POR_TRL = {
+    4: "Laboratorio: componentes integrados y probados en condiciones controladas.",
+    5: "Entorno relevante: condiciones que simulan las reales en lo esencial, no el laboratorio.",
+    6: "Entorno relevante: prototipo completo demostrado fuera del laboratorio.",
+    7: "Entorno real: el sistema funcionando en el lugar y las condiciones de uso final.",
+}
+
+
 class FaseProyecto(models.Model):
     class Estado(models.TextChoices):
         PENDIENTE = "pendiente", "Pendiente"
@@ -695,6 +743,13 @@ class FaseProyecto(models.Model):
     nombre = models.CharField(max_length=200)
     objetivo = models.TextField()
     evidencias_sugeridas = models.JSONField(default=list, blank=True)
+    entorno_validacion = models.TextField(
+        blank=True,
+        help_text=(
+            "Dónde se validó realmente. Es lo que separa un nivel TRL del siguiente "
+            "y donde más se confunde la gente: un taller propio no es un entorno real."
+        ),
+    )
     realizado = models.TextField(blank=True)
     estado = models.CharField(
         max_length=20,

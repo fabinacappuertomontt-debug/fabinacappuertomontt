@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 
-from .models import Area, Avance, Evidencia, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Observacion, Organizacion, Proyecto, ResultadoEsperado, Tarea, TRL_DEFINICIONES, UsoInventario, Usuario, sumar_meses_y_dias, MovimientoStock, SoftwareConfiguracion, CarpetaArchivos
+from .models import ENTORNO_POR_TRL, Area, Avance, Evidencia, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Observacion, Organizacion, Proyecto, ResultadoEsperado, Tarea, TRL_DEFINICIONES, UsoInventario, Usuario, sumar_meses_y_dias, MovimientoStock, SoftwareConfiguracion, CarpetaArchivos
 
 
 
@@ -383,6 +383,13 @@ class FaseProyectoForm(BootstrapFormMixin, forms.ModelForm):
         if self.instance.pk and self.instance.proyecto.usa_trl:
             self.fields["estado"].disabled = True
             self.fields["estado"].help_text = "El estado del TRL ahora se calcula automaticamente segun resultados e indicadores."
+        # A partir de TRL 4 la definicion oficial depende del entorno, asi que se
+        # muestra cual corresponde a este nivel en concreto.
+        definicion = ENTORNO_POR_TRL.get(getattr(self.instance, "trl", None))
+        if definicion:
+            self.fields["entorno_validacion"].help_text = definicion
+        elif "entorno_validacion" in self.fields:
+            self.fields.pop("entorno_validacion")
 
     def clean(self):
         cleaned_data = super().clean()
@@ -402,12 +409,14 @@ class FaseProyectoForm(BootstrapFormMixin, forms.ModelForm):
 
     class Meta:
         model = FaseProyecto
-        fields = ["estado", "realizado"]
+        fields = ["estado", "realizado", "entorno_validacion"]
         labels = {
             "realizado": "Qué se hizo en esta fase",
+            "entorno_validacion": "¿Dónde se validó?",
         }
         widgets = {
             "realizado": forms.Textarea(attrs={"rows": 5}),
+            "entorno_validacion": forms.Textarea(attrs={"rows": 3}),
         }
 
 
@@ -635,10 +644,11 @@ class OrganizacionBaseSuperadminForm(BootstrapFormMixin, forms.ModelForm):
             self.fields[field_name].widget = forms.TextInput(
                 attrs={"type": "color", "class": "form-control form-control-color"}
             )
-        if "activa" in self.fields:
-            # BootstrapFormMixin ya puso form-control con setdefault, y en Bootstrap 5
-            # eso dibuja el checkbox como una caja enorme. Hay que sobrescribirlo.
-            self.fields["activa"].widget.attrs["class"] = "form-check-input"
+        for casilla in ["activa", "exige_evidencia_trl"]:
+            if casilla in self.fields:
+                # BootstrapFormMixin ya puso form-control con setdefault, y en Bootstrap 5
+                # eso dibuja el checkbox como una caja enorme. Hay que sobrescribirlo.
+                self.fields[casilla].widget.attrs["class"] = "form-check-input"
 
     def clean_dominio_correo(self):
         return (self.cleaned_data.get("dominio_correo") or "").strip().lower().lstrip("@")
@@ -680,7 +690,7 @@ class OrganizacionSuperadminEditForm(OrganizacionBaseSuperadminForm):
     """Edicion de una empresa existente. El encargado se gestiona aparte."""
 
     class Meta(OrganizacionBaseSuperadminForm.Meta):
-        fields = OrganizacionBaseSuperadminForm.Meta.fields + ["activa"]
+        fields = OrganizacionBaseSuperadminForm.Meta.fields + ["exige_evidencia_trl", "activa"]
 
 
 class SuperadminLoginForm(forms.Form):

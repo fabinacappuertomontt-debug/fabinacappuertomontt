@@ -53,6 +53,24 @@
         {% endif %}
     </div>
 
+    {% if form.exige_evidencia_trl %}
+        <div class="panel-card mb-4">
+            <div class="section-title"><h2>Rigor metodológico</h2></div>
+            <div class="form-check">
+                {{ form.exige_evidencia_trl }}
+                <label class="form-check-label fw-bold" for="{{ form.exige_evidencia_trl.id_for_label }}">
+                    Exigir evidencia para subir de nivel TRL
+                </label>
+                <div class="form-text">
+                    Sin esto, un equipo alcanza un nivel TRL marcando casillas. Con esto activado,
+                    además debe haber al menos una evidencia cargada en esa etapa: el nivel se
+                    demuestra en vez de declararse.
+                </div>
+                {% for error in form.exige_evidencia_trl.errors %}<div class="text-danger small fw-bold">{{ error }}</div>{% endfor %}
+            </div>
+        </div>
+    {% endif %}
+
     {% if modo != 'editar' %}
         <div class="panel-card mb-4">
             <div class="section-title"><h2>Encargado</h2></div>

@@ -27,6 +27,16 @@
         </div>
     </header>
 
+    {% if trl_sin_evidencia %}
+        <div class="alert alert-info rounded-4">
+            <strong>TRL {{ trl_sin_evidencia }} tiene sus indicadores completos, pero falta la evidencia.</strong>
+            <p class="mb-0 mt-1">
+                {{ proyecto.organizacion.nombre }} exige respaldar cada nivel: sube al menos una evidencia
+                en la etapa TRL {{ trl_sin_evidencia }} y el nivel avanzará solo.
+            </p>
+        </div>
+    {% endif %}
+
     {% if trl_bloqueado %}
         <div class="alert alert-warning rounded-4">
             <strong>El nivel TRL no puede avanzar: falta definir resultados para TRL {{ trl_bloqueado }}.</strong>

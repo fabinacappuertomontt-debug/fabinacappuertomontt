@@ -116,6 +116,17 @@ Evalua si la etapa tiene evidencia suficiente para sugerir avanzar al siguiente 
 Si falta evidencia, avances, tareas o coherencia con el criterio, recomienda no avanzar todavia.
 La decision final siempre la toma una persona responsable.
 
+Presta especial atencion al entorno de validacion, que es lo que separa un nivel TRL
+del siguiente y donde mas se equivocan los equipos. Compara "entorno_validacion" con
+"entorno_que_exige_este_nivel" y se exigente:
+- Un taller, banco de pruebas o laboratorio propio NO es un entorno relevante.
+- Un entorno relevante simula las condiciones reales en lo esencial (temperatura,
+  vibracion, usuarios reales, carga, interferencias), no solo el funcionamiento.
+- Un entorno real es el lugar y las condiciones de uso final, con usuarios finales.
+Si el entorno declarado no alcanza el nivel, dilo explicitamente en "faltantes" y
+recomienda no avanzar, por muy completos que esten los indicadores.
+Si no se declaro ningun entorno y el nivel lo requiere, pidelo antes de opinar.
+
 Responde siempre en JSON valido con estas claves:
 {
   "trl_sugerido": "",

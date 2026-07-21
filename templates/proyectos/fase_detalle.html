@@ -25,7 +25,22 @@
             {% else %}
                 <p class="text-muted">Aún no se registra evidencia o trabajo realizado para justificar esta fase.</p>
             {% endif %}
-            <p class="text-muted mb-0">Última actualización: {{ fase.fecha_actualizacion }}</p>
+
+            {% if entorno_exigido %}
+                <h3 class="h6 mt-4">Dónde se validó</h3>
+                {% if fase.entorno_validacion %}
+                    <p>{{ fase.entorno_validacion }}</p>
+                {% else %}
+                    <p class="text-warning fw-bold mb-1">
+                        <i class="bi bi-exclamation-triangle"></i> Falta declarar el entorno de validación.
+                    </p>
+                {% endif %}
+                <p class="text-muted small mb-0">
+                    <strong>Este nivel exige:</strong> {{ entorno_exigido }}
+                </p>
+            {% endif %}
+
+            <p class="text-muted mb-0 mt-3">Última actualización: {{ fase.fecha_actualizacion }}</p>
         </section>
     </div>
     <div class="col-lg-5">
