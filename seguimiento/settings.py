@@ -130,6 +130,11 @@ GEMINI_MODEL_PRO = os.getenv("GEMINI_MODEL_PRO", "gemini-2.5-pro")    # Para gen
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 AI_TIMEOUT_SECONDS = int(os.getenv("AI_TIMEOUT_SECONDS", "25"))
+# Tokens de razonamiento de Gemini 2.5. En 0 el modelo responde casi al doble de
+# rapido y para un JSON de esquema fijo no se pierde calidad; la generacion
+# pesada corre en segundo plano y si lo aprovecha.
+AI_THINKING_BUDGET_RAPIDO = int(os.getenv("AI_THINKING_BUDGET_RAPIDO", "0"))
+AI_THINKING_BUDGET_PESADO = int(os.getenv("AI_THINKING_BUDGET_PESADO", "1024"))
 
 # Seguridad SSL/HTTPS en Azure
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

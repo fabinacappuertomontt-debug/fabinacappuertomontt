@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import urllib.error
 import urllib.request
 
@@ -306,6 +307,21 @@ def _normalizar_formulario_sugerido(datos):
     }
 
 
+def _nivel_trl(valor):
+    """Deja el nivel TRL como un numero en texto: "4".
+
+    El modelo responde a veces 4 y otras "TRL 4: Validacion en laboratorio",
+    asi que la interfaz mostraba las dos formas para el mismo campo.
+    """
+    if valor in (None, ""):
+        return ""
+    coincidencia = re.search(r"\d+", str(valor))
+    if not coincidencia:
+        return ""
+    nivel = int(coincidencia.group())
+    return str(nivel) if 1 <= nivel <= 9 else ""
+
+
 def _normalizar_respuesta(datos):
     if not isinstance(datos, dict):
         return RESPUESTA_FALLBACK.copy()
@@ -315,7 +331,7 @@ def _normalizar_respuesta(datos):
     if not isinstance(tareas, list):
         tareas = []
     res = {
-        "trl_estimado": str(datos.get("trl_estimado", "")).strip(),
+        "trl_estimado": _nivel_trl(datos.get("trl_estimado")),
         "justificacion": str(datos.get("justificacion", "")).strip(),
         "recomendaciones": str(datos.get("recomendaciones", "")).strip(),
         "tareas_sugeridas": [str(tarea).strip() for tarea in tareas if str(tarea).strip()],
@@ -342,7 +358,7 @@ def _normalizar_respuesta_etapa(datos):
         recomienda = recomienda.strip().lower() in {"1", "true", "si", "sí", "yes", "recomienda", "avanzar"}
 
     return {
-        "trl_sugerido": str(datos.get("trl_sugerido", "")).strip(),
+        "trl_sugerido": _nivel_trl(datos.get("trl_sugerido")),
         "recomienda_avanzar": bool(recomienda),
         "confianza": str(datos.get("confianza", "")).strip(),
         "justificacion": str(datos.get("justificacion", "")).strip(),
@@ -468,39 +484,82 @@ def _respuesta_fallo_etapa(respuesta):
     )
 
 
-def _llamar_gemini(prompt):
+class _SinCuotaGemini(Exception):
+    """El modelo agoto su cuota. Conviene reintentar con uno mas liviano."""
+
+
+def _presupuesto_razonamiento(rapido):
+    """Tokens de razonamiento que se le permiten al modelo.
+
+    Gemini 2.5 razona por defecto y en estas tareas eso duplica la espera sin
+    mejorar un JSON de esquema fijo: medido, 16s con razonamiento contra 7,6s
+    sin el, con la misma salida. Las respuestas que el usuario espera mirando
+    la pantalla van sin razonar; la generacion pesada, que corre en segundo
+    plano, si lo conserva.
+    """
+    if rapido:
+        return int(getattr(settings, "AI_THINKING_BUDGET_RAPIDO", 0))
+    return int(getattr(settings, "AI_THINKING_BUDGET_PESADO", 1024))
+
+
+def _pedir_texto_gemini(prompt, modelo, temperature, rapido):
+    """Una llamada a Gemini. Devuelve el texto crudo del modelo.
+
+    Lanza _SinCuotaGemini con HTTP 429 para que quien llama pueda degradar a un
+    modelo mas liviano en vez de irse directo al respaldo.
+    """
     api_key = getattr(settings, "GEMINI_API_KEY", "")
     if not api_key:
-        return RESPUESTA_FALLBACK.copy()
+        raise ValueError("Falta GEMINI_API_KEY")
 
-    model = getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": prompt},
-                ]
-            }
-        ],
+        "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
-            "temperature": 0.2,
+            "temperature": temperature,
             "responseMimeType": "application/json",
+            "thinkingConfig": {"thinkingBudget": _presupuesto_razonamiento(rapido)},
         },
     }
     request = urllib.request.Request(
-        url,
+        f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent",
         data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "x-goog-api-key": api_key,
-        },
+        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
         method="POST",
     )
     try:
         with urllib.request.urlopen(request, timeout=_timeout_ia()) as response:
             raw = response.read().decode("utf-8")
-    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+    except urllib.error.HTTPError as exc:
+        if exc.code == 429:
+            raise _SinCuotaGemini(f"{modelo} sin cuota") from exc
+        raise
+    return _extraer_texto_gemini(json.loads(raw))
+
+
+def _texto_gemini(prompt, temperature=0.2, rapido=True, pesado=False):
+    """Pide texto a Gemini degradando de modelo si se acaba la cuota.
+
+    El plan gratuito agota gemini-2.5-pro mucho antes que flash, y caer al
+    respaldo de Groq baja bastante la calidad. Antes de eso se intenta con
+    flash, que sigue siendo un modelo de la misma familia.
+    """
+    liviano = getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash")
+    modelos = [getattr(settings, "GEMINI_MODEL_PRO", "gemini-2.5-pro"), liviano] if pesado else [liviano]
+
+    ultimo_error = None
+    for modelo in modelos:
+        try:
+            return _pedir_texto_gemini(prompt, modelo, temperature, rapido)
+        except _SinCuotaGemini as exc:
+            logger.warning("[IA] %s sin cuota, se intenta con el siguiente modelo", modelo)
+            ultimo_error = exc
+    raise ultimo_error or ValueError("Sin modelos disponibles")
+
+
+def _llamar_gemini(prompt):
+    try:
+        texto = _texto_gemini(prompt, temperature=0.2, rapido=True)
+    except (urllib.error.URLError, TimeoutError, ValueError, _SinCuotaGemini) as exc:
         return {
             "trl_estimado": "",
             "justificacion": "No fue posible conectar con Gemini en este momento.",
@@ -509,9 +568,7 @@ def _llamar_gemini(prompt):
         }
 
     try:
-        data = json.loads(raw)
-        text = _extraer_texto_gemini(data)
-        return _normalizar_respuesta(json.loads(_limpiar_json_modelo(text)))
+        return _normalizar_respuesta(json.loads(_limpiar_json_modelo(texto)))
     except (json.JSONDecodeError, TypeError, ValueError):
         return {
             "trl_estimado": "",
@@ -522,32 +579,9 @@ def _llamar_gemini(prompt):
 
 
 def _llamar_gemini_etapa(prompt):
-    api_key = getattr(settings, "GEMINI_API_KEY", "")
-    if not api_key:
-        return RESPUESTA_ETAPA_FALLBACK.copy()
-
-    model = getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.15,
-            "responseMimeType": "application/json",
-        },
-    }
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "x-goog-api-key": api_key,
-        },
-        method="POST",
-    )
     try:
-        with urllib.request.urlopen(request, timeout=_timeout_ia()) as response:
-            raw = response.read().decode("utf-8")
-    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        texto = _texto_gemini(prompt, temperature=0.15, rapido=True)
+    except (urllib.error.URLError, TimeoutError, ValueError, _SinCuotaGemini) as exc:
         return {
             "trl_sugerido": "",
             "recomienda_avanzar": False,
@@ -558,9 +592,7 @@ def _llamar_gemini_etapa(prompt):
         }
 
     try:
-        data = json.loads(raw)
-        text = _extraer_texto_gemini(data)
-        return _normalizar_respuesta_etapa(json.loads(_limpiar_json_modelo(text)))
+        return _normalizar_respuesta_etapa(json.loads(_limpiar_json_modelo(texto)))
     except (json.JSONDecodeError, TypeError, ValueError):
         return {
             "trl_sugerido": "",
@@ -573,39 +605,16 @@ def _llamar_gemini_etapa(prompt):
 
 
 def _llamar_gemini_mesa(prompt, fases_validas):
-    api_key = getattr(settings, "GEMINI_API_KEY", "")
-    if not api_key:
-        return PLAN_MESA_FALLBACK.copy()
-
-    model = getattr(settings, "GEMINI_MODEL_PRO", "gemini-2.5-pro")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.18,
-            "responseMimeType": "application/json",
-        },
-    }
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "x-goog-api-key": api_key,
-        },
-        method="POST",
-    )
     try:
-        with urllib.request.urlopen(request, timeout=_timeout_ia()) as response:
-            raw = response.read().decode("utf-8")
-    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
-        logger.warning("Gemini mesa: error de red o timeout: %s", exc)
+        # Generacion pesada: corre en segundo plano, asi que conserva razonamiento
+        # y puede empezar por el modelo grande.
+        texto = _texto_gemini(prompt, temperature=0.18, rapido=False, pesado=True)
+    except (urllib.error.URLError, TimeoutError, ValueError, _SinCuotaGemini) as exc:
+        logger.warning("Gemini mesa: error de red, cuota o timeout: %s", exc)
         return PLAN_MESA_FALLBACK.copy()
 
     try:
-        data = json.loads(raw)
-        text = _extraer_texto_gemini(data)
-        return _normalizar_plan_mesa(json.loads(_limpiar_json_modelo(text)), fases_validas)
+        return _normalizar_plan_mesa(json.loads(_limpiar_json_modelo(texto)), fases_validas)
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         logger.warning("Gemini mesa: respuesta invalida: %s", exc)
         return PLAN_MESA_FALLBACK.copy()
@@ -899,30 +908,15 @@ def generar_estructura_proyecto_ia(proyecto):
         f"Proyecto a estructurar:\n{json.dumps(resumen, ensure_ascii=False, indent=2)}"
     )
 
-    # Intentar con Gemini
-    api_key = getattr(settings, "GEMINI_API_KEY", "")
-    if api_key:
-        model = getattr(settings, "GEMINI_MODEL_PRO", "gemini-2.5-pro")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.22, "responseMimeType": "application/json"},
-        }
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=_timeout_ia()) as resp:
-                raw = resp.read().decode("utf-8")
-            text = _extraer_texto_gemini(json.loads(raw))
-            resultado = _normalizar_estructura_proyecto(json.loads(_limpiar_json_modelo(text)))
-            if resultado.get("ok"):
-                return resultado
-        except Exception:
-            pass
+    # Generacion pesada en segundo plano: empieza por el modelo grande y
+    # degrada a flash si se acabo la cuota, antes de recurrir a Groq.
+    try:
+        texto = _texto_gemini(prompt, temperature=0.22, rapido=False, pesado=True)
+        resultado = _normalizar_estructura_proyecto(json.loads(_limpiar_json_modelo(texto)))
+        if resultado.get("ok"):
+            return resultado
+    except Exception as exc:
+        logger.warning("[IA] Gemini no pudo generar la estructura: %s", exc)
 
     # Fallback a Groq
     return _llamar_groq_json(
@@ -992,28 +986,12 @@ def generar_tareas_etapa_ia(proyecto, fase):
                 })
         return {"tareas": tareas_out}
 
-    # Intentar con Gemini
-    api_key = getattr(settings, "GEMINI_API_KEY", "")
-    if api_key:
-        model = getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"},
-        }
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=_timeout_ia()) as resp:
-                raw = resp.read().decode("utf-8")
-            text = _extraer_texto_gemini(json.loads(raw))
-            return normalizador(json.loads(_limpiar_json_modelo(text)))
-        except Exception as e:
-            logger.warning("[IA] Error llamando a Gemini para sugerencia de tareas: %s", e)
+    # Sugerir tareas es interactivo: se prioriza la rapidez.
+    try:
+        texto = _texto_gemini(prompt, temperature=0.2, rapido=True)
+        return normalizador(json.loads(_limpiar_json_modelo(texto)))
+    except Exception as e:
+        logger.warning("[IA] Error llamando a Gemini para sugerencia de tareas: %s", e)
 
     # Fallback a Groq
     return _llamar_groq_json(
