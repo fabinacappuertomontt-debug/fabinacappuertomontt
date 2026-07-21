@@ -483,8 +483,15 @@ class TrlStressLogicTests(TestCase):
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
         PUBLIC_SITE_URL=TEST_PUBLIC_SITE_URL,
     )
-    def test_correo_de_proyecto_usa_url_publica_y_html_inacap(self):
+    def test_correo_de_proyecto_usa_url_publica_y_marca_de_la_organizacion(self):
+        organizacion = Organizacion.objects.create(
+            nombre="DuocUC",
+            slug="duoc-correo",
+            color_principal="#0033a0",
+        )
         proyecto = self.crear_proyecto_trl()
+        proyecto.organizacion = organizacion
+        proyecto.save(update_fields=["organizacion"])
         request = RequestFactory().get("/")
 
         enviado = notificar_responsables_proyecto(request, proyecto)
@@ -492,11 +499,15 @@ class TrlStressLogicTests(TestCase):
         self.assertTrue(enviado)
         self.assertEqual(len(mail.outbox), 1)
         correo = mail.outbox[0]
+        html = correo.alternatives[0][0]
         self.assertIn(TEST_PUBLIC_SITE_URL, correo.body)
         self.assertNotIn("127.0.0.1", correo.body)
         self.assertEqual(correo.alternatives[0][1], "text/html")
-        self.assertIn("INACAP", correo.alternatives[0][0])
-        self.assertIn("Revisar proyecto", correo.alternatives[0][0])
+        self.assertIn("Revisar proyecto", html)
+        # El correo lleva la marca de la organizacion del proyecto, no una fija.
+        self.assertIn("DuocUC", html)
+        self.assertIn("#0033a0", html)
+        self.assertNotIn("INACAP", html)
 
     @override_settings(
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
@@ -597,7 +608,9 @@ class TrlStressLogicTests(TestCase):
             data=json.dumps({"cumplido": True, "valor_actual": "100%"}),
             content_type='application/json'
         )
-        self.assertEqual(resp.status_code, 403)
+        # El intruso no comparte organizacion con el proyecto, asi que ni siquiera
+        # llega a la comprobacion de permisos: el proyecto no existe para el.
+        self.assertEqual(resp.status_code, 404)
 
 
 class AreaRegistroTests(TestCase):

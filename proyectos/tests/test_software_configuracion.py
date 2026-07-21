@@ -1,8 +1,7 @@
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
-from django.core.files.uploadedfile import SimpleUploadedFile
-from proyectos.models import SoftwareConfiguracion
+from proyectos.models import Organizacion, SoftwareConfiguracion
 
 User = get_user_model()
 
@@ -10,7 +9,8 @@ class SoftwareConfiguracionTestCase(TestCase):
 
     def setUp(self):
         self.client = Client()
-        self.user = User.objects.create_user('tester', password='1234')
+        self.org = Organizacion.objects.create(nombre='Org Test', slug='org-test')
+        self.user = User.objects.create_user('tester', password='1234', organizacion=self.org)
         self.client.login(username='tester', password='1234')
 
     def test_requiere_login(self):
@@ -28,18 +28,14 @@ class SoftwareConfiguracionTestCase(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(SoftwareConfiguracion.objects.filter(nombre='OrcaSlicer').exists())
 
-    def test_crear_software_con_archivo_config(self):
-        archivo = SimpleUploadedFile(
-            "perfil.json", b'{"config": "test"}', content_type="application/json"
-        )
-        resp = self.client.post(reverse('software_crear'), {
+    def test_organizacion_se_asigna_desde_el_usuario(self):
+        self.client.post(reverse('software_crear'), {
             'nombre': 'Fusion',
             'tipo': 'modelado',
             'descripcion': 'Modelado 3D',
-            'archivo_configuracion': archivo,
         })
         sw = SoftwareConfiguracion.objects.get(nombre='Fusion')
-        self.assertIn('perfil', sw.archivo_configuracion.name)
+        self.assertEqual(sw.organizacion, self.org)
 
     def test_creado_por_se_asigna(self):
         self.client.post(reverse('software_crear'), {
@@ -49,12 +45,12 @@ class SoftwareConfiguracionTestCase(TestCase):
         self.assertEqual(sw.creado_por, self.user)
 
     def test_context_processor_inyecta_lista(self):
-        SoftwareConfiguracion.objects.create(nombre='Blender', tipo='modelado')
+        SoftwareConfiguracion.objects.create(nombre='Blender', tipo='modelado', organizacion=self.org)
         resp = self.client.get(reverse('software_lista'))
         self.assertIn('software_estandar_list', resp.context)
 
     def test_editar_software(self):
-        sw = SoftwareConfiguracion.objects.create(nombre='Test', tipo='otro', creado_por=self.user)
+        sw = SoftwareConfiguracion.objects.create(nombre='Test', tipo='otro', creado_por=self.user, organizacion=self.org)
         resp = self.client.post(reverse('software_editar', kwargs={'pk': sw.pk}), {
             'nombre': 'Test Editado', 'tipo': 'otro', 'descripcion': '',
         })
@@ -62,6 +58,6 @@ class SoftwareConfiguracionTestCase(TestCase):
         self.assertEqual(sw.nombre, 'Test Editado')
 
     def test_eliminar_software(self):
-        sw = SoftwareConfiguracion.objects.create(nombre='Borrar', tipo='otro')
+        sw = SoftwareConfiguracion.objects.create(nombre='Borrar', tipo='otro', organizacion=self.org)
         resp = self.client.post(reverse('software_eliminar', kwargs={'pk': sw.pk}))
         self.assertFalse(SoftwareConfiguracion.objects.filter(pk=sw.pk).exists())

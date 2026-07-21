@@ -97,7 +97,7 @@ class Organizacion(models.Model):
         AMPLIA = "amplia", "Amplia"
 
     class PaletaVisual(models.TextChoices):
-        INACAP = "inacap", "INACAP"
+        CLASICA = "clasica", "Clasica"
         PACIFICO = "pacifico", "Azul pacifico"
         BOSQUE = "bosque", "Verde bosque"
         COBALTO = "cobalto", "Cobalto"
@@ -105,17 +105,24 @@ class Organizacion(models.Model):
 
     nombre = models.CharField(max_length=180)
     slug = models.SlugField(max_length=80, unique=True)
+    alias_login = models.SlugField(
+        max_length=80,
+        blank=True,
+        null=True,
+        unique=True,
+        help_text="Atajo opcional para la URL de acceso, por ejemplo 'duoc' en vez del slug completo.",
+    )
     logo = models.ImageField(upload_to="organizaciones/logos/%Y/%m/", blank=True, null=True)
     color_principal = models.CharField(max_length=7, default="#cf3f4f")
     color_secundario = models.CharField(max_length=7, default="#1f334d")
-    paleta_visual = models.CharField(max_length=20, choices=PaletaVisual.choices, default=PaletaVisual.INACAP)
+    paleta_visual = models.CharField(max_length=20, choices=PaletaVisual.choices, default=PaletaVisual.CLASICA)
     tamano_letra = models.CharField(max_length=20, choices=TamanoLetra.choices, default=TamanoLetra.NORMAL)
     mostrar_usuarios = models.BooleanField(default=True)
     modo_oscuro = models.BooleanField(default=False)
     dominio_correo = models.CharField(
         max_length=100,
         blank=True,
-        help_text="Dominio permitido para detectar usuarios de la organización, por ejemplo inacap.cl.",
+        help_text="Dominio permitido para detectar usuarios de la organización, por ejemplo empresa.cl.",
     )
     encargado = models.OneToOneField(
         "Usuario",
@@ -138,6 +145,18 @@ class Organizacion(models.Model):
     @property
     def dominio_normalizado(self):
         return self.dominio_correo.strip().lower().lstrip("@")
+
+    @property
+    def slug_login(self):
+        """Identificador corto que se usa en la URL pública de acceso."""
+        return self.alias_login or self.slug
+
+    def get_absolute_url(self):
+        return reverse("superadmin_organizacion_detalle", args=[self.pk])
+
+    @property
+    def url_login(self):
+        return reverse("organizacion_login", args=[self.slug_login])
 
     def coincide_con_email(self, email):
         dominio = self.dominio_normalizado
@@ -229,6 +248,10 @@ class Usuario(AbstractUser):
     codigo_verificacion = models.CharField(max_length=6, blank=True)
     codigo_verificacion_expira = models.DateTimeField(blank=True, null=True)
     ultima_actividad = models.DateTimeField(blank=True, null=True)
+    debe_cambiar_password = models.BooleanField(
+        default=False,
+        help_text="Obliga a definir una contraseña propia antes de usar la plataforma.",
+    )
     REQUIRED_FIELDS = ["nombre", "email"]
 
     def __str__(self):
@@ -928,6 +951,13 @@ class ItemInventario(models.Model):
 
     nombre       = models.CharField(max_length=180)
     codigo_barra = models.CharField(max_length=80, blank=True, null=True)
+    organizacion = models.ForeignKey(
+        Organizacion,
+        on_delete=models.CASCADE,
+        related_name="items_inventario",
+        blank=True,
+        null=True,
+    )
     sede         = models.CharField(max_length=30, choices=Sede.choices, default=Sede.PUERTO_MONTT)
     area         = models.CharField(max_length=30, choices=Area.choices)
     categoria    = models.CharField(max_length=120, blank=True)
@@ -1136,6 +1166,11 @@ class SoftwareConfiguracion(models.Model):
     nombre = models.CharField(max_length=100)
     tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default='otro')
     descripcion = models.TextField(blank=True)
+    organizacion = models.ForeignKey(
+        'Organizacion', on_delete=models.CASCADE,
+        related_name='software_configuraciones',
+        blank=True, null=True,
+    )
     proyecto_asociado = models.ForeignKey(
         'Proyecto', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='software_configuraciones',

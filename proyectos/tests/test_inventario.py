@@ -24,6 +24,7 @@ class InventarioTests(TestCase):
             tipo="material",
             area="telecomunicaciones",
             sede="puerto_montt",
+            organizacion=self.org,
             cantidad=10,
             unidad="unidades",
             activo=True

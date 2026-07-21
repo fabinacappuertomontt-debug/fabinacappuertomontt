@@ -1,19 +1,21 @@
 from django.test import TestCase, Client
 from django.urls import reverse
-from proyectos.models import SoftwareConfiguracion, CarpetaArchivos
+from proyectos.models import Organizacion, SoftwareConfiguracion, CarpetaArchivos
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
 class CarpetasArchivosTestCase(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='testuser', password='testpassword')
+        self.org = Organizacion.objects.create(nombre='Org Test', slug='org-test')
+        self.user = User.objects.create_user(username='testuser', password='testpassword', organizacion=self.org)
         self.client = Client()
         self.client.login(username='testuser', password='testpassword')
         
         self.sw = SoftwareConfiguracion.objects.create(
             nombre="Test Software",
-            creado_por=self.user
+            creado_por=self.user,
+            organizacion=self.org,
         )
         
     def test_carpetas_y_archivos_creacion(self):

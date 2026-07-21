@@ -1,11 +1,11 @@
 from django.contrib import messages
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.forms import AuthenticationForm, SetPasswordForm
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
-from django.http import FileResponse, JsonResponse
+from django.http import FileResponse, Http404, JsonResponse
 from django.db import close_old_connections, transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Avg, Count, F, Q
@@ -18,6 +18,7 @@ from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, ListView, UpdateView
 from datetime import datetime, timedelta
+from functools import partial, wraps
 from urllib.parse import urlencode
 import json
 import logging
@@ -48,6 +49,7 @@ from .forms import (
     ObservacionForm,
     OrganizacionAdminForm,
     OrganizacionSuperadminForm,
+    OrganizacionSuperadminEditForm,
     PerfilUsuarioForm,
     ProyectoForm,
     RegistroPublicoForm,
@@ -182,18 +184,50 @@ def proyectos_de_sede(user):
     return queryset
 
 
+def limitar_a_organizacion(queryset, user, campo="organizacion"):
+    """Restringe un queryset a la organizacion del usuario.
+
+    El superadmin ve todo. Un usuario sin organizacion asignada no ve nada:
+    preferimos dejarlo sin datos antes que mostrarle los de otra empresa.
+    """
+    if usuario_es_superadmin(user):
+        return queryset
+    organizacion = organizacion_usuario(user)
+    if not organizacion:
+        return queryset.none()
+    return queryset.filter(**{campo: organizacion})
+
+
 def inventario_de_sede(user):
     if usuario_es_superadmin(user):
         return ItemInventario.objects.all()
-    return filtrar_por_sede(ItemInventario.objects.all(), user)
+    return limitar_a_organizacion(filtrar_por_sede(ItemInventario.objects.all(), user), user)
+
+
+def software_de_organizacion(user):
+    return limitar_a_organizacion(
+        SoftwareConfiguracion.objects.select_related("creado_por", "organizacion"), user
+    )
+
+
+def carpetas_de_organizacion(user):
+    return limitar_a_organizacion(
+        CarpetaArchivos.objects.select_related("software"), user, campo="software__organizacion"
+    )
+
+
+def archivos_de_organizacion(user):
+    return limitar_a_organizacion(
+        ArchivoAdjunto.objects.select_related("carpeta__software"),
+        user,
+        campo="carpeta__software__organizacion",
+    )
 
 
 def usuarios_de_sede(user):
     if usuario_es_superadmin(user):
         return Usuario.objects.all()
-    queryset = filtrar_por_sede(Usuario.objects.all(), user)
-    if organizacion_usuario(user):
-        queryset = queryset.filter(organizacion=organizacion_usuario(user))
+    queryset = limitar_a_organizacion(filtrar_por_sede(Usuario.objects.all(), user), user)
     if area_usuario(user) and not usuario_es_admin_organizacion(user):
         queryset = queryset.filter(area=area_usuario(user))
     return queryset
@@ -211,11 +245,17 @@ def crear_username_unico(email):
 
 
 def organizacion_por_slug_login(slug):
-    alias = {
-        "inacap": "fab-inacap-puerto-montt",
-    }
-    slug_real = alias.get(slug, slug)
-    return get_object_or_404(Organizacion, slug=slug_real, activa=True)
+    """Resuelve la organizacion de una URL de acceso por su slug o su alias corto.
+
+    El alias es un dato de la organizacion, no una excepcion en el codigo: cualquier
+    empresa puede tener el suyo sin tocar las vistas.
+    """
+    organizacion = Organizacion.objects.filter(
+        Q(slug=slug) | Q(alias_login=slug), activa=True
+    ).first()
+    if not organizacion:
+        raise Http404("No existe una organizacion activa con ese identificador.")
+    return organizacion
 
 
 def superadmin_stats_context():
@@ -294,7 +334,7 @@ def enviar_codigo_verificacion(request, usuario):
         f"Tu codigo de confirmacion es: {usuario.codigo_verificacion}\n\n"
         f"Este codigo vence en 10 minutos.\n"
         f"Confirmar correo: {verificar_url}\n\n"
-        f"Crea INACAP"
+        f"{marca_de_organizacion(usuario.organizacion)['nombre']}"
     )
     contenido = f"""
         <p style="margin:0 0 16px 0;">Hola {escape(usuario.nombre or usuario.username)},</p>
@@ -307,10 +347,17 @@ def enviar_codigo_verificacion(request, usuario):
         <p style="margin:0;color:#64748b;">Tambien puedes abrir el boton inferior para ir directamente a la pantalla de verificacion.</p>
     """
     return enviar_correo_simple(
-        "Codigo de confirmacion Crea INACAP",
+        f"Codigo de confirmacion {marca_de_organizacion(usuario.organizacion)['nombre']}",
         [usuario.email],
         mensaje,
-        correo_html_inacap("Codigo de confirmacion", "Verificacion de cuenta Crea INACAP", contenido, "Confirmar correo", verificar_url),
+        correo_html_organizacion(
+            "Codigo de confirmacion",
+            "Verificacion de cuenta",
+            contenido,
+            "Confirmar correo",
+            verificar_url,
+            organizacion=usuario.organizacion,
+        ),
     )
 
 
@@ -336,7 +383,7 @@ def enviar_solicitud_aprobacion_externa(request, usuario):
         f"Rechazar: {rechazar_url}\n"
     )
     contenido = f"""
-        <p style="margin:0 0 16px 0;">Se recibio una solicitud de acceso externo para la plataforma Crea INACAP.</p>
+        <p style="margin:0 0 16px 0;">Se recibio una solicitud de acceso externo para {escape(marca_de_organizacion(usuario.organizacion)["nombre"])}.</p>
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden;margin:0 0 20px 0;">
             <tr><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:700;">Nombre</td><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#142033;">{escape(usuario.nombre)}</td></tr>
             <tr><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:700;">Correo</td><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#142033;">{escape(usuario.email)}</td></tr>
@@ -349,27 +396,34 @@ def enviar_solicitud_aprobacion_externa(request, usuario):
         <p style="margin:10px 0 0 0;"><a href="{escape(rechazar_url)}" style="color:#cf3f4f;font-weight:700;">Rechazar solicitud</a></p>
     """
     return enviar_correo_simple(
-        "Solicitud de acceso externo Crea INACAP",
+        f"Solicitud de acceso externo {marca_de_organizacion(usuario.organizacion)['nombre']}",
         [admin_email],
         mensaje,
-        correo_html_inacap("Solicitud de acceso externo", "Revision de cuenta pendiente", contenido, "Aprobar solicitud", aprobar_url),
+        correo_html_organizacion(
+            "Solicitud de acceso externo",
+            "Revision de cuenta pendiente",
+            contenido,
+            "Aprobar solicitud",
+            aprobar_url,
+            organizacion=usuario.organizacion,
+        ),
     )
 
 
 def enviar_resultado_aprobacion(usuario, aprobado):
     if aprobado:
-        asunto = "Cuenta aprobada Crea INACAP"
+        asunto = f"Cuenta aprobada {marca_de_organizacion(usuario.organizacion)['nombre']}"
         mensaje = (
             f"Hola {usuario.nombre or usuario.username},\n\n"
-            "Tu cuenta fue aprobada. Ya puedes iniciar sesión en el sistema Crea INACAP.\n\n"
-            "Crea INACAP"
+            "Tu cuenta fue aprobada. Ya puedes iniciar sesión en la plataforma.\n\n"
+            f"{marca_de_organizacion(usuario.organizacion)['nombre']}"
         )
     else:
-        asunto = "Solicitud de cuenta rechazada Crea INACAP"
+        asunto = f"Solicitud de cuenta rechazada {marca_de_organizacion(usuario.organizacion)['nombre']}"
         mensaje = (
             f"Hola {usuario.nombre or usuario.username},\n\n"
-            "Tu solicitud de acceso fue rechazada. Si crees que es un error, contacta al equipo Crea INACAP.\n\n"
-            "Crea INACAP"
+            "Tu solicitud de acceso fue rechazada. Si crees que es un error, contacta al equipo administrador.\n\n"
+            f"{marca_de_organizacion(usuario.organizacion)['nombre']}"
         )
     return enviar_correo_simple(asunto, [usuario.email], mensaje)
 
@@ -394,20 +448,31 @@ def registro_publico(request):
 
 
 def areas_por_sede_json(request):
-    """AJAX: retorna solo el area principal (Crea INACAP) de la sede pedida."""
-    sede = request.GET.get("sede", "puerto_montt")
-    slug_mapa = {
-        "puerto_montt": "fab-inacap-puerto-montt",
-        "osorno": "crea-inacap-osorno",
-    }
-    slug_org = slug_mapa.get(sede, "fab-inacap-puerto-montt")
+    """AJAX: areas principales disponibles para registrarse.
+
+    Se puede acotar a una organizacion con ?organizacion=<slug>; si no se indica,
+    devuelve las areas principales de todas las organizaciones activas.
+    """
     areas = (
-        Area.objects
-        .filter(organizacion__slug=slug_org, activa=True, es_fab=True)
-        .values("id", "nombre")
-        .order_by("nombre")
+        Area.objects.filter(activa=True, es_fab=True, organizacion__activa=True)
+        .select_related("organizacion")
+        .order_by("organizacion__nombre", "nombre")
     )
-    return JsonResponse({"areas": list(areas)})
+
+    slug_organizacion = request.GET.get("organizacion", "").strip()
+    if slug_organizacion:
+        areas = areas.filter(
+            Q(organizacion__slug=slug_organizacion)
+            | Q(organizacion__alias_login=slug_organizacion)
+        )
+
+    # El nombre incluye la organizacion para que no se confundan areas homonimas
+    # de empresas distintas.
+    datos = [
+        {"id": area.id, "nombre": area.nombre, "organizacion": area.organizacion.nombre}
+        for area in areas
+    ]
+    return JsonResponse({"areas": datos})
 
 
 def registro_pendiente(request, pk):
@@ -729,13 +794,68 @@ def panel_general(request):
     return render(request, "proyectos/dashboard.html", contexto)
 
 
-def superadmin_organizaciones(request):
-    if not request.user.is_authenticated:
-        return redirect("superadmin_login")
-    if not usuario_es_superadmin(request.user):
-        messages.error(request, "Solo el superadmin puede entrar a este panel.")
-        return redirect("superadmin_login")
+def solo_superadmin(vista):
+    """Restringe una vista al panel privado de control."""
 
+    @wraps(vista)
+    def envoltura(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect("superadmin_login")
+        if not usuario_es_superadmin(request.user):
+            messages.error(request, "Solo el superadmin puede entrar a este panel.")
+            return redirect("superadmin_login")
+        return vista(request, *args, **kwargs)
+
+    return envoltura
+
+
+def generar_password_temporal():
+    return secrets.token_urlsafe(9)
+
+
+def enviar_credenciales_encargado(request, encargado, password_temporal, es_reset=False):
+    """Manda al encargado su acceso con la marca de su propia empresa."""
+    organizacion = encargado.organizacion
+    url_login = url_publica(request, organizacion.url_login)
+    titulo = "Nueva contraseña de acceso" if es_reset else "Tu acceso a la plataforma"
+    intro = (
+        "Restablecimos la contraseña de tu cuenta de administrador."
+        if es_reset
+        else f"Creamos el espacio de {organizacion.nombre} en la plataforma y tú quedaste como administrador."
+    )
+
+    mensaje = (
+        f"{intro}\n\n"
+        f"Enlace de acceso: {url_login}\n"
+        f"Usuario: {encargado.email}\n"
+        f"Contraseña temporal: {password_temporal}\n\n"
+        "Por seguridad, la plataforma te pedirá cambiarla la primera vez que entres.\n"
+    )
+    contenido = f"""
+        <p style="margin:0 0 16px;">{escape(intro)}</p>
+        <table role="presentation" cellspacing="0" cellpadding="0" width="100%" style="border:1px solid #e2e8f0;border-radius:10px;">
+            <tr><td style="padding:10px 12px;color:#64748b;font-weight:700;">Usuario</td><td style="padding:10px 12px;color:#142033;">{escape(encargado.email)}</td></tr>
+            <tr><td style="padding:10px 12px;color:#64748b;font-weight:700;">Contraseña temporal</td><td style="padding:10px 12px;color:#142033;"><strong>{escape(password_temporal)}</strong></td></tr>
+        </table>
+        <p style="margin:16px 0 0;color:#64748b;">Por seguridad te pediremos cambiarla la primera vez que entres.</p>
+    """
+    return enviar_correo_simple(
+        f"{titulo} · {organizacion.nombre}",
+        [encargado.email],
+        mensaje,
+        correo_html_organizacion(
+            titulo,
+            organizacion.nombre,
+            contenido,
+            "Entrar a la plataforma",
+            url_login,
+            organizacion=organizacion,
+        ),
+    )
+
+
+@solo_superadmin
+def superadmin_organizaciones(request):
     return render(
         request,
         "proyectos/superadmin_organizaciones.html",
@@ -743,25 +863,15 @@ def superadmin_organizaciones(request):
     )
 
 
+@solo_superadmin
 def superadmin_usuarios_globales(request):
-    if not request.user.is_authenticated:
-        return redirect("superadmin_login")
-    if not usuario_es_superadmin(request.user):
-        messages.error(request, "Solo el superadmin puede entrar a este panel.")
-        return redirect("superadmin_login")
-
     usuarios = Usuario.objects.select_related("organizacion", "area").order_by("organizacion__nombre", "nombre", "email")
     contexto = superadmin_stats_context() | {"usuarios": usuarios, "seccion": "usuarios"}
     return render(request, "proyectos/superadmin_usuarios.html", contexto)
 
 
+@solo_superadmin
 def superadmin_estadisticas(request):
-    if not request.user.is_authenticated:
-        return redirect("superadmin_login")
-    if not usuario_es_superadmin(request.user):
-        messages.error(request, "Solo el superadmin puede entrar a este panel.")
-        return redirect("superadmin_login")
-
     proyectos_por_org = (
         Organizacion.objects.annotate(total_proyectos=Count("proyectos", distinct=True), total_usuarios=Count("usuarios", distinct=True))
         .order_by("-total_proyectos", "nombre")
@@ -770,27 +880,19 @@ def superadmin_estadisticas(request):
     return render(request, "proyectos/superadmin_estadisticas.html", contexto)
 
 
+@solo_superadmin
 def superadmin_organizacion_crear(request):
-    if not request.user.is_authenticated:
-        return redirect("superadmin_login")
-    if not usuario_es_superadmin(request.user):
-        messages.error(request, "Solo el superadmin puede crear organizaciones.")
-        return redirect("superadmin_login")
-
     form = OrganizacionSuperadminForm()
     if request.method == "POST":
         form = OrganizacionSuperadminForm(request.POST, request.FILES)
         if form.is_valid():
+            password_temporal = generar_password_temporal()
             with transaction.atomic():
-                organizacion = form.save(commit=False)
-                organizacion.save()
-                encargado_email = form.cleaned_data["encargado_email"]
-                encargado_nombre = form.cleaned_data["encargado_nombre"]
-                password_temporal = secrets.token_urlsafe(10)
+                organizacion = form.save()
                 encargado = Usuario.objects.create_user(
-                    username=crear_username_unico(encargado_email),
-                    email=encargado_email,
-                    nombre=encargado_nombre,
+                    username=crear_username_unico(form.cleaned_data["encargado_email"]),
+                    email=form.cleaned_data["encargado_email"],
+                    nombre=form.cleaned_data["encargado_nombre"],
                     password=password_temporal,
                     rol=Usuario.Rol.ADMIN_ORGANIZACION,
                     organizacion=organizacion,
@@ -798,19 +900,170 @@ def superadmin_organizacion_crear(request):
                     is_staff=False,
                     correo_verificado=True,
                     estado_registro=Usuario.EstadoRegistro.APROBADO,
+                    debe_cambiar_password=True,
                 )
                 organizacion.encargado = encargado
                 organizacion.save(update_fields=["encargado"])
-            messages.success(
-                request,
-                f"Organización creada. Encargado: {encargado_email}. Contraseña temporal: {password_temporal}",
-            )
-            return redirect("superadmin_organizaciones")
+
+            enviado = enviar_credenciales_encargado(request, encargado, password_temporal)
+            if enviado:
+                messages.success(
+                    request,
+                    f"Empresa creada. Le enviamos las credenciales a {encargado.email}.",
+                )
+            else:
+                messages.warning(
+                    request,
+                    "Empresa creada, pero no se pudo enviar el correo. Entrega estas credenciales a mano.",
+                )
+            # Se muestran una sola vez, en la ficha, para poder copiarlas si el correo falla.
+            request.session["credenciales_recien_creadas"] = {
+                "organizacion_id": organizacion.pk,
+                "email": encargado.email,
+                "password": password_temporal,
+                "enviado": enviado,
+            }
+            return redirect("superadmin_organizacion_detalle", pk=organizacion.pk)
 
     return render(
         request,
         "proyectos/superadmin_organizacion_form.html",
-        {"form": form},
+        {"form": form, "seccion": "organizaciones", "modo": "crear"},
+    )
+
+
+@solo_superadmin
+def superadmin_organizacion_detalle(request, pk):
+    organizacion = get_object_or_404(
+        Organizacion.objects.select_related("encargado").annotate(
+            total_usuarios=Count("usuarios", distinct=True),
+            total_proyectos=Count("proyectos", distinct=True),
+        ),
+        pk=pk,
+    )
+
+    credenciales = request.session.pop("credenciales_recien_creadas", None)
+    if credenciales and credenciales.get("organizacion_id") != organizacion.pk:
+        credenciales = None
+
+    contexto = {
+        "seccion": "organizaciones",
+        "organizacion": organizacion,
+        "credenciales": credenciales,
+        "areas": organizacion.areas.filter(activa=True).order_by("nombre"),
+        "usuarios": organizacion.usuarios.order_by("-is_active", "nombre", "email")[:25],
+        "proyectos_recientes": organizacion.proyectos.order_by("-id")[:10],
+        "url_login": url_publica(request, organizacion.url_login),
+    }
+    return render(request, "proyectos/superadmin_organizacion_detalle.html", contexto)
+
+
+@solo_superadmin
+def superadmin_organizacion_editar(request, pk):
+    organizacion = get_object_or_404(Organizacion, pk=pk)
+    form = OrganizacionSuperadminEditForm(instance=organizacion)
+    if request.method == "POST":
+        form = OrganizacionSuperadminEditForm(request.POST, request.FILES, instance=organizacion)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"{organizacion.nombre} actualizada.")
+            return redirect("superadmin_organizacion_detalle", pk=organizacion.pk)
+
+    return render(
+        request,
+        "proyectos/superadmin_organizacion_form.html",
+        {
+            "form": form,
+            "organizacion": organizacion,
+            "seccion": "organizaciones",
+            "modo": "editar",
+        },
+    )
+
+
+@solo_superadmin
+@require_POST
+def superadmin_organizacion_estado(request, pk):
+    organizacion = get_object_or_404(Organizacion, pk=pk)
+    organizacion.activa = not organizacion.activa
+    organizacion.save(update_fields=["activa"])
+    if organizacion.activa:
+        messages.success(request, f"{organizacion.nombre} quedó activa.")
+    else:
+        messages.warning(request, f"{organizacion.nombre} quedó desactivada: nadie de esa empresa podrá entrar.")
+    return redirect("superadmin_organizacion_detalle", pk=organizacion.pk)
+
+
+@solo_superadmin
+@require_POST
+def superadmin_organizacion_reset_credenciales(request, pk):
+    organizacion = get_object_or_404(Organizacion.objects.select_related("encargado"), pk=pk)
+    encargado = organizacion.encargado
+    if not encargado:
+        messages.error(request, "Esta empresa no tiene un encargado al que resetear la clave.")
+        return redirect("superadmin_organizacion_detalle", pk=organizacion.pk)
+
+    password_temporal = generar_password_temporal()
+    encargado.set_password(password_temporal)
+    encargado.debe_cambiar_password = True
+    encargado.save(update_fields=["password", "debe_cambiar_password"])
+
+    enviado = enviar_credenciales_encargado(request, encargado, password_temporal, es_reset=True)
+    if enviado:
+        messages.success(request, f"Nueva contraseña enviada a {encargado.email}.")
+    else:
+        messages.warning(request, "No se pudo enviar el correo. Entrega la contraseña a mano.")
+    request.session["credenciales_recien_creadas"] = {
+        "organizacion_id": organizacion.pk,
+        "email": encargado.email,
+        "password": password_temporal,
+        "enviado": enviado,
+    }
+    return redirect("superadmin_organizacion_detalle", pk=organizacion.pk)
+
+
+@solo_superadmin
+def superadmin_organizacion_eliminar(request, pk):
+    organizacion = get_object_or_404(
+        Organizacion.objects.annotate(
+            total_usuarios=Count("usuarios", distinct=True),
+            total_proyectos=Count("proyectos", distinct=True),
+        ),
+        pk=pk,
+    )
+
+    if request.method == "POST":
+        # Eliminar una empresa se lleva por delante sus proyectos y archivos, asi que
+        # exigimos escribir el nombre exacto antes de continuar.
+        confirmacion = (request.POST.get("confirmacion") or "").strip()
+        if confirmacion != organizacion.nombre:
+            messages.error(request, "El nombre no coincide. No se eliminó nada.")
+            return redirect("superadmin_organizacion_eliminar", pk=organizacion.pk)
+        nombre = organizacion.nombre
+        try:
+            with transaction.atomic():
+                # Proyectos, usuarios y areas apuntan a la organizacion con PROTECT,
+                # asi que hay que borrarlos en orden de dependencia: los proyectos
+                # antes que sus creadores, y los usuarios antes que sus areas.
+                organizacion.encargado = None
+                organizacion.save(update_fields=["encargado"])
+                organizacion.proyectos.all().delete()
+                organizacion.usuarios.all().delete()
+                organizacion.areas.all().delete()
+                organizacion.delete()
+        except ProtectedError:
+            messages.error(
+                request,
+                "No se pudo eliminar: quedan datos enlazados. Desactívala en vez de borrarla.",
+            )
+            return redirect("superadmin_organizacion_detalle", pk=organizacion.pk)
+        messages.success(request, f"Empresa {nombre} eliminada por completo.")
+        return redirect("superadmin_organizaciones")
+
+    return render(
+        request,
+        "proyectos/superadmin_organizacion_eliminar.html",
+        {"organizacion": organizacion, "seccion": "organizaciones"},
     )
 
 
@@ -838,6 +1091,31 @@ def superadmin_logout(request):
     return redirect("superadmin_login")
 
 
+@login_required
+def cambiar_password_obligatorio(request):
+    """Pantalla que corta el paso hasta que el usuario define su propia contraseña."""
+    if not request.user.debe_cambiar_password:
+        return redirect("dashboard")
+
+    form = SetPasswordForm(request.user)
+    if request.method == "POST":
+        form = SetPasswordForm(request.user, request.POST)
+        if form.is_valid():
+            usuario = form.save()
+            usuario.debe_cambiar_password = False
+            usuario.save(update_fields=["debe_cambiar_password"])
+            # Cambiar la clave invalida la sesion actual; hay que renovarla.
+            update_session_auth_hash(request, usuario)
+            messages.success(request, "Listo, tu contraseña quedó actualizada.")
+            return redirect("dashboard")
+
+    return render(
+        request,
+        "registration/cambiar_password_obligatorio.html",
+        {"form": form, "organizacion": organizacion_usuario(request.user)},
+    )
+
+
 def organizacion_login(request, organizacion_slug):
     if request.user.is_authenticated:
         return redirect("dashboard")
@@ -848,24 +1126,22 @@ def organizacion_login(request, organizacion_slug):
         form = AuthenticationForm(request, data=request.POST)
         if form.is_valid():
             usuario = form.get_user()
+            # Un usuario solo entra por la puerta de su propia organizacion. Si todavia
+            # no tiene una asignada, la adopta unicamente cuando su correo coincide con
+            # el dominio configurado; nunca por el hecho de estar en una URL concreta.
+            pertenece = getattr(usuario, "organizacion_id", None) == organizacion.id
+            puede_adoptar = (
+                not getattr(usuario, "organizacion_id", None)
+                and organizacion.coincide_con_email(usuario.email)
+            )
             if usuario and usuario_es_superadmin(usuario):
                 form.add_error(None, "Usa el login privado de control para entrar como superadmin.")
-            elif usuario and organizacion_slug == "inacap":
-                if not usuario.organizacion_id:
+            elif usuario and (pertenece or puede_adoptar):
+                if puede_adoptar:
                     usuario.organizacion = organizacion
                     usuario.save(update_fields=["organizacion"])
                 login(request, usuario)
-                request.session["organizacion_login_slug"] = organizacion.slug
-                return redirect("dashboard")
-            elif usuario and (
-                getattr(usuario, "organizacion_id", None) == organizacion.id
-                or organizacion.coincide_con_email(usuario.email)
-            ):
-                if not usuario.organizacion_id:
-                    usuario.organizacion = organizacion
-                    usuario.save(update_fields=["organizacion"])
-                login(request, usuario)
-                request.session["organizacion_login_slug"] = organizacion.slug
+                request.session["organizacion_login_slug"] = organizacion.slug_login
                 return redirect("dashboard")
             else:
                 form.add_error(None, "Credenciales inválidas para esta organización.")
@@ -1688,14 +1964,56 @@ def url_publica(request, path):
     return request.build_absolute_uri(path)
 
 
-def correo_html_inacap(titulo, subtitulo, contenido, boton_texto=None, boton_url=None):
-    logo_url = "https://portal.inacap.cl/documents/d/guest/logofooter60a"
+MARCA_POR_DEFECTO = {
+    "nombre": "Plataforma TRL",
+    "pie": "Gestion, avance y seguimiento de proyectos.",
+    "color_principal": "#cf3f4f",
+    "color_secundario": "#142033",
+    "logo_url": "",
+}
+
+
+def marca_de_organizacion(organizacion):
+    """Devuelve el branding para los correos de una organizacion.
+
+    Sin organizacion se usa la marca neutra de la plataforma: ninguna empresa debe
+    recibir correos con el logo o los colores de otra.
+    """
+    if not organizacion:
+        return dict(MARCA_POR_DEFECTO)
+
+    logo_url = ""
+    if getattr(organizacion, "logo", None):
+        base_url = getattr(settings, "PUBLIC_SITE_URL", "").rstrip("/")
+        logo_url = f"{base_url}{organizacion.logo.url}" if base_url else ""
+
+    return {
+        "nombre": organizacion.nombre,
+        "pie": "Gestion, avance y seguimiento de proyectos.",
+        "color_principal": organizacion.color_principal or MARCA_POR_DEFECTO["color_principal"],
+        "color_secundario": organizacion.color_secundario or MARCA_POR_DEFECTO["color_secundario"],
+        "logo_url": logo_url,
+    }
+
+
+def correo_html_organizacion(
+    titulo, subtitulo, contenido, boton_texto=None, boton_url=None, organizacion=None
+):
+    marca = marca_de_organizacion(organizacion)
+    color_principal = marca["color_principal"]
+    color_secundario = marca["color_secundario"]
+    logo_url = marca["logo_url"]
+    logo = (
+        f'<img src="{escape(logo_url)}" alt="{escape(marca["nombre"])}" style="max-height:42px;display:block;margin-bottom:14px;">'
+        if logo_url
+        else ""
+    )
     boton = ""
     if boton_texto and boton_url:
         boton = f"""
             <tr>
                 <td style="padding:8px 32px 30px 32px;">
-                    <a href="{escape(boton_url)}" style="display:inline-block;background:#cf3f4f;color:#ffffff;text-decoration:none;font-weight:700;border-radius:8px;padding:13px 20px;font-family:Arial,Helvetica,sans-serif;">{escape(boton_texto)}</a>
+                    <a href="{escape(boton_url)}" style="display:inline-block;background:{escape(color_principal)};color:#ffffff;text-decoration:none;font-weight:700;border-radius:8px;padding:13px 20px;font-family:Arial,Helvetica,sans-serif;">{escape(boton_texto)}</a>
                 </td>
             </tr>
         """
@@ -1708,8 +2026,8 @@ def correo_html_inacap(titulo, subtitulo, contenido, boton_texto=None, boton_url
                 <td align="center">
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #d9e2ec;">
                         <tr>
-                            <td style="background:#142033;padding:22px 32px;border-bottom:5px solid #cf3f4f;">
-                                <img src="{logo_url}" alt="INACAP" style="max-height:42px;display:block;margin-bottom:14px;">
+                            <td style="background:{escape(color_secundario)};padding:22px 32px;border-bottom:5px solid {escape(color_principal)};">
+                                {logo}
                                 <div style="color:#ffffff;font-size:20px;font-weight:800;line-height:1.25;">{escape(titulo)}</div>
                                 <div style="color:#cbd5e1;font-size:14px;margin-top:6px;">{escape(subtitulo)}</div>
                             </td>
@@ -1720,8 +2038,8 @@ def correo_html_inacap(titulo, subtitulo, contenido, boton_texto=None, boton_url
                         {boton}
                         <tr>
                             <td style="background:#f7fafc;padding:18px 32px;color:#64748b;font-size:12px;border-top:1px solid #e2e8f0;">
-                                <strong style="color:#1f2937;">Crea INACAP Puerto Montt</strong><br>
-                                Gestion, avance y seguimiento academico.
+                                <strong style="color:#1f2937;">{escape(marca["nombre"])}</strong><br>
+                                {escape(marca["pie"])}
                             </td>
                         </tr>
                     </table>
@@ -1766,7 +2084,7 @@ def notificar_responsables_proyecto(request, proyecto):
         f"Estado: {proyecto.get_estado_display()}\n"
         f"Avance: {proyecto.porcentaje_avance}%\n"
         f"Revisar proyecto: {url}\n\n"
-        f"Crea INACAP Puerto Montt"
+        f"{marca_de_organizacion(proyecto.organizacion)['nombre']}"
     )
     contenido = f"""
         <p style="margin:0 0 16px 0;">Hola,</p>
@@ -1788,7 +2106,7 @@ def notificar_responsables_proyecto(request, proyecto):
         f"Nuevo proyecto asignado: {proyecto.nombre}",
         destinatarios,
         mensaje,
-        correo_html_inacap("Nuevo proyecto asignado", subtitulo, contenido, "Revisar proyecto", url),
+        correo_html_organizacion("Nuevo proyecto asignado", subtitulo, contenido, "Revisar proyecto", url, organizacion=proyecto.organizacion),
     )
 
 
@@ -1825,7 +2143,7 @@ def notificar_creador_proyecto(request, proyecto):
         f"Tipo de seguimiento: {proyecto.get_metodologia_display()}\n"
         f"Responsables: {responsables_texto}\n"
         f"Revisar proyecto: {url}\n\n"
-        f"Crea INACAP Puerto Montt"
+        f"{marca_de_organizacion(proyecto.organizacion)['nombre']}"
     )
     contenido = f"""
         <p style="margin:0 0 16px 0;">Hola {escape(proyecto.creador.nombre or proyecto.creador.username)},</p>
@@ -1843,7 +2161,7 @@ def notificar_creador_proyecto(request, proyecto):
         f"Proyecto creado: {proyecto.nombre}",
         [proyecto.creador.email],
         mensaje,
-        correo_html_inacap("Proyecto creado", "Resumen de creación y responsables", contenido, "Revisar proyecto", url),
+        correo_html_organizacion("Proyecto creado", "Resumen de creación y responsables", contenido, "Revisar proyecto", url, organizacion=proyecto.organizacion),
     )
 
 
@@ -1872,7 +2190,7 @@ def notificar_creador_fase_completada(request, fase):
         f"Se completó la etapa '{fase.etiqueta}: {fase.nombre}' del proyecto '{proyecto.nombre}'.\n\n"
         f"Trabajo registrado:\n{fase.realizado or 'Sin detalle registrado'}\n\n"
         f"Revisar etapa: {url}\n\n"
-        f"Crea INACAP Puerto Montt"
+        f"{marca_de_organizacion(proyecto.organizacion)['nombre']}"
     )
     contenido = f"""
         <p style="margin:0 0 16px 0;">Hola {escape(proyecto.creador.nombre or proyecto.creador.username)},</p>
@@ -1890,7 +2208,7 @@ def notificar_creador_fase_completada(request, fase):
         f"Etapa completada: {fase.nombre}",
         [proyecto.creador.email],
         mensaje,
-        correo_html_inacap("Etapa completada", proyecto.nombre, contenido, "Revisar etapa", url),
+        correo_html_organizacion("Etapa completada", proyecto.nombre, contenido, "Revisar etapa", url, organizacion=proyecto.organizacion),
     )
 
 
@@ -1906,7 +2224,7 @@ def notificar_creador_movimiento(request, proyecto, titulo, descripcion, fase=No
         f"Etapa: {fase_texto}\n"
         f"Detalle: {descripcion}\n"
         f"Revisar: {url}\n\n"
-        f"Crea INACAP Puerto Montt"
+        f"{marca_de_organizacion(proyecto.organizacion)['nombre']}"
     )
     contenido = f"""
         <p style="margin:0 0 16px 0;">Hola {escape(proyecto.creador.nombre or proyecto.creador.username)},</p>
@@ -1923,7 +2241,7 @@ def notificar_creador_movimiento(request, proyecto, titulo, descripcion, fase=No
         f"{titulo}: {proyecto.nombre}",
         [proyecto.creador.email],
         mensaje,
-        correo_html_inacap(titulo, proyecto.nombre, contenido, "Revisar proyecto", url),
+        correo_html_organizacion(titulo, proyecto.nombre, contenido, "Revisar proyecto", url, organizacion=proyecto.organizacion),
     )
 
 
@@ -2645,7 +2963,7 @@ def asistente_ia_proyecto(request):
     except (json.JSONDecodeError, UnicodeDecodeError):
         return JsonResponse({"ok": False, "error": "No se pudo leer el borrador del proyecto."}, status=400)
 
-    analisis = analizar_borrador_trl(datos)
+    analisis = analizar_borrador_trl(datos, organizacion=organizacion_usuario(request.user))
     return JsonResponse({"ok": True, "analisis": analisis})
 
 
@@ -2792,7 +3110,7 @@ def analizar_etapa_ia(request, pk, slug):
         evidencias_etapa,
         observaciones_etapa,
     )
-    analisis = analizar_etapa_trl(datos)
+    analisis = analizar_etapa_trl(datos, organizacion=proyecto.organizacion)
     revision = RevisionIAEtapa.objects.create(
         proyecto=proyecto,
         fase=fase_activa,
@@ -2951,7 +3269,12 @@ def construir_linea_temporal(proyecto):
 
 @login_required
 def fase_detalle(request, pk):
-    fase = get_object_or_404(FaseProyecto.objects.select_related("proyecto").filter(proyecto__sede=sede_usuario(request.user)), pk=pk)
+    fase = get_object_or_404(
+        FaseProyecto.objects.select_related("proyecto").filter(
+            proyecto__in=proyectos_de_sede(request.user)
+        ),
+        pk=pk,
+    )
     sincronizar_trl_desde_resultados(fase.proyecto)
     sincronizar_avance_simple_desde_objetivos(fase.proyecto)
     if not exigir_permiso_edicion_proyecto(request, fase.proyecto):
@@ -2986,7 +3309,7 @@ def fase_detalle(request, pk):
 @login_required
 def proyecto_eliminar(request, pk):
     if not usuario_puede_eliminar_proyecto(request.user):
-        messages.error(request, "Solo la cuenta Crea INACAP autorizada puede eliminar proyectos.")
+        messages.error(request, "Solo una cuenta autorizada puede eliminar proyectos.")
         return redirect("proyecto_detalle", pk=pk)
 
     proyecto = get_object_or_404(proyectos_de_sede(request.user), pk=pk)
@@ -3068,6 +3391,7 @@ def inventario_crear(request):
         if form.is_valid():
             item = form.save(commit=False)
             item.sede = sede_usuario(request.user)
+            item.organizacion = organizacion_usuario(request.user)
             item.save()
             messages.success(request, "Ítem agregado al inventario.")
             return redirect("inventario_lista")
@@ -3432,7 +3756,7 @@ def subir_evidencia(request, pk):
 
 @login_required
 def completar_tarea(request, pk):
-    tarea = get_object_or_404(Tarea.objects.filter(proyecto__sede=sede_usuario(request.user)), pk=pk)
+    tarea = get_object_or_404(Tarea.objects.filter(proyecto__in=proyectos_de_sede(request.user)), pk=pk)
     if not exigir_permiso_edicion_proyecto(request, tarea.proyecto):
         return redirect("proyecto_trabajo", pk=tarea.proyecto_id)
     if request.method == "POST":
@@ -3446,7 +3770,7 @@ def completar_tarea(request, pk):
 
 @login_required
 def editar_tarea(request, pk):
-    tarea = get_object_or_404(Tarea.objects.filter(proyecto__sede=sede_usuario(request.user)), pk=pk)
+    tarea = get_object_or_404(Tarea.objects.filter(proyecto__in=proyectos_de_sede(request.user)), pk=pk)
     if not exigir_permiso_edicion_proyecto(request, tarea.proyecto):
         return redirect("proyecto_trabajo", pk=tarea.proyecto_id)
     
@@ -3484,7 +3808,7 @@ def editar_tarea(request, pk):
 
 @login_required
 def eliminar_tarea(request, pk):
-    tarea = get_object_or_404(Tarea.objects.filter(proyecto__sede=sede_usuario(request.user)), pk=pk)
+    tarea = get_object_or_404(Tarea.objects.filter(proyecto__in=proyectos_de_sede(request.user)), pk=pk)
     if not exigir_permiso_edicion_proyecto(request, tarea.proyecto):
         return redirect("proyecto_trabajo", pk=tarea.proyecto_id)
     if request.method == "POST":
@@ -3541,7 +3865,7 @@ def crear_observacion(request, pk):
 @login_required
 @require_POST
 def actualizar_indicador(request, pk, indicador_id):
-    proyecto = get_object_or_404(Proyecto, pk=pk)
+    proyecto = get_object_or_404(proyectos_de_sede(request.user), pk=pk)
     if not exigir_permiso_edicion_proyecto(request, proyecto):
         return JsonResponse({"ok": False, "error": "No tienes permisos para editar este proyecto."}, status=403)
 
@@ -3576,9 +3900,11 @@ def actualizar_indicador(request, pk, indicador_id):
 
 
 class NumberedCanvas(canvas.Canvas):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, marca=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._saved_page_states = []
+        # El encabezado lleva el nombre de la empresa dueña del proyecto.
+        self._marca = marca or MARCA_POR_DEFECTO["nombre"]
 
     def showPage(self):
         self._saved_page_states.append(dict(self.__dict__))
@@ -3600,7 +3926,7 @@ class NumberedCanvas(canvas.Canvas):
         self.setFillColor(colors.HexColor("#64748b"))
         
         # Header text
-        self.drawString(54, self._pagesize[1] - 36, "Crea INACAP Puerto Montt - Reporte de Proyecto")
+        self.drawString(54, self._pagesize[1] - 36, f"{self._marca} - Reporte de Proyecto")
         
         # Header line
         self.setStrokeColor(colors.HexColor("#e2e8f0"))
@@ -3725,7 +4051,11 @@ def descargar_proyecto_pdf(request, pk):
     
     # ─── PORTADA (PÁGINA 1) ───
     # Brand line
-    story.append(Paragraph("<font color='#cf3f4f'><b>CREA INACAP</b></font>", ParagraphStyle('Brand', fontName='Helvetica-Bold', fontSize=12, leading=14)))
+    marca_pdf = marca_de_organizacion(proyecto.organizacion)
+    story.append(Paragraph(
+        f"<font color='{escape(marca_pdf['color_principal'])}'><b>{escape(marca_pdf['nombre'].upper())}</b></font>",
+        ParagraphStyle('Brand', fontName='Helvetica-Bold', fontSize=12, leading=14),
+    ))
     story.append(Spacer(1, 15))
     
     # Title
@@ -3875,7 +4205,10 @@ def descargar_proyecto_pdf(request, pk):
                 ]))
                 story.append(t_gallery)
 
-    doc.build(story, canvasmaker=NumberedCanvas)
+    doc.build(
+        story,
+        canvasmaker=partial(NumberedCanvas, marca=marca_de_organizacion(proyecto.organizacion)["nombre"]),
+    )
     buffer.seek(0)
     
     nombre_pdf = f"proyecto_{proyecto.pk}_{modo}.pdf"
@@ -3889,17 +4222,22 @@ def descargar_proyecto_pdf(request, pk):
 
 @login_required
 def software_lista(request):
-    items = SoftwareConfiguracion.objects.select_related('creado_por')
+    items = software_de_organizacion(request.user)
     return render(request, 'proyectos/software_lista.html', {'items': items})
 
 
 @login_required
 def software_crear(request):
+    organizacion = organizacion_usuario(request.user)
+    if not organizacion and not usuario_es_superadmin(request.user):
+        messages.error(request, 'Tu cuenta no tiene una organización asignada.')
+        return redirect('software_lista')
     if request.method == 'POST':
         form = SoftwareConfiguracionForm(request.POST, request.FILES)
         if form.is_valid():
             sw = form.save(commit=False)
             sw.creado_por = request.user
+            sw.organizacion = organizacion
             sw.save()
             messages.success(request, f'"{sw.nombre}" agregado correctamente.')
             return redirect('software_lista')
@@ -3910,7 +4248,7 @@ def software_crear(request):
 
 @login_required
 def software_editar(request, pk):
-    sw = get_object_or_404(SoftwareConfiguracion, pk=pk)
+    sw = get_object_or_404(software_de_organizacion(request.user), pk=pk)
     if request.method == 'POST':
         form = SoftwareConfiguracionForm(request.POST, request.FILES, instance=sw)
         if form.is_valid():
@@ -3924,7 +4262,7 @@ def software_editar(request, pk):
 
 @login_required
 def software_eliminar(request, pk):
-    sw = get_object_or_404(SoftwareConfiguracion, pk=pk)
+    sw = get_object_or_404(software_de_organizacion(request.user), pk=pk)
     if request.method == 'POST':
         nombre = sw.nombre
         sw.delete()
@@ -3936,7 +4274,7 @@ def software_eliminar(request, pk):
 @login_required
 def software_detalle(request, pk):
     """Vista tipo explorador: muestra las carpetas dentro de un software"""
-    sw = get_object_or_404(SoftwareConfiguracion, pk=pk)
+    sw = get_object_or_404(software_de_organizacion(request.user), pk=pk)
     carpetas = sw.carpetas.select_related('creado_por').prefetch_related('archivos')
     return render(request, 'proyectos/software_detalle.html', {
         'sw': sw, 'carpetas': carpetas
@@ -3945,7 +4283,7 @@ def software_detalle(request, pk):
 
 @login_required
 def carpeta_crear(request, software_pk):
-    sw = get_object_or_404(SoftwareConfiguracion, pk=software_pk)
+    sw = get_object_or_404(software_de_organizacion(request.user), pk=software_pk)
     if request.method == 'POST':
         form = CarpetaArchivosForm(request.POST)
         if form.is_valid():
@@ -3963,7 +4301,7 @@ def carpeta_crear(request, software_pk):
 @login_required
 def carpeta_detalle(request, pk):
     """Dentro de la carpeta: lista de archivos + subir nuevos"""
-    carpeta = get_object_or_404(CarpetaArchivos, pk=pk)
+    carpeta = get_object_or_404(carpetas_de_organizacion(request.user), pk=pk)
 
     if request.method == 'POST':
         archivos = request.FILES.getlist('archivos')
@@ -3982,7 +4320,7 @@ def carpeta_detalle(request, pk):
 
 @login_required
 def carpeta_eliminar(request, pk):
-    carpeta = get_object_or_404(CarpetaArchivos, pk=pk)
+    carpeta = get_object_or_404(carpetas_de_organizacion(request.user), pk=pk)
     sw_pk = carpeta.software.pk
     if request.method == 'POST':
         carpeta.delete()
@@ -3993,7 +4331,7 @@ def carpeta_eliminar(request, pk):
 
 @login_required
 def archivo_eliminar(request, pk):
-    archivo = get_object_or_404(ArchivoAdjunto, pk=pk)
+    archivo = get_object_or_404(archivos_de_organizacion(request.user), pk=pk)
     carpeta_pk = archivo.carpeta.pk
     if request.method == 'POST':
         archivo.delete()

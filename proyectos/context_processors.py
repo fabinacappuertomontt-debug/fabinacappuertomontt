@@ -27,6 +27,9 @@ def notificaciones_usuario(request):
 def software_estandar(request):
     if not request.user.is_authenticated:
         return {}
+    # Se filtra por organizacion: el menu no debe mostrar el software de otra empresa.
+    from .views import software_de_organizacion
+
     return {
-        'software_estandar_list': SoftwareConfiguracion.objects.select_related('creado_por')
+        'software_estandar_list': software_de_organizacion(request.user)
     }
