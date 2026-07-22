@@ -166,11 +166,23 @@ def filtrar_por_sede(queryset, user, campo="sede"):
     return queryset.filter(**{campo: sede_usuario(user)})
 
 
-def proyectos_de_sede(user):
+def borradores_de(user):
+    """Proyectos a medio crear del propio usuario, para poder retomarlos."""
+    if not user.is_authenticated:
+        return Proyecto.objects.none()
+    return Proyecto.objects.filter(creador=user, estado=Proyecto.Estado.BORRADOR).order_by("-id")
+
+
+def proyectos_de_sede(user, incluir_borradores=False):
+    # Un proyecto a medio crear no es un proyecto todavia: no cuenta en listados
+    # ni en estadisticas hasta que su autor termina de crearlo.
+    base = Proyecto.objects.all()
+    if not incluir_borradores:
+        base = base.exclude(estado=Proyecto.Estado.BORRADOR)
     if usuario_es_superadmin(user):
-        return Proyecto.objects.all()
+        return base
     # Siempre filtrar por sede del usuario como primera barrera
-    queryset = filtrar_por_sede(Proyecto.objects.all(), user)
+    queryset = filtrar_por_sede(base, user)
     # Siempre filtrar por organización: si el usuario tiene org, mostrar solo esa org;
     # si no tiene org asignada, no mostrar proyectos de ninguna org (evita filtración cruzada)
     org = organizacion_usuario(user)
@@ -1100,26 +1112,29 @@ def indicadores_sugeridos_json(request):
     indicador entre proyectos es lo que permite compararlos despues. Luego un
     catalogo por nivel TRL para quien parte de cero.
     """
-    organizacion = organizacion_usuario(request.user)
+    # Los indicadores que ofrece son los del propio proyecto: un indicador
+    # responde al resultado que mide, asi que los de otros proyectos casi nunca
+    # aplican y solo agregan ruido.
     usados = []
-    if organizacion:
-        # Se ordenan por cuantas veces se usaron: reutilizar el mismo indicador
-        # entre proyectos es justamente lo que permite compararlos despues.
-        usados = [
-            {
-                "id": entrada.pk,
-                "nombre": entrada.nombre,
-                "tipo": entrada.tipo,
-                "tipo_texto": entrada.get_tipo_display(),
-                "unidad": entrada.unidad,
-                "medio_verificacion": entrada.medio_verificacion,
-                "medible": entrada.es_medible,
-                "veces": entrada.veces,
-            }
-            for entrada in organizacion.indicadores_catalogo.filter(activo=True)
-            .annotate(veces=Count("usos"))
-            .order_by("-veces", "nombre")[:40]
-        ]
+    proyecto_id = request.GET.get("proyecto")
+    if proyecto_id:
+        proyecto = proyectos_de_sede(request.user, incluir_borradores=True).filter(pk=proyecto_id).first()
+        if proyecto:
+            usados = [
+                {
+                    "id": entrada.pk,
+                    "nombre": entrada.nombre,
+                    "tipo": entrada.tipo,
+                    "tipo_texto": entrada.get_tipo_display(),
+                    "unidad": entrada.unidad,
+                    "medio_verificacion": entrada.medio_verificacion,
+                    "medible": entrada.es_medible,
+                    "veces": entrada.veces,
+                }
+                for entrada in proyecto.indicadores_definidos.filter(activo=True)
+                .annotate(veces=Count("usos"))
+                .order_by("-veces", "nombre")
+            ]
 
     metodologia = request.GET.get("metodologia", "")
     if metodologia == Proyecto.Metodologia.SIMPLE:

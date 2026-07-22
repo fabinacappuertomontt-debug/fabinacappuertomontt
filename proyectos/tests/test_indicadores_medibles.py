@@ -22,7 +22,7 @@ Usuario = get_user_model()
 class IndicadorMedibleTests(TestCase):
     def setUp(self):
         self.organizacion = Organizacion.objects.create(nombre="DuocUC", slug="duoc-medible")
-        proyecto = Proyecto.objects.create(
+        self.proyecto = Proyecto.objects.create(
             nombre="Sensor de riego",
             organizacion=self.organizacion,
             metodologia=Proyecto.Metodologia.TRL,
@@ -31,13 +31,13 @@ class IndicadorMedibleTests(TestCase):
             fecha_inicio=date(2026, 1, 1),
         )
         objetivo = ObjetivoEspecifico.objects.create(
-            proyecto=proyecto, descripcion="Validar el sensor", orden=1
+            proyecto=self.proyecto, descripcion="Validar el sensor", orden=1
         )
         self.resultado = ResultadoEsperado.objects.create(
             objetivo=objetivo, descripcion="Sensor validado", orden=1, trl_objetivo=4
         )
         self.catalogo = IndicadorCatalogo.objects.create(
-            organizacion=self.organizacion,
+            proyecto=self.proyecto,
             nombre="Ensayos de humedad exitosos",
             tipo=TipoIndicador.NUMERICO,
             unidad="ensayos",
@@ -116,19 +116,23 @@ class IndicadorMedibleTests(TestCase):
         indicador.refresh_from_db()
         self.assertTrue(indicador.cumplido)
 
-    def test_el_catalogo_no_admite_nombres_repetidos_en_la_misma_empresa(self):
+    def test_un_proyecto_no_admite_dos_indicadores_con_el_mismo_nombre(self):
         from django.db import IntegrityError, transaction
 
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
                 IndicadorCatalogo.objects.create(
-                    organizacion=self.organizacion,
+                    proyecto=self.proyecto,
                     nombre="Ensayos de humedad exitosos",
                 )
 
-    def test_dos_empresas_pueden_tener_un_indicador_con_el_mismo_nombre(self):
-        otra = Organizacion.objects.create(nombre="UACh", slug="uach-medible")
+    def test_dos_proyectos_pueden_tener_un_indicador_con_el_mismo_nombre(self):
+        otro = Proyecto.objects.create(
+            nombre="Otro proyecto",
+            organizacion=self.organizacion,
+            fecha_inicio=date(2026, 1, 1),
+        )
         entrada = IndicadorCatalogo.objects.create(
-            organizacion=otra, nombre="Ensayos de humedad exitosos"
+            proyecto=otro, nombre="Ensayos de humedad exitosos"
         )
         self.assertNotEqual(entrada.pk, self.catalogo.pk)

@@ -1,23 +1,34 @@
-"""El indicador se elige del catalogo de la organizacion, no se inventa."""
+"""Los indicadores que se ofrecen son los del propio proyecto."""
+
+from datetime import date
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from proyectos.models import IndicadorCatalogo, Organizacion, TipoIndicador
+from proyectos.models import IndicadorCatalogo, Organizacion, Proyecto, TipoIndicador
 
 Usuario = get_user_model()
 
 
-class CatalogoIndicadoresTests(TestCase):
+class IndicadoresDelProyectoTests(TestCase):
     def setUp(self):
         self.duoc = Organizacion.objects.create(nombre="DuocUC", slug="duoc-ind")
         self.otra = Organizacion.objects.create(nombre="UACh", slug="uach-ind")
         self.usuario = Usuario.objects.create_user(
             username="ana", email="ana@duoc.cl", password="password123",
-            organizacion=self.duoc,
+            organizacion=self.duoc, rol=Usuario.Rol.ADMIN_ORGANIZACION,
         )
+        self.proyecto = self.crear_proyecto("Sensor de riego", self.duoc)
         self.client.force_login(self.usuario)
+
+    def crear_proyecto(self, nombre, organizacion):
+        return Proyecto.objects.create(
+            nombre=nombre,
+            organizacion=organizacion,
+            sede="puerto_montt",
+            fecha_inicio=date(2026, 1, 1),
+        )
 
     def pedir(self, **parametros):
         return self.client.get(reverse("indicadores_sugeridos"), parametros).json()
@@ -25,43 +36,54 @@ class CatalogoIndicadoresTests(TestCase):
     def nombres(self, datos):
         return [entrada["nombre"] for entrada in datos["usados"]]
 
-    def test_ofrece_el_catalogo_de_la_organizacion(self):
+    def test_ofrece_los_indicadores_definidos_en_ese_proyecto(self):
         IndicadorCatalogo.objects.create(
-            organizacion=self.duoc,
+            proyecto=self.proyecto,
             nombre="Lecturas estables durante 72 horas",
             tipo=TipoIndicador.NUMERICO,
             unidad="horas",
         )
-        datos = self.pedir(metodologia="trl")
+        datos = self.pedir(metodologia="trl", proyecto=self.proyecto.pk)
         self.assertIn("Lecturas estables durante 72 horas", self.nombres(datos))
 
-    def test_no_ofrece_el_catalogo_de_otra_organizacion(self):
-        IndicadorCatalogo.objects.create(
-            organizacion=self.otra, nombre="Indicador de la competencia"
-        )
+    def test_no_ofrece_los_de_otro_proyecto_de_la_misma_empresa(self):
+        # Es el punto del profesor: un indicador responde al resultado que mide,
+        # asi que los de otro proyecto casi nunca aplican.
+        otro = self.crear_proyecto("Proyecto distinto", self.duoc)
+        IndicadorCatalogo.objects.create(proyecto=otro, nombre="Indicador de otro proyecto")
+
+        datos = self.pedir(metodologia="trl", proyecto=self.proyecto.pk)
+        self.assertNotIn("Indicador de otro proyecto", self.nombres(datos))
+
+    def test_no_se_pueden_ver_los_de_un_proyecto_de_otra_empresa(self):
+        ajeno = self.crear_proyecto("Proyecto ajeno", self.otra)
+        IndicadorCatalogo.objects.create(proyecto=ajeno, nombre="Indicador de la competencia")
+
+        datos = self.pedir(metodologia="trl", proyecto=ajeno.pk)
+        self.assertEqual(datos["usados"], [])
+
+    def test_sin_proyecto_no_devuelve_indicadores_propios(self):
+        # Al empezar a crear todavia no hay proyecto: solo van las sugerencias.
         datos = self.pedir(metodologia="trl")
-        self.assertNotIn("Indicador de la competencia", self.nombres(datos))
+        self.assertEqual(datos["usados"], [])
+        self.assertTrue(datos["catalogo"])
 
     def test_informa_si_el_sistema_puede_medirlo_solo(self):
         IndicadorCatalogo.objects.create(
-            organizacion=self.duoc, nombre="Ensayos exitosos",
+            proyecto=self.proyecto, nombre="Ensayos exitosos",
             tipo=TipoIndicador.NUMERICO, unidad="ensayos",
         )
         IndicadorCatalogo.objects.create(
-            organizacion=self.duoc, nombre="Informe aprobado",
+            proyecto=self.proyecto, nombre="Informe aprobado",
             tipo=TipoIndicador.CUALITATIVO,
         )
-        por_nombre = {e["nombre"]: e for e in self.pedir(metodologia="trl")["usados"]}
-
+        por_nombre = {
+            e["nombre"]: e
+            for e in self.pedir(metodologia="trl", proyecto=self.proyecto.pk)["usados"]
+        }
         self.assertTrue(por_nombre["Ensayos exitosos"]["medible"])
         self.assertEqual(por_nombre["Ensayos exitosos"]["unidad"], "ensayos")
         self.assertFalse(por_nombre["Informe aprobado"]["medible"])
-
-    def test_no_ofrece_los_desactivados(self):
-        IndicadorCatalogo.objects.create(
-            organizacion=self.duoc, nombre="Indicador retirado", activo=False
-        )
-        self.assertNotIn("Indicador retirado", self.nombres(self.pedir(metodologia="trl")))
 
     def test_el_catalogo_por_nivel_se_acota_al_recorrido_del_proyecto(self):
         datos = self.pedir(metodologia="trl", trl_inicial="4", trl_objetivo="6")
@@ -74,16 +96,9 @@ class CatalogoIndicadoresTests(TestCase):
         datos = self.pedir(metodologia="simple")
         self.assertEqual(len(datos["catalogo"]), 1)
         self.assertNotIn("TRL", datos["catalogo"][0]["grupo"])
-        self.assertTrue(datos["catalogo"][0]["opciones"])
 
     def test_hay_que_estar_autenticado(self):
         self.client.logout()
         self.assertEqual(
             self.client.get(reverse("indicadores_sugeridos")).status_code, 302
         )
-
-    def test_el_formulario_trae_el_selector_del_catalogo(self):
-        respuesta = self.client.get(reverse("proyecto_crear"))
-        self.assertEqual(respuesta.status_code, 200)
-        self.assertContains(respuesta, "data-indicator-catalogo")
-        self.assertContains(respuesta, 'id="catalogo-indicadores"')

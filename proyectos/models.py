@@ -268,6 +268,9 @@ class Usuario(AbstractUser):
 
 class Proyecto(models.Model):
     class Estado(models.TextChoices):
+        # El borrador existe mientras el proyecto se esta creando paso a paso:
+        # no aparece en listados ni contadores hasta que se termina de crear.
+        BORRADOR = "borrador", "Borrador"
         PENDIENTE = "pendiente", "Pendiente"
         EN_PROCESO = "en_proceso", "En proceso"
         EN_PAUSA = "en_pausa", "En pausa"
@@ -351,6 +354,10 @@ class Proyecto(models.Model):
     )
     mesa_trabajo_mensaje = models.CharField(max_length=240, blank=True)
     mesa_trabajo_actualizada_en = models.DateTimeField(blank=True, null=True)
+    paso_wizard = models.PositiveSmallIntegerField(
+        default=1,
+        help_text="Hasta que paso de la creacion se avanzo. Sirve para retomar un borrador.",
+    )
     creador = models.ForeignKey(
         Usuario,
         on_delete=models.SET_NULL,
@@ -713,18 +720,18 @@ TIPOS_INDICADOR_MEDIBLES = {TipoIndicador.NUMERICO, TipoIndicador.PORCENTAJE}
 
 
 class IndicadorCatalogo(models.Model):
-    """Indicador reutilizable de una organizacion.
+    """Indicador definido dentro de un proyecto y reutilizable en el.
 
-    Existe para que el indicador se elija en vez de escribirse. Cuando cada
-    persona lo teclea, "N de ensayos", "Numero de ensayos" y "cantidad de
-    pruebas" son tres registros distintos y ya no se puede comparar nada entre
-    proyectos.
+    Vive en el proyecto y no en la organizacion porque un indicador responde al
+    resultado que mide: "ensayos de humedad exitosos" pertenece a ese proyecto
+    de sensores y casi nunca aplica a otro. Dentro del mismo proyecto si se
+    reutiliza, porque un indicador puede medir mas de un resultado.
     """
 
-    organizacion = models.ForeignKey(
-        Organizacion,
+    proyecto = models.ForeignKey(
+        "Proyecto",
         on_delete=models.CASCADE,
-        related_name="indicadores_catalogo",
+        related_name="indicadores_definidos",
     )
     nombre = models.CharField(max_length=200)
     tipo = models.CharField(
@@ -749,11 +756,11 @@ class IndicadorCatalogo(models.Model):
         ordering = ["nombre"]
         constraints = [
             models.UniqueConstraint(
-                fields=["organizacion", "nombre"], name="indicador_unico_por_organizacion"
+                fields=["proyecto", "nombre"], name="indicador_unico_por_proyecto"
             )
         ]
-        verbose_name = "indicador del catalogo"
-        verbose_name_plural = "indicadores del catalogo"
+        verbose_name = "indicador del proyecto"
+        verbose_name_plural = "indicadores del proyecto"
 
     def __str__(self):
         return f"{self.nombre} ({self.unidad})" if self.unidad else self.nombre

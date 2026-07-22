@@ -340,11 +340,11 @@ class ProyectoForm(BootstrapFormMixin, forms.ModelForm):
         from .views import sincronizar_avance_simple_desde_objetivos, sincronizar_trl_desde_resultados
 
         payload_trl = self.cleaned_data.get("payload_trl") or []
-        # Solo se aceptan indicadores del catalogo de la propia empresa: el id
+        # Solo se aceptan indicadores definidos en este mismo proyecto: el id
         # viaja por el formulario y no se puede confiar en el.
         catalogo_por_id = {
             entrada.pk: entrada
-            for entrada in IndicadorCatalogo.objects.filter(organizacion=proyecto.organizacion)
+            for entrada in IndicadorCatalogo.objects.filter(proyecto=proyecto)
         }
         ObjetivoEspecifico.objects.filter(proyecto=proyecto).delete()
         for objetivo_data in payload_trl:
