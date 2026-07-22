@@ -10863,3 +10863,20 @@ body.org-theme-dark .projects-tabs-container .nav-link:hover {
     .asistente__entrada .form-control,
     .asistente__entrada .btn { min-height: 44px; }
 }
+
+/* Propuesta de nivel TRL hecha por el asistente. */
+.wizard-razon-trl {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 10px;
+    padding: .6rem .85rem;
+    margin: -.6rem 0 1.05rem;
+    font-size: .84rem;
+    color: #1e3a8a;
+    line-height: 1.45;
+}
+
+.wizard-razon-trl em {
+    color: #64748b;
+    font-style: normal;
+}

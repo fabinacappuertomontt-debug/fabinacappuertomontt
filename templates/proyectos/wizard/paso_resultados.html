@@ -61,6 +61,8 @@
         {% include "proyectos/wizard/_campo.html" with campo=form_resultado.descripcion %}
         {% if form_resultado.trl_objetivo %}
             {% include "proyectos/wizard/_campo.html" with campo=form_resultado.trl_objetivo %}
+            {# La IA lo propone al escribir el resultado; siempre se puede cambiar. #}
+            <div class="wizard-razon-trl" data-razon-trl hidden></div>
         {% endif %}
         <div class="wizard-fila wizard-fila--corta">
             {% include "proyectos/wizard/_campo.html" with campo=form_resultado.plazo_meses %}
@@ -88,7 +90,7 @@
 
         <button class="btn btn-sm btn-outline-primary mb-3" type="button" data-sugerir-indicadores>
             <i class="bi bi-stars" aria-hidden="true"></i>
-            Sugerir indicadores para este resultado
+            Volver a analizar este resultado
         </button>
         <div class="asistente__sugerencias" data-sugerencias-indicador hidden></div>
 
@@ -141,17 +143,22 @@
 })();
 
 (() => {
-    // Propone indicadores a partir del resultado que se esta escribiendo, para
-    // no tener que inventarlo desde cero.
+    // Al terminar de escribir el resultado, la IA propone el nivel TRL que
+    // desbloquea y como comprobarlo. Propone: la eleccion sigue siendo del
+    // equipo, porque el nivel define el recorrido completo del proyecto.
     const boton = document.querySelector("[data-sugerir-indicadores]");
     const caja = document.querySelector("[data-sugerencias-indicador]");
     const campoResultado = document.querySelector("[name=descripcion]");
     const campoNombre = document.querySelector("[name=nombre]");
     const campoTrl = document.querySelector("[name=trl_objetivo]");
+    const razonTrl = document.querySelector("[data-razon-trl]");
     if (!boton || !caja || !campoResultado) return;
 
     const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || "";
-    const proyecto = document.querySelector("[data-asistente]")?.dataset.proyecto;
+    // De la URL y no del panel del asistente: ese se renderiza despues de este
+    // bloque, asi que aqui todavia no existe en el DOM.
+    const proyecto = location.pathname.match(/\/proyectos\/crear\/(\d+)\//)?.[1];
+    let ultimoAnalizado = "";
 
     const pintar = (titulo, opciones) => {
         caja.innerHTML = "";
@@ -174,32 +181,54 @@
         });
     };
 
-    boton.addEventListener("click", async () => {
+    const proponerNivel = (trl, razon) => {
+        if (!campoTrl || !razonTrl || !trl) return;
+        const opcion = [...campoTrl.options].find((o) => o.value === String(trl));
+        if (!opcion) return;
+        campoTrl.value = String(trl);
+        razonTrl.hidden = false;
+        razonTrl.innerHTML =
+            `<strong>Propuesta: TRL ${trl}.</strong> ${razon || ""} ` +
+            `<em>Puedes cambiarlo si no calza.</em>`;
+    };
+
+    const analizar = async (automatico) => {
         const resultado = campoResultado.value.trim();
         if (resultado.length < 10) {
-            pintar("Escribe primero el resultado esperado, arriba.", []);
+            if (!automatico) pintar("Escribe primero el resultado esperado, arriba.", []);
             return;
         }
+        ultimoAnalizado = resultado;
         boton.disabled = true;
-        pintar("Pensando…", []);
+        pintar("Analizando el resultado…", []);
         try {
             const datos = await fetch(`/proyectos/crear/${proyecto}/sugerir-indicadores/`, {
                 method: "POST",
                 headers: {"Content-Type": "application/json", "X-CSRFToken": csrf},
-                body: JSON.stringify({resultado, trl: campoTrl ? campoTrl.value : null}),
+                body: JSON.stringify({resultado, trl: null}),
             }).then((r) => r.json());
 
+            proponerNivel(datos.trl_sugerido, datos.razon_trl);
+
             if (datos.sugerencias && datos.sugerencias.length) {
-                pintar("Toca una para usarla:", datos.sugerencias);
+                pintar("Toca un indicador para usarlo:", datos.sugerencias);
             } else {
-                pintar(datos.error || "No se me ocurrió ninguna. Escríbelo tú.", []);
+                pintar(datos.error || "No se me ocurrió ninguno. Escríbelo tú.", []);
             }
         } catch {
             pintar("Se cortó la conexión. Intenta de nuevo.", []);
         } finally {
             boton.disabled = false;
         }
+    };
+
+    // Automatico al salir del campo, una sola vez por texto: analizar en cada
+    // tecla gastaria cuota sin aportar nada.
+    campoResultado.addEventListener("blur", () => {
+        const actual = campoResultado.value.trim();
+        if (actual.length >= 10 && actual !== ultimoAnalizado) analizar(true);
     });
+    boton.addEventListener("click", () => analizar(false));
 })();
 </script>
 {% endblock %}

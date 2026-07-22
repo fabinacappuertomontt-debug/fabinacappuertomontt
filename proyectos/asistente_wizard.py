@@ -7,8 +7,10 @@ que opine de todo a la vez no ayuda a nadie.
 
 import json
 import logging
+import re
 
 from .gemini_service import (
+    _SinCuotaGemini,
     _con_marca,
     _limpiar_json_modelo,
     _llamar_groq_json,
@@ -19,6 +21,13 @@ from .models import ENTORNO_POR_TRL, TRL_DESCRIPCIONES
 logger = logging.getLogger("proyectos.ia")
 
 MAX_MENSAJES_DE_CONTEXTO = 8
+
+# El plan gratuito de Gemini tiene tope diario. Cuando se acaba conviene decirlo
+# con todas sus letras: un panel vacio hace pensar que la funcion esta rota.
+SIN_CUOTA = (
+    "El asistente alcanzó su límite de consultas por hoy. Puedes seguir "
+    "creando el proyecto normalmente y volver a pedirme ayuda más tarde."
+)
 
 
 BASE = """
@@ -184,6 +193,9 @@ def responder(proyecto, paso, mensaje):
     try:
         texto = _texto_gemini(prompt, temperature=0.35, rapido=True)
         return _normalizar(json.loads(_limpiar_json_modelo(texto)))
+    except _SinCuotaGemini:
+        logger.warning("[IA] Sin cuota en el asistente del paso %s", paso)
+        return {"respuesta": SIN_CUOTA, "sugerencias": []}
     except Exception as exc:
         logger.warning("[IA] El asistente del paso %s fallo con Gemini: %s", paso, exc)
 
@@ -198,28 +210,84 @@ def responder(proyecto, paso, mensaje):
     }
 
 
-def sugerir_indicadores(proyecto, resultado_texto, trl=None):
-    """Propone indicadores para un resultado, sin exigir que sean numericos."""
+def analizar_resultado(proyecto, resultado_texto, trl=None):
+    """Deduce el nivel TRL del resultado y propone como comprobarlo.
+
+    El nivel viene propuesto y explicado, no decidido: es una declaracion con
+    consecuencias para todo el proyecto, asi que la persona tiene que poder
+    verla y cambiarla. Que la IA elija en silencio no agrega rigor, lo esconde.
+    """
     contexto = _con_marca(BASE, proyecto.organizacion) + ENCARGO_POR_PASO[4]
-    detalle_trl = ""
-    if trl:
-        detalle_trl = (
-            f"\nEl resultado desbloquea el TRL {trl}: {TRL_DESCRIPCIONES.get(int(trl), '')}."
-            f"\nEse nivel exige: {ENTORNO_POR_TRL.get(int(trl), 'sin exigencia de entorno')}"
+
+    niveles_posibles = ""
+    if proyecto.usa_trl:
+        opciones = {
+            trl_posible: {
+                "definicion": TRL_DESCRIPCIONES.get(trl_posible, ""),
+                "entorno_que_exige": ENTORNO_POR_TRL.get(trl_posible, ""),
+            }
+            for trl_posible in range(
+                proyecto.trl_inicial_efectivo + 1, proyecto.trl_objetivo_efectivo + 1
+            )
+        }
+        niveles_posibles = (
+            "\n\nEl resultado solo puede desbloquear uno de estos niveles:\n"
+            + json.dumps(opciones, ensure_ascii=False, indent=2)
+            + "\nElige el que corresponda por el ENTORNO donde se valida el resultado, "
+            "no por lo dificil que suene. Ponlo en 'trl_sugerido' y explica en "
+            "'razon_trl' en una sola frase por que ese y no otro."
         )
+
+    ya_elegido = f"\nEl equipo ya eligio el TRL {trl}." if trl else ""
 
     prompt = (
         f"{contexto}\n\n"
         f"Proyecto:\n{json.dumps(_resumen_borrador(proyecto), ensure_ascii=False, indent=2)}\n\n"
-        f"El equipo escribio este resultado esperado:\n{resultado_texto}{detalle_trl}\n\n"
+        f"El equipo escribio este resultado esperado:\n{resultado_texto}{ya_elegido}"
+        f"{niveles_posibles}\n\n"
         "Propon en 'sugerencias' hasta tres indicadores para comprobarlo, escritos "
-        "tal cual irian en el campo. En 'respuesta' explica en una frase que tienen "
-        "en comun o que conviene mirar al elegir."
+        "tal cual irian en el campo. En 'respuesta' explica en una frase que conviene "
+        "mirar al elegir.\n"
+        'Formato: {"respuesta": "", "sugerencias": [], "trl_sugerido": null, "razon_trl": ""}'
     )
 
     try:
         texto = _texto_gemini(prompt, temperature=0.3, rapido=True)
-        return _normalizar(json.loads(_limpiar_json_modelo(texto)))
+        datos = json.loads(_limpiar_json_modelo(texto))
+    except _SinCuotaGemini:
+        logger.warning("[IA] Sin cuota para analizar el resultado")
+        return {
+            "respuesta": SIN_CUOTA,
+            "sugerencias": [],
+            "trl_sugerido": None,
+            "razon_trl": "",
+        }
     except Exception as exc:
-        logger.warning("[IA] No se pudieron sugerir indicadores: %s", exc)
-        return {"respuesta": "", "sugerencias": []}
+        logger.warning("[IA] No se pudo analizar el resultado: %s", exc)
+        return {
+            "respuesta": "No pude analizarlo en este momento. Escribe el indicador tú y sigue adelante.",
+            "sugerencias": [],
+            "trl_sugerido": None,
+            "razon_trl": "",
+        }
+
+    salida = _normalizar(datos)
+    salida["trl_sugerido"] = _trl_valido(datos.get("trl_sugerido"), proyecto)
+    salida["razon_trl"] = str(datos.get("razon_trl", "")).strip()
+    return salida
+
+
+def _trl_valido(valor, proyecto):
+    """Descarta un nivel fuera del recorrido declarado del proyecto.
+
+    Se extrae el numero porque el modelo responde a veces 7 y otras "TRL 7".
+    """
+    if valor in (None, "") or not proyecto.usa_trl:
+        return None
+    coincidencia = re.search(r"\d+", str(valor))
+    if not coincidencia:
+        return None
+    nivel = int(coincidencia.group())
+    if proyecto.trl_inicial_efectivo < nivel <= proyecto.trl_objetivo_efectivo:
+        return nivel
+    return None

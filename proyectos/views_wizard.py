@@ -469,7 +469,7 @@ def wizard_sugerir_indicadores(request, pk):
             {"ok": False, "error": "Describe primero el resultado esperado."}, status=400
         )
 
-    salida = asistente_wizard.sugerir_indicadores(proyecto, resultado, datos.get("trl"))
+    salida = asistente_wizard.analizar_resultado(proyecto, resultado, datos.get("trl"))
     return JsonResponse({"ok": True, **salida})
 
 
