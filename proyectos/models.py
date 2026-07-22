@@ -707,12 +707,18 @@ class ResultadoEsperado(models.Model):
 
 
 class TipoIndicador(models.TextChoices):
-    """Como se mide un indicador, que define si el sistema puede evaluarlo solo."""
+    """Como se mide un indicador, que define si el sistema puede evaluarlo solo.
 
-    NUMERICO = "numerico", "Cantidad"
-    PORCENTAJE = "porcentaje", "Porcentaje"
+    El orden importa: "se logra o no se logra" va primero porque es la forma
+    natural de la mayoria de los indicadores. Pedir un numero para todo produce
+    precision falsa y molesta a quien esta creando el proyecto. Los tipos con
+    numero existen para quien los quiere, no como obligacion.
+    """
+
     BINARIO = "binario", "Se logra o no se logra"
-    CUALITATIVO = "cualitativo", "Descriptivo"
+    NUMERICO = "numerico", "Una cantidad que hay que alcanzar"
+    PORCENTAJE = "porcentaje", "Un porcentaje que hay que alcanzar"
+    CUALITATIVO = "cualitativo", "Descriptivo, se evalua a criterio"
 
 
 # Con estos tipos el sistema compara la medicion contra la meta y decide solo.
@@ -737,7 +743,7 @@ class IndicadorCatalogo(models.Model):
     tipo = models.CharField(
         max_length=20,
         choices=TipoIndicador.choices,
-        default=TipoIndicador.NUMERICO,
+        default=TipoIndicador.BINARIO,
     )
     unidad = models.CharField(
         max_length=60,
@@ -1543,3 +1549,40 @@ class ArchivoAdjunto(models.Model):
             'xlsx': 'bi-file-earmark-excel', 'zip': 'bi-file-zip',
         }
         return mapa.get(self.extension, 'bi-file-earmark')
+
+
+class MensajeAsistente(models.Model):
+    """Conversacion con el asistente durante la creacion de un proyecto.
+
+    Vive en el proyecto y no en la sesion para que el hilo sobreviva al navegar
+    entre pasos y al retomar un borrador otro dia. Ademas queda como registro de
+    en que se apoyo el equipo al definir el proyecto.
+    """
+
+    class Rol(models.TextChoices):
+        USUARIO = "usuario", "Usuario"
+        ASISTENTE = "asistente", "Asistente"
+
+    proyecto = models.ForeignKey(
+        "Proyecto",
+        on_delete=models.CASCADE,
+        related_name="mensajes_asistente",
+    )
+    paso = models.PositiveSmallIntegerField(
+        help_text="Paso del asistente en el que se escribio el mensaje.",
+    )
+    rol = models.CharField(max_length=12, choices=Rol.choices)
+    contenido = models.TextField()
+    fecha = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["fecha", "id"]
+        verbose_name = "mensaje del asistente"
+        verbose_name_plural = "mensajes del asistente"
+
+    def __str__(self):
+        return f"{self.get_rol_display()} (paso {self.paso})"
+
+    @property
+    def es_del_usuario(self):
+        return self.rol == self.Rol.USUARIO

@@ -6,9 +6,12 @@ borrador, se puede volver atras y los indicadores quedan en la base antes de
 que el paso de resultados los ofrezca.
 """
 
+import json
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -22,6 +25,7 @@ from .forms_wizard import (
 from .models import (
     IndicadorCatalogo,
     IndicadorResultado,
+    MensajeAsistente,
     ObjetivoEspecifico,
     Proyecto,
     ResultadoEsperado,
@@ -44,16 +48,47 @@ def _pasos_visibles(proyecto):
     return PASOS
 
 
+def _paso_completo(proyecto, numero):
+    """Si el contenido de ese paso esta realmente hecho.
+
+    Se mira el dato, no por donde paso el usuario: haber abierto un paso no es
+    haberlo completado, y marcarlo en verde antes de tiempo desorienta.
+    """
+    if proyecto is None:
+        return False
+    if numero == 1:
+        return bool(proyecto.nombre and proyecto.descripcion)
+    if numero == 2:
+        return bool(proyecto.trl_inicial and proyecto.trl_objetivo)
+    if numero == 3:
+        return proyecto.objetivos.exists()
+    if numero == 4:
+        objetivos = list(proyecto.objetivos.prefetch_related("resultados__indicadores"))
+        if not objetivos:
+            return False
+        for objetivo in objetivos:
+            resultados = list(objetivo.resultados.all())
+            if not resultados or any(not r.indicadores.exists() for r in resultados):
+                return False
+        return True
+    # La revision solo se da por hecha cuando el proyecto queda creado.
+    return False
+
+
 def _contexto_pasos(proyecto, paso_actual):
     """Estado de cada circulo del indicador de progreso."""
     visibles = _pasos_visibles(proyecto)
     alcanzado = proyecto.paso_wizard if proyecto else 1
     items = []
     for numero, titulo, detalle in visibles:
+        accesible = numero <= alcanzado
         if numero == paso_actual:
             estado = "actual"
-        elif numero <= alcanzado:
+        elif _paso_completo(proyecto, numero):
             estado = "completado"
+        elif accesible:
+            # Se puede entrar, pero todavia falta algo por hacer ahi.
+            estado = "pendiente"
         else:
             estado = "bloqueado"
         items.append(
@@ -63,7 +98,7 @@ def _contexto_pasos(proyecto, paso_actual):
                 "titulo": titulo,
                 "detalle": detalle,
                 "estado": estado,
-                "accesible": numero <= alcanzado,
+                "accesible": accesible,
             }
         )
     return items
@@ -106,6 +141,10 @@ def _render(request, plantilla, proyecto, paso, extra=None):
         "total_pasos": len(_pasos_visibles(proyecto)),
         "paso_anterior": _paso_anterior(proyecto, paso) if proyecto else None,
         "usuarios_disponibles": usuarios_de_sede(request.user),
+        # El hilo vive en el borrador, asi que sobrevive al cambiar de paso.
+        "mensajes_asistente": (
+            proyecto.mensajes_asistente.filter(paso=paso) if proyecto else []
+        ),
     }
     contexto.update(extra or {})
     return render(request, plantilla, contexto)
@@ -372,6 +411,66 @@ def wizard_publicar(request, pk):
 
     messages.success(request, f"«{proyecto.nombre}» quedó creado.")
     return redirect("proyecto_trabajo", pk=proyecto.pk)
+
+
+@login_required
+@require_POST
+def wizard_asistente(request, pk):
+    """Conversa con el equipo dentro del paso en el que esta trabajando."""
+    from . import asistente_wizard
+
+    proyecto = _borrador_del_usuario(request, pk)
+    try:
+        datos = json.loads(request.body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "error": "No se pudo leer el mensaje."}, status=400)
+
+    mensaje = str(datos.get("mensaje", "")).strip()
+    if not mensaje:
+        return JsonResponse({"ok": False, "error": "Escribe algo primero."}, status=400)
+
+    try:
+        paso = int(datos.get("paso") or 1)
+    except (TypeError, ValueError):
+        paso = 1
+
+    # El mensaje del equipo se guarda aunque la IA falle: el hilo es del
+    # proyecto, no de la respuesta.
+    MensajeAsistente.objects.create(
+        proyecto=proyecto, paso=paso, rol=MensajeAsistente.Rol.USUARIO, contenido=mensaje
+    )
+    salida = asistente_wizard.responder(proyecto, paso, mensaje)
+    if salida.get("respuesta"):
+        MensajeAsistente.objects.create(
+            proyecto=proyecto,
+            paso=paso,
+            rol=MensajeAsistente.Rol.ASISTENTE,
+            contenido=salida["respuesta"],
+        )
+
+    return JsonResponse({"ok": True, **salida})
+
+
+@login_required
+@require_POST
+def wizard_sugerir_indicadores(request, pk):
+    """Propone indicadores a partir del resultado que se esta escribiendo."""
+    from . import asistente_wizard
+
+    proyecto = _borrador_del_usuario(request, pk)
+    try:
+        datos = json.loads(request.body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "error": "No se pudo leer el resultado."}, status=400)
+
+    resultado = str(datos.get("resultado", "")).strip()
+    if len(resultado) < 10:
+        return JsonResponse(
+            {"ok": False, "error": "Describe primero el resultado esperado."}, status=400
+        )
+
+    salida = asistente_wizard.sugerir_indicadores(proyecto, resultado, datos.get("trl"))
+    return JsonResponse({"ok": True, **salida})
 
 
 @login_required

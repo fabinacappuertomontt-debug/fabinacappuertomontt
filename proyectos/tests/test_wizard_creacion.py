@@ -275,3 +275,41 @@ class WizardCreacionTests(TestCase):
         self.assertEqual(estados[1], "completado")
         self.assertEqual(estados[2], "actual")
         self.assertEqual(estados[4], "bloqueado")
+
+    def test_un_paso_alcanzado_pero_vacio_no_se_marca_como_completado(self):
+        # Llegar a un paso no es haberlo hecho: marcarlo en verde antes de
+        # tiempo hace creer que ya se lleno algo que sigue vacio.
+        proyecto = self.avanzar_hasta_resultados()
+        respuesta = self.client.get(reverse("wizard_paso", args=[proyecto.pk, 3]))
+        estados = {p["numero"]: p["estado"] for p in respuesta.context["pasos"]}
+
+        self.assertEqual(estados[3], "actual")
+        # El 4 esta desbloqueado pero sin resultados todavia: ni verde ni gris.
+        self.assertEqual(estados[4], "pendiente")
+        # La revision sigue bloqueada mientras no haya ningun resultado.
+        self.assertEqual(estados[5], "bloqueado")
+
+    def test_el_paso_de_resultados_se_completa_al_cubrir_los_objetivos(self):
+        proyecto = self.proyecto_completo()
+        respuesta = self.client.get(reverse("wizard_paso", args=[proyecto.pk, 5]))
+        estados = {p["numero"]: p["estado"] for p in respuesta.context["pasos"]}
+
+        self.assertEqual(estados[4], "completado")
+
+    def test_un_objetivo_sin_resultados_deja_el_paso_incompleto(self):
+        proyecto = self.proyecto_completo()
+        ObjetivoEspecifico.objects.create(
+            proyecto=proyecto, descripcion="Objetivo recien agregado", orden=9
+        )
+        respuesta = self.client.get(reverse("wizard_paso", args=[proyecto.pk, 5]))
+        estados = {p["numero"]: p["estado"] for p in respuesta.context["pasos"]}
+
+        self.assertEqual(estados[4], "pendiente")
+
+    def test_el_desplegable_muestra_el_objetivo_y_no_el_nombre_del_proyecto(self):
+        proyecto = self.avanzar_hasta_resultados()
+        respuesta = self.client.get(reverse("wizard_paso", args=[proyecto.pk, 4]))
+        opciones = str(respuesta.context["form_resultado"]["objetivo"])
+
+        self.assertIn("Validar el sensor en laboratorio", opciones)
+        self.assertNotIn(proyecto.nombre, opciones)

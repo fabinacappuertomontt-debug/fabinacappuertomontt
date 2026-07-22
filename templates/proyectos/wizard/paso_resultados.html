@@ -3,6 +3,12 @@
 {% block titulo_paso %}Resultados e indicadores{% endblock %}
 {% block bajada_paso %}Cada resultado necesita un indicador que permita comprobar, sin discusión, si se logró.{% endblock %}
 
+
+{% block asistente_titulo %}¿Cómo compruebo este resultado?{% endblock %}
+{% block asistente_bajada %}Te sugiero indicadores concretos según el resultado y el nivel que desbloquea.{% endblock %}
+{% block asistente_invitacion %}Escríbeme el resultado que tienes en mente y te propongo cómo comprobarlo.{% endblock %}
+{% block asistente_placeholder %}Ej: ¿cómo mido que el sensor quedó validado?{% endblock %}
+
 {% block cuerpo %}
 <div class="wizard-tarjeta">
     <h2 class="wizard-subtitulo">Lo que llevas</h2>
@@ -80,21 +86,28 @@
             </p>
         {% endif %}
 
+        <button class="btn btn-sm btn-outline-primary mb-3" type="button" data-sugerir-indicadores>
+            <i class="bi bi-stars" aria-hidden="true"></i>
+            Sugerir indicadores para este resultado
+        </button>
+        <div class="asistente__sugerencias" data-sugerencias-indicador hidden></div>
+
         {% include "proyectos/wizard/_campo.html" with campo=form_indicador.nombre %}
-        <div class="wizard-fila">
-            {% include "proyectos/wizard/_campo.html" with campo=form_indicador.tipo %}
-            {% include "proyectos/wizard/_campo.html" with campo=form_indicador.unidad %}
-        </div>
-        <div class="wizard-fila wizard-fila--corta">
-            {% include "proyectos/wizard/_campo.html" with campo=form_indicador.linea_base %}
-            {% include "proyectos/wizard/_campo.html" with campo=form_indicador.meta_valor %}
-        </div>
+        {% include "proyectos/wizard/_campo.html" with campo=form_indicador.tipo %}
         {% include "proyectos/wizard/_campo.html" with campo=form_indicador.medio_verificacion %}
 
-        <div class="wizard-aviso">
-            <i class="bi bi-check2-square" aria-hidden="true"></i>
-            Si el indicador es una cantidad o un porcentaje, el sistema lo dará por cumplido
-            solo cuando la medición alcance la meta. Nadie tiene que marcarlo a mano.
+        {# Los numeros solo aparecen si el equipo elige medir con numeros. #}
+        <div class="wizard-medicion" data-medicion hidden>
+            <div class="wizard-fila wizard-fila--corta">
+                {% include "proyectos/wizard/_campo.html" with campo=form_indicador.unidad %}
+                {% include "proyectos/wizard/_campo.html" with campo=form_indicador.linea_base %}
+                {% include "proyectos/wizard/_campo.html" with campo=form_indicador.meta_valor %}
+            </div>
+            <div class="wizard-aviso">
+                <i class="bi bi-check2-square" aria-hidden="true"></i>
+                Con meta numérica el sistema lo da por cumplido solo cuando la medición
+                la alcanza. Nadie tiene que marcarlo a mano.
+            </div>
         </div>
 
         <button class="btn btn-outline-primary mt-3" type="submit">
@@ -111,4 +124,82 @@
         Revisar y crear <i class="bi bi-arrow-right" aria-hidden="true"></i>
     </a>
 </div>
+
+<script>
+(() => {
+    // Los campos numericos solo se muestran si el indicador se mide con numeros:
+    // pedir una meta para todo produce precision falsa.
+    const tipo = document.querySelector("[name=tipo]");
+    const medicion = document.querySelector("[data-medicion]");
+    if (!tipo || !medicion) return;
+
+    const CON_NUMERO = ["numerico", "porcentaje"];
+    const sincronizar = () => { medicion.hidden = !CON_NUMERO.includes(tipo.value); };
+
+    tipo.addEventListener("change", sincronizar);
+    sincronizar();
+})();
+
+(() => {
+    // Propone indicadores a partir del resultado que se esta escribiendo, para
+    // no tener que inventarlo desde cero.
+    const boton = document.querySelector("[data-sugerir-indicadores]");
+    const caja = document.querySelector("[data-sugerencias-indicador]");
+    const campoResultado = document.querySelector("[name=descripcion]");
+    const campoNombre = document.querySelector("[name=nombre]");
+    const campoTrl = document.querySelector("[name=trl_objetivo]");
+    if (!boton || !caja || !campoResultado) return;
+
+    const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || "";
+    const proyecto = document.querySelector("[data-asistente]")?.dataset.proyecto;
+
+    const pintar = (titulo, opciones) => {
+        caja.innerHTML = "";
+        caja.hidden = false;
+        const encabezado = document.createElement("span");
+        encabezado.className = "asistente__sugerencias-titulo";
+        encabezado.textContent = titulo;
+        caja.appendChild(encabezado);
+        opciones.forEach((texto) => {
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "asistente__chip";
+            chip.textContent = texto;
+            // Un clic lo escribe en el campo: es una sugerencia, no una decision.
+            chip.addEventListener("click", () => {
+                campoNombre.value = texto;
+                campoNombre.focus();
+            });
+            caja.appendChild(chip);
+        });
+    };
+
+    boton.addEventListener("click", async () => {
+        const resultado = campoResultado.value.trim();
+        if (resultado.length < 10) {
+            pintar("Escribe primero el resultado esperado, arriba.", []);
+            return;
+        }
+        boton.disabled = true;
+        pintar("Pensando…", []);
+        try {
+            const datos = await fetch(`/proyectos/crear/${proyecto}/sugerir-indicadores/`, {
+                method: "POST",
+                headers: {"Content-Type": "application/json", "X-CSRFToken": csrf},
+                body: JSON.stringify({resultado, trl: campoTrl ? campoTrl.value : null}),
+            }).then((r) => r.json());
+
+            if (datos.sugerencias && datos.sugerencias.length) {
+                pintar("Toca una para usarla:", datos.sugerencias);
+            } else {
+                pintar(datos.error || "No se me ocurrió ninguna. Escríbelo tú.", []);
+            }
+        } catch {
+            pintar("Se cortó la conexión. Intenta de nuevo.", []);
+        } finally {
+            boton.disabled = false;
+        }
+    });
+})();
+</script>
 {% endblock %}

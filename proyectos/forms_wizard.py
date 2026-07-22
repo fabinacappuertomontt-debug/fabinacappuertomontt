@@ -150,6 +150,13 @@ class ResultadoEsperadoWizardForm(BootstrapFormMixin, forms.ModelForm):
 
         self.fields["objetivo"].queryset = proyecto.objetivos.order_by("orden")
         self.fields["objetivo"].empty_label = None
+        # Sin esto el desplegable usa el __str__ del modelo, que muestra el
+        # nombre del proyecto y deja los objetivos indistinguibles entre si.
+        self.fields["objetivo"].label_from_instance = lambda objetivo: (
+            f"{objetivo.orden}. {objetivo.descripcion}"
+            if len(objetivo.descripcion) <= 90
+            else f"{objetivo.orden}. {objetivo.descripcion[:87]}..."
+        )
 
         if proyecto.usa_trl:
             # Solo los niveles del recorrido del proyecto: ofrecer los nueve

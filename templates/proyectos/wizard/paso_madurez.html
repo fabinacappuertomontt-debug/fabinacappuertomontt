@@ -3,6 +3,12 @@
 {% block titulo_paso %}Punto de partida{% endblock %}
 {% block bajada_paso %}La escala TRL mide madurez tecnológica según dónde se validó. No todo proyecto parte en 1 ni tiene que llegar a 9.{% endblock %}
 
+
+{% block asistente_titulo %}Chatea conmigo para saber en qué TRL va tu proyecto{% endblock %}
+{% block asistente_bajada %}Cuéntame qué tienen hecho hoy y te digo en qué nivel están y hasta dónde apuntar.{% endblock %}
+{% block asistente_invitacion %}Descríbeme qué tienen hecho: ¿una idea, un prototipo, algo ya probado en terreno?{% endblock %}
+{% block asistente_placeholder %}Ej: tenemos un prototipo probado en el taller…{% endblock %}
+
 {% block cuerpo %}
 <form method="post" novalidate>
     {% csrf_token %}

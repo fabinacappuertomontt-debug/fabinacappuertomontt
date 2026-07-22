@@ -49,5 +49,123 @@
     <div class="wizard-cuerpo">
         {% block cuerpo %}{% endblock %}
     </div>
+
+    {% if proyecto %}
+        {# El asistente ve el borrador y ayuda con el paso en el que se esta. #}
+        <section class="asistente" data-asistente data-proyecto="{{ proyecto.pk }}" data-paso="{{ paso_actual }}">
+            <header class="asistente__cabecera">
+                <span class="asistente__icono" aria-hidden="true"><i class="bi bi-stars"></i></span>
+                <div>
+                    <strong>{% block asistente_titulo %}Conversa con el asistente{% endblock %}</strong>
+                    <span>{% block asistente_bajada %}Te ayuda con este paso. Lee lo que llevas escrito.{% endblock %}</span>
+                </div>
+            </header>
+
+            <div class="asistente__hilo" data-asistente-hilo aria-live="polite">
+                {% for mensaje in mensajes_asistente %}
+                    <div class="asistente__mensaje {% if mensaje.es_del_usuario %}es-mio{% endif %}">
+                        {{ mensaje.contenido|linebreaksbr }}
+                    </div>
+                {% empty %}
+                    <p class="asistente__vacio">{% block asistente_invitacion %}Pregúntame lo que necesites sobre este paso.{% endblock %}</p>
+                {% endfor %}
+            </div>
+
+            <div class="asistente__sugerencias" data-asistente-sugerencias hidden></div>
+
+            <form class="asistente__entrada" data-asistente-form>
+                <input type="text" class="form-control" data-asistente-input
+                       placeholder="{% block asistente_placeholder %}Escribe tu pregunta…{% endblock %}"
+                       autocomplete="off">
+                <button class="btn btn-primary" type="submit" data-asistente-enviar>
+                    <i class="bi bi-send" aria-hidden="true"></i>
+                    <span class="visually-hidden">Enviar</span>
+                </button>
+            </form>
+        </section>
+
+        <script>
+        (() => {
+            const panel = document.querySelector("[data-asistente]");
+            if (!panel) return;
+            const hilo = panel.querySelector("[data-asistente-hilo]");
+            const cajaSugerencias = panel.querySelector("[data-asistente-sugerencias]");
+            const form = panel.querySelector("[data-asistente-form]");
+            const input = panel.querySelector("[data-asistente-input]");
+            const boton = panel.querySelector("[data-asistente-enviar]");
+            const vacio = hilo.querySelector(".asistente__vacio");
+
+            const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || "";
+
+            const agregar = (texto, mio) => {
+                vacio?.remove();
+                const burbuja = document.createElement("div");
+                burbuja.className = "asistente__mensaje" + (mio ? " es-mio" : "");
+                burbuja.textContent = texto;
+                hilo.appendChild(burbuja);
+                hilo.scrollTop = hilo.scrollHeight;
+                return burbuja;
+            };
+
+            // Las sugerencias se copian al portapapeles: el asistente orienta,
+            // no escribe en los campos por su cuenta.
+            const mostrarSugerencias = (sugerencias) => {
+                cajaSugerencias.innerHTML = "";
+                if (!sugerencias.length) { cajaSugerencias.hidden = true; return; }
+                cajaSugerencias.hidden = false;
+                const titulo = document.createElement("span");
+                titulo.className = "asistente__sugerencias-titulo";
+                titulo.textContent = "Toca para copiar:";
+                cajaSugerencias.appendChild(titulo);
+                sugerencias.forEach((texto) => {
+                    const chip = document.createElement("button");
+                    chip.type = "button";
+                    chip.className = "asistente__chip";
+                    chip.textContent = texto;
+                    chip.addEventListener("click", async () => {
+                        try {
+                            await navigator.clipboard.writeText(texto);
+                            chip.classList.add("es-copiado");
+                            setTimeout(() => chip.classList.remove("es-copiado"), 1200);
+                        } catch { /* sin portapapeles: el texto igual se ve */ }
+                    });
+                    cajaSugerencias.appendChild(chip);
+                });
+            };
+
+            form.addEventListener("submit", async (evento) => {
+                evento.preventDefault();
+                const mensaje = input.value.trim();
+                if (!mensaje) return;
+
+                agregar(mensaje, true);
+                input.value = "";
+                input.disabled = boton.disabled = true;
+                const pensando = agregar("Pensando…", false);
+                pensando.classList.add("es-pensando");
+
+                try {
+                    const respuesta = await fetch(`/proyectos/crear/${panel.dataset.proyecto}/asistente/`, {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json", "X-CSRFToken": csrf},
+                        body: JSON.stringify({mensaje, paso: Number(panel.dataset.paso)}),
+                    }).then((r) => r.json());
+
+                    pensando.remove();
+                    agregar(respuesta.respuesta || respuesta.error || "No pude responder.", false);
+                    mostrarSugerencias(respuesta.sugerencias || []);
+                } catch {
+                    pensando.remove();
+                    agregar("Se cortó la conexión. Intenta de nuevo.", false);
+                } finally {
+                    input.disabled = boton.disabled = false;
+                    input.focus();
+                }
+            });
+
+            hilo.scrollTop = hilo.scrollHeight;
+        })();
+        </script>
+    {% endif %}
 </div>
 {% endblock %}

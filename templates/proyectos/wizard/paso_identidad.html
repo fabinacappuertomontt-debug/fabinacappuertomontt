@@ -3,6 +3,12 @@
 {% block titulo_paso %}El proyecto{% endblock %}
 {% block bajada_paso %}Lo básico: de qué se trata y quién lo lleva. Se guarda apenas continúes.{% endblock %}
 
+
+{% block asistente_titulo %}¿Te ayudo a definirlo?{% endblock %}
+{% block asistente_bajada %}Cuéntame tu idea y te ayudo con el nombre, la descripción y el objetivo principal.{% endblock %}
+{% block asistente_invitacion %}Cuéntame de qué trata tu proyecto y lo ordenamos juntos.{% endblock %}
+{% block asistente_placeholder %}Ej: quiero medir la calidad del agua en balsas jaula…{% endblock %}
+
 {% block cuerpo %}
 <form method="post" novalidate>
     {% csrf_token %}
