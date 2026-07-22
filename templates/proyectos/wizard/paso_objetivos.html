@@ -1,0 +1,51 @@
+{% extends "proyectos/wizard/base.html" %}
+
+{% block titulo_paso %}Objetivos específicos{% endblock %}
+{% block bajada_paso %}Qué se quiere lograr. En el paso siguiente cada objetivo se aterriza en resultados concretos.{% endblock %}
+
+{% block cuerpo %}
+<div class="wizard-tarjeta">
+    <h2 class="wizard-subtitulo">Objetivos agregados</h2>
+    {% if objetivos %}
+        <ol class="wizard-lista">
+            {% for objetivo in objetivos %}
+                <li>
+                    <span>{{ objetivo.descripcion }}</span>
+                    <form method="post" action="{% url 'wizard_eliminar_objetivo' proyecto.pk objetivo.pk %}">
+                        {% csrf_token %}
+                        <button class="btn btn-sm btn-outline-danger" type="submit" aria-label="Quitar objetivo">
+                            <i class="bi bi-trash" aria-hidden="true"></i>
+                        </button>
+                    </form>
+                </li>
+            {% endfor %}
+        </ol>
+    {% else %}
+        <p class="text-muted mb-0">Todavía no hay objetivos. Agrega el primero abajo.</p>
+    {% endif %}
+</div>
+
+<form method="post" novalidate>
+    {% csrf_token %}
+    <div class="wizard-tarjeta">
+        <h2 class="wizard-subtitulo">Agregar un objetivo</h2>
+        {% include "proyectos/wizard/_campo.html" with campo=form.descripcion %}
+        <button class="btn btn-outline-primary" type="submit">
+            <i class="bi bi-plus-circle" aria-hidden="true"></i> Agregar objetivo
+        </button>
+    </div>
+</form>
+
+<div class="wizard-acciones">
+    <a class="btn btn-outline-secondary" href="{% url 'wizard_paso' proyecto.pk paso_anterior %}">
+        <i class="bi bi-arrow-left" aria-hidden="true"></i> Volver
+    </a>
+    {% if objetivos %}
+        <a class="btn btn-primary" href="{% url 'wizard_paso' proyecto.pk 4 %}">
+            Continuar <i class="bi bi-arrow-right" aria-hidden="true"></i>
+        </a>
+    {% else %}
+        <button class="btn btn-primary" disabled>Agrega al menos un objetivo</button>
+    {% endif %}
+</div>
+{% endblock %}

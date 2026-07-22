@@ -1,0 +1,44 @@
+{% extends "proyectos/wizard/base.html" %}
+
+{% block titulo_paso %}El proyecto{% endblock %}
+{% block bajada_paso %}Lo básico: de qué se trata y quién lo lleva. Se guarda apenas continúes.{% endblock %}
+
+{% block cuerpo %}
+<form method="post" novalidate>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger rounded-4">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="wizard-tarjeta">
+        {% include "proyectos/wizard/_campo.html" with campo=form.nombre %}
+        {% include "proyectos/wizard/_campo.html" with campo=form.descripcion %}
+        {% include "proyectos/wizard/_campo.html" with campo=form.objetivo_principal %}
+    </div>
+
+    <div class="wizard-tarjeta">
+        <h2 class="wizard-subtitulo">Cómo se va a seguir</h2>
+        {% include "proyectos/wizard/_campo.html" with campo=form.metodologia %}
+        <div class="wizard-fila">
+            {% include "proyectos/wizard/_campo.html" with campo=form.fecha_inicio %}
+            {% include "proyectos/wizard/_campo.html" with campo=form.fecha_fin %}
+        </div>
+    </div>
+
+    <div class="wizard-tarjeta">
+        <h2 class="wizard-subtitulo">{{ form.responsables.label }}</h2>
+        <div class="form-text mb-2">{{ form.responsables.help_text }}</div>
+        <div class="wizard-responsables">{{ form.responsables }}</div>
+        {% for error in form.responsables.errors %}<div class="text-danger small fw-bold">{{ error }}</div>{% endfor %}
+    </div>
+
+    <div class="wizard-acciones">
+        <a class="btn btn-outline-secondary" href="{% url 'proyecto_lista' %}">Cancelar</a>
+        <button class="btn btn-primary" type="submit">
+            Continuar
+            <i class="bi bi-arrow-right" aria-hidden="true"></i>
+        </button>
+    </div>
+</form>
+{% endblock %}

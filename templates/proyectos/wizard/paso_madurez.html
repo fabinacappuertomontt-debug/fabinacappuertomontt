@@ -1,0 +1,41 @@
+{% extends "proyectos/wizard/base.html" %}
+
+{% block titulo_paso %}Punto de partida{% endblock %}
+{% block bajada_paso %}La escala TRL mide madurez tecnológica según dónde se validó. No todo proyecto parte en 1 ni tiene que llegar a 9.{% endblock %}
+
+{% block cuerpo %}
+<form method="post" novalidate>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger rounded-4">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="wizard-tarjeta">
+        <div class="wizard-fila">
+            {% include "proyectos/wizard/_campo.html" with campo=form.trl_inicial %}
+            {% include "proyectos/wizard/_campo.html" with campo=form.trl_objetivo %}
+        </div>
+    </div>
+
+    <div class="wizard-tarjeta wizard-referencia">
+        <h2 class="wizard-subtitulo">Qué significa cada nivel</h2>
+        <p class="form-text">Lo que separa un nivel del siguiente es <strong>dónde se validó</strong>, no cuánto trabajo llevas.</p>
+        <ol class="wizard-escala">
+            <li><span>1–3</span> Papel y laboratorio: principios, concepto y prueba de concepto.</li>
+            <li><span>4–5</span> Del laboratorio a un <strong>entorno relevante</strong>, que simula las condiciones reales.</li>
+            <li><span>6–7</span> Prototipo demostrado en entorno relevante y luego en <strong>entorno real</strong>.</li>
+            <li><span>8–9</span> Sistema completo, calificado y operando con usuarios finales.</li>
+        </ol>
+    </div>
+
+    <div class="wizard-acciones">
+        <a class="btn btn-outline-secondary" href="{% url 'wizard_paso' proyecto.pk paso_anterior %}">
+            <i class="bi bi-arrow-left" aria-hidden="true"></i> Volver
+        </a>
+        <button class="btn btn-primary" type="submit">
+            Continuar <i class="bi bi-arrow-right" aria-hidden="true"></i>
+        </button>
+    </div>
+</form>
+{% endblock %}

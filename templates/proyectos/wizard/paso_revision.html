@@ -1,0 +1,72 @@
+{% extends "proyectos/wizard/base.html" %}
+
+{% block titulo_paso %}Revisión{% endblock %}
+{% block bajada_paso %}Así queda el proyecto. Si algo no cuadra, puedes volver a cualquier paso.{% endblock %}
+
+{% block cuerpo %}
+{% if faltantes %}
+    <div class="alert alert-warning rounded-4">
+        <strong>Falta algo antes de poder crear el proyecto:</strong>
+        <ul class="mb-0 mt-2">
+            {% for problema in faltantes %}<li>{{ problema }}</li>{% endfor %}
+        </ul>
+    </div>
+{% endif %}
+
+<div class="wizard-tarjeta">
+    <h2 class="wizard-subtitulo">{{ proyecto.nombre }}</h2>
+    <p>{{ proyecto.descripcion }}</p>
+    {% if proyecto.objetivo_principal %}
+        <p class="text-muted"><strong>Objetivo principal:</strong> {{ proyecto.objetivo_principal }}</p>
+    {% endif %}
+    <div class="wizard-resumen">
+        <div><span>Seguimiento</span><strong>{{ proyecto.get_metodologia_display }}</strong></div>
+        {% if proyecto.usa_trl %}
+            <div><span>Madurez</span><strong>TRL {{ proyecto.trl_inicial_efectivo }} → {{ proyecto.trl_objetivo_efectivo }}</strong></div>
+        {% endif %}
+        <div><span>Parte</span><strong>{{ proyecto.fecha_inicio|date:"d/m/Y" }}</strong></div>
+        <div><span>Responsables</span><strong>{{ proyecto.responsables.count }}</strong></div>
+    </div>
+</div>
+
+{% for objetivo in objetivos %}
+    <div class="wizard-tarjeta">
+        <h3 class="wizard-objetivo__titulo">{{ forloop.counter }}. {{ objetivo.descripcion }}</h3>
+        {% for resultado in objetivo.resultados.all %}
+            <div class="wizard-revision-resultado">
+                <strong>{{ resultado.descripcion }}</strong>
+                <div class="wizard-resultado__meta">
+                    {% if proyecto.usa_trl %}<span class="wizard-etiqueta">TRL {{ resultado.trl_objetivo }}</span>{% endif %}
+                    <span>{{ resultado.plazo_meses }} meses {{ resultado.plazo_dias }} días</span>
+                </div>
+                {% for indicador in resultado.indicadores.all %}
+                    <div class="wizard-revision-indicador">
+                        <i class="bi bi-rulers" aria-hidden="true"></i>
+                        {{ indicador.descripcion }}
+                        {% if indicador.meta_valor %}
+                            — meta <strong>{{ indicador.meta_valor|floatformat:"-2" }} {{ indicador.unidad }}</strong>
+                            {% if indicador.es_medible %}<span class="wizard-etiqueta wizard-etiqueta--auto">se calcula solo</span>{% endif %}
+                        {% else %}
+                            <span class="wizard-etiqueta">se marca a mano</span>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% empty %}
+            <p class="text-muted mb-0">Sin resultados.</p>
+        {% endfor %}
+    </div>
+{% endfor %}
+
+<div class="wizard-acciones">
+    <a class="btn btn-outline-secondary" href="{% url 'wizard_paso' proyecto.pk paso_anterior %}">
+        <i class="bi bi-arrow-left" aria-hidden="true"></i> Volver
+    </a>
+    <form method="post" action="{% url 'wizard_publicar' proyecto.pk %}">
+        {% csrf_token %}
+        <button class="btn btn-primary btn-lg" type="submit" {% if not puede_crear %}disabled{% endif %}>
+            <i class="bi bi-check-circle" aria-hidden="true"></i> Crear proyecto
+        </button>
+    </form>
+</div>
+{% endblock %}

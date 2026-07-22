@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Crear proyecto{% endblock %}
+
+{% block content %}
+<div class="wizard">
+    <header class="wizard-encabezado">
+        <div>
+            <span class="wizard-eyebrow">Nuevo proyecto</span>
+            <h1>{% block titulo_paso %}Crear proyecto{% endblock %}</h1>
+            <p>{% block bajada_paso %}{% endblock %}</p>
+        </div>
+        {% if proyecto %}
+            <form method="post" action="{% url 'wizard_descartar' proyecto.pk %}"
+                  onsubmit="return confirm('Se descartará este borrador y lo que llevas escrito. ¿Continuar?');">
+                {% csrf_token %}
+                <button class="btn btn-outline-secondary btn-sm" type="submit">Descartar borrador</button>
+            </form>
+        {% endif %}
+    </header>
+
+    {# Los circulos de arriba: donde estoy, que ya complete y que falta. #}
+    <ol class="wizard-pasos" aria-label="Pasos para crear el proyecto">
+        {% for paso in pasos %}
+            <li class="wizard-paso is-{{ paso.estado }}">
+                {% if paso.accesible and proyecto %}
+                    <a href="{% url 'wizard_paso' proyecto.pk paso.numero %}">
+                {% else %}
+                    <span>
+                {% endif %}
+                    <span class="wizard-paso__circulo" aria-hidden="true">
+                        {% if paso.estado == 'completado' %}✓{% else %}{{ paso.posicion }}{% endif %}
+                    </span>
+                    <span class="wizard-paso__texto">
+                        <strong>{{ paso.titulo }}</strong>
+                        <small>{{ paso.detalle }}</small>
+                    </span>
+                {% if paso.accesible and proyecto %}</a>{% else %}</span>{% endif %}
+            </li>
+        {% endfor %}
+    </ol>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }} rounded-4">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="wizard-cuerpo">
+        {% block cuerpo %}{% endblock %}
+    </div>
+</div>
+{% endblock %}

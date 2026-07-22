@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import views, views_wizard
 
 
 urlpatterns = [
@@ -46,6 +46,12 @@ urlpatterns = [
     path("inventario/<int:pk>/editar/", views.inventario_editar, name="inventario_editar"),
     path("inventario/<int:pk>/eliminar/", views.inventario_eliminar, name="inventario_eliminar"),
     path("proyectos/asistente-ia/", views.asistente_ia_proyecto, name="proyecto_asistente_ia"),
+    path("proyectos/crear/", views_wizard.wizard_inicio, name="wizard_inicio"),
+    path("proyectos/crear/<int:pk>/paso/<int:paso>/", views_wizard.wizard_paso, name="wizard_paso"),
+    path("proyectos/crear/<int:pk>/publicar/", views_wizard.wizard_publicar, name="wizard_publicar"),
+    path("proyectos/crear/<int:pk>/descartar/", views_wizard.wizard_descartar, name="wizard_descartar"),
+    path("proyectos/crear/<int:pk>/objetivo/<int:objetivo_id>/quitar/", views_wizard.wizard_eliminar_objetivo, name="wizard_eliminar_objetivo"),
+    path("proyectos/crear/<int:pk>/resultado/<int:resultado_id>/quitar/", views_wizard.wizard_eliminar_resultado, name="wizard_eliminar_resultado"),
     path("proyectos/nuevo/", views.ProyectoCreateView.as_view(), name="proyecto_crear"),
     path("proyectos/<int:pk>/", views.proyecto_detalle, name="proyecto_detalle"),
     path("proyectos/<int:pk>/descargar-pdf/", views.descargar_proyecto_pdf, name="proyecto_descargar_pdf"),

@@ -1,0 +1,114 @@
+{% extends "proyectos/wizard/base.html" %}
+
+{% block titulo_paso %}Resultados e indicadores{% endblock %}
+{% block bajada_paso %}Cada resultado necesita un indicador que permita comprobar, sin discusión, si se logró.{% endblock %}
+
+{% block cuerpo %}
+<div class="wizard-tarjeta">
+    <h2 class="wizard-subtitulo">Lo que llevas</h2>
+    {% for objetivo in objetivos %}
+        <div class="wizard-objetivo">
+            <h3 class="wizard-objetivo__titulo">{{ objetivo.descripcion }}</h3>
+            {% if objetivo.resultados.all %}
+                <ul class="wizard-resultados">
+                    {% for resultado in objetivo.resultados.all %}
+                        <li>
+                            <div>
+                                <strong>{{ resultado.descripcion }}</strong>
+                                <div class="wizard-resultado__meta">
+                                    {% if proyecto.usa_trl %}<span class="wizard-etiqueta">TRL {{ resultado.trl_objetivo }}</span>{% endif %}
+                                    <span>{{ resultado.plazo_meses }} meses {{ resultado.plazo_dias }} días</span>
+                                    {% for indicador in resultado.indicadores.all %}
+                                        <span class="wizard-etiqueta wizard-etiqueta--indicador">
+                                            {{ indicador.descripcion }}{% if indicador.meta_valor %}: meta {{ indicador.meta_valor|floatformat:"-2" }} {{ indicador.unidad }}{% endif %}
+                                        </span>
+                                    {% empty %}
+                                        <span class="text-danger fw-bold">Sin indicador</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <form method="post" action="{% url 'wizard_eliminar_resultado' proyecto.pk resultado.pk %}">
+                                {% csrf_token %}
+                                <button class="btn btn-sm btn-outline-danger" type="submit" aria-label="Quitar resultado">
+                                    <i class="bi bi-trash" aria-hidden="true"></i>
+                                </button>
+                            </form>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-muted mb-0">Todavía sin resultados.</p>
+            {% endif %}
+        </div>
+    {% endfor %}
+</div>
+
+<form method="post" novalidate>
+    {% csrf_token %}
+
+    <div class="wizard-tarjeta">
+        <h2 class="wizard-subtitulo">Agregar un resultado esperado</h2>
+        {% if form_resultado.non_field_errors %}
+            <div class="alert alert-danger rounded-4">{{ form_resultado.non_field_errors }}</div>
+        {% endif %}
+        {% include "proyectos/wizard/_campo.html" with campo=form_resultado.objetivo %}
+        {% include "proyectos/wizard/_campo.html" with campo=form_resultado.descripcion %}
+        {% if form_resultado.trl_objetivo %}
+            {% include "proyectos/wizard/_campo.html" with campo=form_resultado.trl_objetivo %}
+        {% endif %}
+        <div class="wizard-fila wizard-fila--corta">
+            {% include "proyectos/wizard/_campo.html" with campo=form_resultado.plazo_meses %}
+            {% include "proyectos/wizard/_campo.html" with campo=form_resultado.plazo_dias %}
+        </div>
+    </div>
+
+    <div class="wizard-tarjeta wizard-tarjeta--indicador">
+        <h2 class="wizard-subtitulo">¿Cómo se comprueba que se logró?</h2>
+        {% if form_indicador.non_field_errors %}
+            <div class="alert alert-danger rounded-4">{{ form_indicador.non_field_errors }}</div>
+        {% endif %}
+
+        {% if indicadores_definidos %}
+            {% include "proyectos/wizard/_campo.html" with campo=form_indicador.existente %}
+            <p class="form-text">
+                Si eliges uno ya definido, no hace falta completar lo de abajo.
+            </p>
+        {% else %}
+            <p class="form-text">
+                Este es el primer indicador del proyecto. Los que definas acá quedan
+                disponibles para los demás resultados.
+            </p>
+        {% endif %}
+
+        {% include "proyectos/wizard/_campo.html" with campo=form_indicador.nombre %}
+        <div class="wizard-fila">
+            {% include "proyectos/wizard/_campo.html" with campo=form_indicador.tipo %}
+            {% include "proyectos/wizard/_campo.html" with campo=form_indicador.unidad %}
+        </div>
+        <div class="wizard-fila wizard-fila--corta">
+            {% include "proyectos/wizard/_campo.html" with campo=form_indicador.linea_base %}
+            {% include "proyectos/wizard/_campo.html" with campo=form_indicador.meta_valor %}
+        </div>
+        {% include "proyectos/wizard/_campo.html" with campo=form_indicador.medio_verificacion %}
+
+        <div class="wizard-aviso">
+            <i class="bi bi-check2-square" aria-hidden="true"></i>
+            Si el indicador es una cantidad o un porcentaje, el sistema lo dará por cumplido
+            solo cuando la medición alcance la meta. Nadie tiene que marcarlo a mano.
+        </div>
+
+        <button class="btn btn-outline-primary mt-3" type="submit">
+            <i class="bi bi-plus-circle" aria-hidden="true"></i> Agregar resultado
+        </button>
+    </div>
+</form>
+
+<div class="wizard-acciones">
+    <a class="btn btn-outline-secondary" href="{% url 'wizard_paso' proyecto.pk paso_anterior %}">
+        <i class="bi bi-arrow-left" aria-hidden="true"></i> Volver
+    </a>
+    <a class="btn btn-primary" href="{% url 'wizard_paso' proyecto.pk 5 %}">
+        Revisar y crear <i class="bi bi-arrow-right" aria-hidden="true"></i>
+    </a>
+</div>
+{% endblock %}
