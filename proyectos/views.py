@@ -22,6 +22,7 @@ from datetime import datetime, timedelta
 from functools import partial, wraps
 from urllib.parse import urlencode
 import json
+from decimal import Decimal, InvalidOperation
 import logging
 import secrets
 import threading
@@ -63,7 +64,7 @@ from .forms import (
     CarpetaArchivosForm,
 )
 from .gemini_service import analizar_borrador_trl, analizar_etapa_trl, analizar_trl, generar_mesa_trabajo_ia, generar_estructura_proyecto_ia
-from .models import ACTIVIDAD_FASES, ENTORNO_POR_TRL, INDICADORES_SUGERIDOS_POR_TRL, INDICADORES_SUGERIDOS_SIMPLES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Area, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario, MovimientoStock, GrupoChat, Notificacion, SoftwareConfiguracion, CarpetaArchivos, ArchivoAdjunto
+from .models import ACTIVIDAD_FASES, ENTORNO_POR_TRL, INDICADORES_SUGERIDOS_POR_TRL, INDICADORES_SUGERIDOS_SIMPLES, TIPOS_INDICADOR_MEDIBLES, GENERAL_FASES, TRL_DEFINICIONES, TRL_DESCRIPCIONES, Area, Avance, FaseProyecto, IndicadorResultado, ItemInventario, MensajePrivado, ObjetivoEspecifico, Organizacion, Proyecto, ResultadoEsperado, RevisionIAEtapa, Tarea, UsoInventario, Usuario, MovimientoStock, GrupoChat, Notificacion, SoftwareConfiguracion, CarpetaArchivos, ArchivoAdjunto
 
 logger = logging.getLogger("proyectos.views")
 
@@ -3955,6 +3956,16 @@ def crear_observacion(request, pk):
     )
 
 
+def _decimal_o_none(valor):
+    """Convierte a numero lo que llega del cliente, aceptando coma decimal."""
+    if valor in (None, ""):
+        return None
+    try:
+        return Decimal(str(valor).strip().replace(",", "."))
+    except (InvalidOperation, AttributeError):
+        return None
+
+
 @login_required
 @require_POST
 def actualizar_indicador(request, pk, indicador_id):
@@ -3973,8 +3984,19 @@ def actualizar_indicador(request, pk, indicador_id):
     except json.JSONDecodeError:
         return JsonResponse({"ok": False, "error": "JSON inválido."}, status=400)
 
-    indicador.cumplido = bool(data.get("cumplido", False))
-    indicador.valor_actual = str(data.get("valor_actual", "")).strip()
+    if indicador.tipo in TIPOS_INDICADOR_MEDIBLES:
+        # Indicador medible: el equipo registra la medicion y el sistema decide.
+        # Marcar a mano deja de tener efecto; lo hace calcular_cumplido en save().
+        indicador.valor_medido = _decimal_o_none(data.get("valor_medido"))
+        indicador.valor_actual = (
+            f"{indicador.valor_medido} {indicador.unidad}".strip()
+            if indicador.valor_medido is not None
+            else ""
+        )
+    else:
+        # Binario o cualitativo: aqui la persona es el instrumento de medicion.
+        indicador.cumplido = bool(data.get("cumplido", False))
+        indicador.valor_actual = str(data.get("valor_actual", "")).strip()
     indicador.save()
 
     # Obtener el conjunto de IDs de las fases completadas antes de sincronizar

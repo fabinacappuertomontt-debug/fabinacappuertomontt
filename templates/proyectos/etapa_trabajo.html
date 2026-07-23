@@ -68,17 +68,24 @@
                     
                     <div class="stage-criteria-table">
                         {% for ind in indicadores_etapa %}
-                            <div id="fila-ind-{{ ind.id }}" class="stage-criteria-row {% if ind.cumplido %}stage-criteria-completada{% else %}stage-criteria-en_proceso{% endif %} d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3" data-url="{% url 'indicador_actualizar' pk=proyecto.pk indicador_id=ind.id %}">
+                            <div id="fila-ind-{{ ind.id }}" class="stage-criteria-row {% if ind.cumplido %}stage-criteria-completada{% else %}stage-criteria-en_proceso{% endif %} d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3" data-url="{% url 'indicador_actualizar' pk=proyecto.pk indicador_id=ind.id %}" data-medible="{{ ind.es_medible|yesno:'1,0' }}">
                                 <div class="form-check d-flex align-items-start gap-2 mb-0 flex-grow-1">
-                                    <input
-                                      type="checkbox"
-                                      class="form-check-input ind-check mt-1"
-                                      data-id="{{ ind.id }}"
-                                      id="ind-{{ ind.id }}"
-                                      {% if ind.cumplido %}checked{% endif %}
-                                      {% if not puede_editar_proyecto %}disabled{% endif %}
-                                      style="cursor: pointer; width: 1.2rem; height: 1.2rem;"
-                                    >
+                                    {% if ind.es_medible %}
+                                        {# El sistema decide con la medicion; no hay casilla que marcar. #}
+                                        <span class="ind-estado mt-1 {% if ind.cumplido %}ind-estado-ok{% endif %}" data-id="{{ ind.id }}" aria-hidden="true">
+                                            <i class="bi {% if ind.cumplido %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+                                        </span>
+                                    {% else %}
+                                        <input
+                                          type="checkbox"
+                                          class="form-check-input ind-check mt-1"
+                                          data-id="{{ ind.id }}"
+                                          id="ind-{{ ind.id }}"
+                                          {% if ind.cumplido %}checked{% endif %}
+                                          {% if not puede_editar_proyecto %}disabled{% endif %}
+                                          style="cursor: pointer; width: 1.2rem; height: 1.2rem;"
+                                        >
+                                    {% endif %}
                                     <label class="form-check-label ms-2" for="ind-{{ ind.id }}" style="cursor: pointer;">
                                         <strong style="font-size: 0.95rem; font-weight: 800; color: var(--color-text); display: inline;">{{ ind.descripcion }}</strong>
                                         <span class="d-block text-muted small mt-1" style="font-size: 0.78rem; font-weight: 600;">
@@ -86,17 +93,31 @@
                                         </span>
                                     </label>
                                 </div>
-                                <div class="d-flex align-items-center gap-2" style="min-width: 250px; width: 100%; max-width: 320px;">
-                                    <span class="text-muted small" style="font-weight: 700; white-space: nowrap;">Valor:</span>
-                                    <input
-                                      type="text"
-                                      class="form-control form-control-sm ind-valor"
-                                      data-id="{{ ind.id }}"
-                                      value="{{ ind.valor_actual }}"
-                                      placeholder="Ej: 95%, v1.2, completado..."
-                                      {% if not puede_editar_proyecto %}disabled{% endif %}
-                                      style="border-radius: 6px; font-weight: 700; padding: 4px 8px;"
-                                    >
+                                <div class="d-flex align-items-center gap-2" style="min-width: 250px; width: 100%; max-width: 340px;">
+                                    {% if ind.es_medible %}
+                                        <span class="text-muted small" style="font-weight: 700; white-space: nowrap;">Medido:</span>
+                                        <input
+                                          type="number" step="any" inputmode="decimal"
+                                          class="form-control form-control-sm ind-valor text-end"
+                                          data-id="{{ ind.id }}"
+                                          value="{{ ind.valor_medido|default_if_none:'' }}"
+                                          placeholder="0"
+                                          {% if not puede_editar_proyecto %}disabled{% endif %}
+                                          style="border-radius: 6px; font-weight: 700; padding: 4px 8px; max-width: 6.5rem;"
+                                        >
+                                        <span class="text-muted small" style="font-weight: 700; white-space: nowrap;">/ {{ ind.meta_valor|floatformat:"-2" }} {{ ind.unidad }}</span>
+                                    {% else %}
+                                        <span class="text-muted small" style="font-weight: 700; white-space: nowrap;">Valor:</span>
+                                        <input
+                                          type="text"
+                                          class="form-control form-control-sm ind-valor"
+                                          data-id="{{ ind.id }}"
+                                          value="{{ ind.valor_actual }}"
+                                          placeholder="Opcional: una nota"
+                                          {% if not puede_editar_proyecto %}disabled{% endif %}
+                                          style="border-radius: 6px; font-weight: 700; padding: 4px 8px;"
+                                        >
+                                    {% endif %}
                                     {% if puede_editar_proyecto %}
                                         <button
                                           class="btn btn-sm btn-outline-success btn-guardar-ind"
@@ -401,6 +422,7 @@
                 const fila = document.getElementById(`fila-ind-${id}`);
                 if (!fila) return;
                 const url = fila.dataset.url;
+                const medible = fila.dataset.medible === '1';
                 const check = fila.querySelector(`.ind-check`);
                 const valor = fila.querySelector(`.ind-valor`);
                 const btn   = fila.querySelector(`.btn-guardar-ind`);
@@ -410,6 +432,12 @@
                     btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:10px; height:10px;"></span>';
                 }
 
+                // Un indicador medible manda su medicion; el sistema decide el
+                // cumplimiento. Uno cualitativo manda el estado de su casilla.
+                const cuerpo = medible
+                    ? { valor_medido: valor.value }
+                    : { cumplido: check ? check.checked : false, valor_actual: valor.value };
+
                 try {
                     const resp = await fetch(url, {
                         method: 'POST',
@@ -417,17 +445,18 @@
                             'Content-Type': 'application/json',
                             'X-CSRFToken': CSRF,
                         },
-                        body: JSON.stringify({
-                            cumplido: check.checked,
-                            valor_actual: valor.value,
-                        }),
+                        body: JSON.stringify(cuerpo),
                     });
 
                     const data = await resp.json();
 
                     if (data.ok) {
-                        fila.classList.toggle('stage-criteria-completada', check.checked);
-                        fila.classList.toggle('stage-criteria-en_proceso', !check.checked);
+                        // En un medible el cumplimiento lo decide el backend; se
+                        // recarga para reflejar el veredicto real, no el clic.
+                        if (!medible && check) {
+                            fila.classList.toggle('stage-criteria-completada', check.checked);
+                            fila.classList.toggle('stage-criteria-en_proceso', !check.checked);
+                        }
                         if (btn) {
                             btn.innerHTML = '<i class="bi bi-check-lg"></i>';
                             btn.className = "btn btn-sm btn-success text-white";
@@ -451,6 +480,11 @@
 
             document.querySelectorAll('.ind-check').forEach(chk => {
                 chk.addEventListener('change', () => guardarIndicador(chk.dataset.id));
+            });
+
+            // En un medible, al salir del campo se guarda la medicion sola.
+            document.querySelectorAll('.stage-criteria-row[data-medible="1"] .ind-valor').forEach(inp => {
+                inp.addEventListener('change', () => guardarIndicador(inp.dataset.id));
             });
         })();
     </script>

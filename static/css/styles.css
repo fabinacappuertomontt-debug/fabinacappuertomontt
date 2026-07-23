@@ -10880,3 +10880,7 @@ body.org-theme-dark .projects-tabs-container .nav-link:hover {
     color: #64748b;
     font-style: normal;
 }
+
+/* Estado calculado de un indicador medible en la mesa de trabajo. */
+.ind-estado { font-size: 1.2rem; color: #cbd5e1; line-height: 1; }
+.ind-estado.ind-estado-ok { color: #16a34a; }
