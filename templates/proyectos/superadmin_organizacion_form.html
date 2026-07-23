@@ -68,6 +68,21 @@
                 </div>
                 {% for error in form.exige_evidencia_trl.errors %}<div class="text-danger small fw-bold">{{ error }}</div>{% endfor %}
             </div>
+
+            {% if form.exige_aprobacion_trl %}
+                <div class="form-check mt-3">
+                    {{ form.exige_aprobacion_trl }}
+                    <label class="form-check-label fw-bold" for="{{ form.exige_aprobacion_trl.id_for_label }}">
+                        Exigir el visto bueno de un responsable para subir de nivel
+                    </label>
+                    <div class="form-text">
+                        La tercera llave de la puerta. Con esto, el nivel sube solo cuando la IA
+                        revisa la etapa y un responsable confirma. Es el modelo formal de la escala
+                        TRL: los niveles se declaran en una revisión, no automáticamente.
+                    </div>
+                    {% for error in form.exige_aprobacion_trl.errors %}<div class="text-danger small fw-bold">{{ error }}</div>{% endfor %}
+                </div>
+            {% endif %}
         </div>
     {% endif %}
 

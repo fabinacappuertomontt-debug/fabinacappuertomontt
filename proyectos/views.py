@@ -3140,10 +3140,16 @@ def etapa_trabajo(request, pk, slug):
             resultado__trl_objetivo__in=[f.trl for f in fases_etapa]
         ).select_related("resultado__objetivo").order_by("resultado__trl_objetivo", "orden")
 
+    puerta = None
+    if proyecto.usa_trl and fase_activa and fase_activa.trl > proyecto.nivel_actual:
+        # La puerta del proximo nivel a conquistar: que falta para subir.
+        puerta = proyecto.estado_puerta_trl(fase_activa.trl)
+
     contexto = {
         "proyecto": proyecto,
         "etapa": etapa,
         "fase_activa": fase_activa,
+        "puerta": puerta,
         "tareas_pendientes": tareas_etapa.exclude(estado=Tarea.Estado.COMPLETADA),
         "tareas_completadas": tareas_etapa.filter(estado=Tarea.Estado.COMPLETADA),
         "avances_etapa": avances_etapa,

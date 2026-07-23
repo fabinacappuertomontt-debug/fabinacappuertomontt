@@ -686,7 +686,7 @@ class OrganizacionBaseSuperadminForm(BootstrapFormMixin, forms.ModelForm):
             self.fields[field_name].widget = forms.TextInput(
                 attrs={"type": "color", "class": "form-control form-control-color"}
             )
-        for casilla in ["activa", "exige_evidencia_trl"]:
+        for casilla in ["activa", "exige_evidencia_trl", "exige_aprobacion_trl"]:
             if casilla in self.fields:
                 # BootstrapFormMixin ya puso form-control con setdefault, y en Bootstrap 5
                 # eso dibuja el checkbox como una caja enorme. Hay que sobrescribirlo.
@@ -732,7 +732,7 @@ class OrganizacionSuperadminEditForm(OrganizacionBaseSuperadminForm):
     """Edicion de una empresa existente. El encargado se gestiona aparte."""
 
     class Meta(OrganizacionBaseSuperadminForm.Meta):
-        fields = OrganizacionBaseSuperadminForm.Meta.fields + ["exige_evidencia_trl", "activa"]
+        fields = OrganizacionBaseSuperadminForm.Meta.fields + ["exige_evidencia_trl", "exige_aprobacion_trl", "activa"]
 
 
 class SuperadminLoginForm(forms.Form):

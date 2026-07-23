@@ -27,6 +27,42 @@
 
     <section class="stage-main-grid">
         <article class="stage-panel stage-panel-wide">
+            {% if puerta %}
+                {# La puerta del proximo nivel: que falta para subir de TRL. #}
+                <div class="puerta-trl {% if puerta.abierta %}puerta-abierta{% endif %}">
+                    <div class="puerta-trl__cabecera">
+                        <span class="puerta-trl__nivel">TRL {{ puerta.trl }}</span>
+                        <div>
+                            <strong>Para subir a este nivel</strong>
+                            <span>{% if puerta.abierta %}Todo listo: el nivel va a subir.{% else %}Faltan llaves por completar.{% endif %}</span>
+                        </div>
+                    </div>
+                    <div class="puerta-trl__llaves">
+                        <div class="puerta-llave {% if puerta.dato %}es-ok{% endif %}">
+                            <i class="bi {% if puerta.dato %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+                            <div>
+                                <strong>Dato</strong>
+                                <span>{% if puerta.dato %}Los indicadores alcanzaron su meta{% else %}Falta que los indicadores den su meta{% endif %}</span>
+                            </div>
+                        </div>
+                        <div class="puerta-llave {% if puerta.prueba %}es-ok{% elif not puerta.exige_prueba %}es-opcional{% endif %}">
+                            <i class="bi {% if puerta.prueba %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+                            <div>
+                                <strong>Prueba {% if not puerta.exige_prueba %}<em>(opcional)</em>{% endif %}</strong>
+                                <span>{% if puerta.prueba %}Hay evidencia cargada{% else %}Sube una evidencia que lo respalde{% endif %}</span>
+                            </div>
+                        </div>
+                        <div class="puerta-llave {% if puerta.juicio %}es-ok{% elif not puerta.exige_juicio %}es-opcional{% endif %}">
+                            <i class="bi {% if puerta.juicio %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+                            <div>
+                                <strong>Visto bueno {% if not puerta.exige_juicio %}<em>(opcional)</em>{% endif %}</strong>
+                                <span>{% if puerta.juicio %}Aprobado por un responsable{% else %}La IA revisa y un responsable confirma{% endif %}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
             <div class="workspace-section-title compact">
                 <div>
                     <span class="eyebrow">Criterios de la etapa</span>

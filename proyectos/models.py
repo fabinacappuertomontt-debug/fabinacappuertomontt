@@ -139,6 +139,13 @@ class Organizacion(models.Model):
             "una evidencia cargada en esa etapa. El nivel deja de auto-declararse."
         ),
     )
+    exige_aprobacion_trl = models.BooleanField(
+        default=False,
+        help_text=(
+            "Si se activa, subir de nivel TRL necesita ademas el visto bueno de un "
+            "responsable, apoyado en la revision de la IA. Es la tercera llave de la puerta."
+        ),
+    )
     activa = models.BooleanField(default=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
@@ -481,11 +488,50 @@ class Proyecto(models.Model):
         return bool(getattr(self.organizacion, "exige_evidencia_trl", False))
 
     @property
+    def exige_aprobacion_trl(self):
+        return bool(getattr(self.organizacion, "exige_aprobacion_trl", False))
+
+    @property
     def niveles_trl_con_evidencia(self):
         """Niveles TRL que tienen al menos una evidencia cargada en su etapa."""
         return set(
             self.evidencias.filter(fase__isnull=False).values_list("fase__trl", flat=True)
         )
+
+    @property
+    def niveles_trl_aprobados(self):
+        """Niveles cuyo avance ya fue aprobado por un responsable."""
+        return set(
+            self.revisiones_ia.filter(
+                decision="aceptada", fase__isnull=False
+            ).values_list("fase__trl", flat=True)
+        )
+
+    def estado_puerta_trl(self, trl):
+        """Las tres llaves para subir a un nivel: dato, prueba y juicio.
+
+        Es el modelo de avance real de la escala TRL: no se sube marcando una
+        casilla, sino con datos que dan la meta, evidencia que los respalda y el
+        visto bueno de un responsable apoyado en la IA. Que llaves son
+        obligatorias lo decide la organizacion.
+        """
+        resultados = [r for r in self.resultados_trl if r.trl_objetivo == trl]
+        dato = bool(resultados) and all(r.esta_cumplido for r in resultados)
+        prueba = trl in self.niveles_trl_con_evidencia
+        juicio = trl in self.niveles_trl_aprobados
+        exige_prueba = self.exige_evidencia_trl
+        exige_juicio = self.exige_aprobacion_trl
+        abierta = dato and (prueba or not exige_prueba) and (juicio or not exige_juicio)
+        return {
+            "trl": trl,
+            "dato": dato,
+            "prueba": prueba,
+            "juicio": juicio,
+            "exige_prueba": exige_prueba,
+            "exige_juicio": exige_juicio,
+            "abierta": abierta,
+            "hay_resultados": bool(resultados),
+        }
 
     def calcular_trl_desde_resultados(self):
         if not self.usa_trl:
@@ -494,11 +540,12 @@ class Proyecto(models.Model):
         resultados_por_trl = {}
         for resultado in self.resultados_trl:
             resultados_por_trl.setdefault(resultado.trl_objetivo, []).append(resultado)
-        # Marcar indicadores es una declaracion del propio equipo. Cuando la
-        # organizacion lo exige, ademas tiene que haber evidencia cargada: el
-        # nivel se demuestra, no se declara.
+        # El nivel se demuestra, no se declara: la puerta de cada nivel combina
+        # dato, evidencia y aprobacion segun lo que exija la organizacion.
         exige_evidencia = self.exige_evidencia_trl
+        exige_aprobacion = self.exige_aprobacion_trl
         con_evidencia = self.niveles_trl_con_evidencia if exige_evidencia else set()
+        con_aprobacion = self.niveles_trl_aprobados if exige_aprobacion else set()
         for trl in range(self.trl_inicial_efectivo + 1, self.trl_objetivo_efectivo + 1):
             resultados_nivel = resultados_por_trl.get(trl, [])
             if not resultados_nivel:
@@ -506,6 +553,8 @@ class Proyecto(models.Model):
             if not all(resultado.esta_cumplido for resultado in resultados_nivel):
                 break
             if exige_evidencia and trl not in con_evidencia:
+                break
+            if exige_aprobacion and trl not in con_aprobacion:
                 break
             nivel = trl
         return nivel
