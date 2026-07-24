@@ -4086,6 +4086,17 @@ def actualizar_indicador(request, pk, indicador_id):
     return JsonResponse({"ok": True, "nivel_actual": Proyecto.objects.get(pk=proyecto.pk).nivel_actual})
 
 
+@login_required
+def notas_diseno(request):
+    """Notas de diseño del sistema, para revisar con quien acompaña el proyecto.
+
+    Va detras del login a proposito: el documento nombra las debilidades del
+    producto, que es justo lo que un revisor necesita leer y lo ultimo que
+    conviene dejar abierto en internet.
+    """
+    return render(request, "proyectos/notas_diseno.html")
+
+
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, marca=None, **kwargs):
         super().__init__(*args, **kwargs)

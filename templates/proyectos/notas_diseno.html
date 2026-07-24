@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Las 5 ideas · Plataforma TRL</title>
+<style>
+  :root{
+    --tinta:#142033; --marca:#cf3f4f; --gris:#5a6677; --linea:#dbe3ec;
+    --fondo:#f4f7fa; --papel:#fff;
+    --ok:#16a34a; --okbg:#dcfce7; --mal:#dc2626; --malbg:#fee2e2;
+    --avi:#b45309; --avibg:#fef3c7; --azul:#0b5ea8; --azulbg:#dbeafe;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--fondo);color:var(--tinta);
+    font:16px/1.6 "Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .envoltura{max-width:1000px;margin:0 auto;padding:0 20px 80px}
+
+  header.cabecera{background:var(--tinta);color:#fff;padding:52px 20px 46px;margin-bottom:38px}
+  header.cabecera .envoltura{padding-bottom:0}
+  .sobre{color:#f8a7b0;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px}
+  header h1{margin:0 0 12px;font-size:34px;line-height:1.2;font-weight:800}
+  header p{margin:0;color:#b9c5d4;font-size:17px;max-width:680px}
+
+  section{background:var(--papel);border:1px solid var(--linea);border-radius:14px;
+    padding:30px 32px;margin-bottom:26px}
+  .num{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
+    background:var(--marca);color:#fff;border-radius:9px;font-weight:800;font-size:15px;margin-right:11px}
+  h2{display:flex;align-items:center;margin:0 0 6px;font-size:23px;font-weight:800;line-height:1.25}
+  .bajada{color:var(--gris);margin:0 0 24px;font-size:15.5px}
+  h3{font-size:15px;font-weight:800;margin:0 0 12px;letter-spacing:.02em}
+
+  .par{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:760px){.par{grid-template-columns:1fr}}
+
+  .caja{border:1px solid var(--linea);border-radius:12px;padding:20px;background:#fcfdfe}
+  .caja.mal{border-color:#f6b8b8;background:#fffafa}
+  .caja.bien{border-color:#a7e3bf;background:#fafffb}
+  .etiqueta{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.08em;
+    text-transform:uppercase;padding:4px 10px;border-radius:20px;margin-bottom:14px}
+  .et-mal{background:var(--malbg);color:#991b1b}
+  .et-bien{background:var(--okbg);color:#14653a}
+
+  /* ---- tarjeta de proyecto ---- */
+  .proy{border:1px solid var(--linea);border-radius:10px;background:#fff;overflow:hidden}
+  .proy-cab{background:var(--tinta);color:#fff;padding:11px 14px;font-weight:800;font-size:14px;
+    display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .trl-chip{background:rgba(255,255,255,.16);border-radius:7px;padding:3px 10px;font-size:12.5px}
+  .trl-chip.grande{font-size:15px;padding:5px 13px}
+  .comp{display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding:11px 14px;border-top:1px solid #eef2f6;font-size:14px}
+  .comp:first-of-type{border-top:0}
+  .comp b{font-weight:700}
+  .pill{font-size:12px;font-weight:800;border-radius:7px;padding:3px 9px;white-space:nowrap}
+  .p-alto{background:var(--okbg);color:#14653a}
+  .p-medio{background:var(--avibg);color:#7c4708}
+  .p-bajo{background:var(--malbg);color:#991b1b}
+  .p-gris{background:#eef2f7;color:#64748b}
+
+  .nota{margin-top:14px;font-size:13.5px;color:var(--gris);line-height:1.55}
+  .nota strong{color:var(--tinta)}
+
+  /* ---- ritmos ---- */
+  .ritmo{display:grid;grid-template-columns:132px 1fr;gap:12px;align-items:center;margin-bottom:10px}
+  .ritmo-nom{font-size:13.5px;font-weight:800}
+  .ritmo-nom small{display:block;font-weight:600;color:var(--gris);font-size:11.5px}
+  .barra{display:flex;gap:3px;flex-wrap:wrap}
+  .tic{width:13px;height:26px;border-radius:3px;background:var(--azul);opacity:.85}
+  .tic.w{background:var(--avi)}
+  .tic.m{background:var(--marca)}
+  .tic.off{background:#e4eaf1}
+
+  /* ---- linea de tiempo indicadores ---- */
+  .tiempo{display:flex;gap:6px;margin:6px 0 4px;flex-wrap:wrap}
+  .paso{flex:1;min-width:78px;border-radius:9px;padding:10px 8px;text-align:center;
+    font-size:12px;font-weight:700;border:1px solid var(--linea);background:#fff}
+  .paso small{display:block;font-weight:600;font-size:10.5px;color:var(--gris);margin-top:3px}
+  .paso.pide{background:var(--malbg);border-color:#f6b8b8;color:#991b1b}
+  .paso.pide-ok{background:var(--okbg);border-color:#a7e3bf;color:#14653a}
+  .paso.espera{background:#f7fafc;color:#94a3b8}
+
+  /* ---- agujeros ---- */
+  .agujero{display:grid;grid-template-columns:44px 1fr;gap:14px;padding:18px 0;border-top:1px solid var(--linea)}
+  .agujero:first-of-type{border-top:0;padding-top:4px}
+  .ico{width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    font-size:21px;background:var(--avibg)}
+  .agujero h4{margin:0 0 5px;font-size:16px;font-weight:800}
+  .agujero p{margin:0 0 8px;font-size:14.5px;color:#3c4a5e}
+
+  .ejemplo{background:#f7fafc;border-left:3px solid var(--linea);border-radius:0 8px 8px 0;
+    padding:11px 14px;font-size:13.5px;color:#475569;margin-top:9px}
+  .ejemplo b{color:var(--tinta)}
+
+  /* ---- prioridad ---- */
+  table{width:100%;border-collapse:collapse;font-size:14px;margin-top:6px}
+  th{background:var(--tinta);color:#fff;text-align:left;padding:11px 13px;font-size:12.5px;
+    font-weight:800;letter-spacing:.03em}
+  th:first-child{border-radius:9px 0 0 0} th:last-child{border-radius:0 9px 0 0}
+  td{padding:12px 13px;border-bottom:1px solid var(--linea);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  .marca-si{color:var(--ok);font-weight:800} .marca-no{color:var(--gris);font-weight:700}
+  .esfuerzo{font-size:12px;font-weight:800;border-radius:6px;padding:3px 8px;white-space:nowrap}
+  .e-bajo{background:var(--okbg);color:#14653a}
+  .e-medio{background:var(--avibg);color:#7c4708}
+  .e-alto{background:var(--malbg);color:#991b1b}
+
+  .cierre{background:var(--tinta);color:#fff;border-color:var(--tinta)}
+  .cierre h2{color:#fff} .cierre .bajada{color:#b9c5d4}
+  .cierre .num{background:#fff;color:var(--tinta)}
+  .cierre p{color:#d6dee8;font-size:15.5px}
+  .cierre strong{color:#fff}
+
+  .volver{background:#0d1826;color:#94a3b8;font-size:12.5px;padding:9px 20px;
+    display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+  .volver a{color:#f8a7b0;text-decoration:none;font-weight:700}
+  .volver a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="volver">
+  <a href="/proyectos/">&larr; Volver a la plataforma</a>
+  <span>Documento interno &middot; visible solo con sesion iniciada</span>
+</div>
+
+<header class="cabecera">
+  <div class="envoltura">
+    <p class="sobre">Plataforma TRL · Notas de diseño</p>
+    <h1>Las cinco cosas que haría distinto</h1>
+    <p>Lo que la aplicación hace hoy, lo que dice la norma, y cuánto cuesta cerrar la diferencia.</p>
+  </div>
+</header>
+
+<div class="envoltura">
+
+<!-- ============================ 1 ============================ -->
+<section>
+  <h2><span class="num">1</span> El TRL es de la tecnología, no del proyecto</h2>
+  <p class="bajada">El punto de fondo. Todo lo demás se deriva de este.</p>
+
+  <div class="par">
+    <div class="caja mal">
+      <span class="etiqueta et-mal">Hoy</span>
+      <div class="proy">
+        <div class="proy-cab">
+          <span>Guante háptico</span>
+          <span class="trl-chip grande">TRL 4</span>
+        </div>
+        <div class="comp"><b>Sensores de flexión</b><span class="pill p-gris">—</span></div>
+        <div class="comp"><b>Motores de vibración</b><span class="pill p-gris">—</span></div>
+        <div class="comp"><b>Algoritmo de control</b><span class="pill p-gris">—</span></div>
+      </div>
+      <p class="nota">La aplicación pide <strong>un solo número</strong> para todo el
+      proyecto. El equipo mira sus tres componentes, hace un promedio mental y escribe
+      un 4. Ese 4 no describe a ninguno de los tres.</p>
+    </div>
+
+    <div class="caja bien">
+      <span class="etiqueta et-bien">Como debería</span>
+      <div class="proy">
+        <div class="proy-cab">
+          <span>Guante háptico</span>
+          <span class="trl-chip">3 tecnologías</span>
+        </div>
+        <div class="comp"><b>Sensores de flexión</b><span class="pill p-alto">TRL 6</span></div>
+        <div class="comp"><b>Motores de vibración</b><span class="pill p-medio">TRL 5</span></div>
+        <div class="comp"><b>Algoritmo de control</b><span class="pill p-bajo">TRL 3</span></div>
+      </div>
+      <p class="nota">Cada elemento lleva su propio nivel. El proyecto ya no necesita
+      mentir: <strong>el cuello de botella queda a la vista</strong> — el algoritmo es lo
+      que frena, no los sensores.</p>
+    </div>
+  </div>
+
+  <div class="ejemplo">
+    <b>Por qué importa de verdad.</b> Un financiador no pregunta «¿en qué TRL está el
+    proyecto?». Pregunta «¿qué componente está más atrasado y qué falta para subirlo?».
+    Con un solo número esa pregunta no se puede responder. Y al revés: reportar TRL 4
+    cuando los sensores ya están en 6 hace que el proyecto parezca menos maduro de lo que
+    es. El promedio castiga por los dos lados.
+  </div>
+
+  <div class="ejemplo">
+    <b>Lo bueno.</b> Cuando hay una sola tecnología —el 80 % de los casos— la pantalla se
+    ve exactamente igual que hoy. El cambio solo aparece cuando de verdad hace falta.
+  </div>
+</section>
+
+<!-- ============================ 2 ============================ -->
+<section>
+  <h2><span class="num">2</span> Por qué la mesa de trabajo te confundía</h2>
+  <p class="bajada">No era torpeza tuya: la pantalla mezclaba tres actos con ritmos
+  distintos, y los mostraba con el mismo peso.</p>
+
+  <h3>CADA COSA OCURRE A SU PROPIO RITMO</h3>
+
+  <div class="ritmo">
+    <div class="ritmo-nom">Trabajar<small>todos los días</small></div>
+    <div class="barra">
+      <span class="tic"></span><span class="tic"></span><span class="tic"></span>
+      <span class="tic"></span><span class="tic"></span><span class="tic"></span>
+      <span class="tic"></span><span class="tic"></span><span class="tic"></span>
+      <span class="tic"></span><span class="tic"></span><span class="tic"></span>
+      <span class="tic"></span><span class="tic"></span><span class="tic"></span>
+      <span class="tic"></span><span class="tic"></span><span class="tic"></span>
+      <span class="tic"></span><span class="tic"></span><span class="tic"></span>
+      <span class="tic"></span><span class="tic"></span><span class="tic"></span>
+    </div>
+  </div>
+
+  <div class="ritmo">
+    <div class="ritmo-nom">Medir<small>cada semana o dos</small></div>
+    <div class="barra">
+      <span class="tic w"></span><span class="tic off"></span><span class="tic off"></span>
+      <span class="tic off"></span><span class="tic w"></span><span class="tic off"></span>
+      <span class="tic off"></span><span class="tic off"></span><span class="tic w"></span>
+      <span class="tic off"></span><span class="tic off"></span><span class="tic off"></span>
+      <span class="tic w"></span><span class="tic off"></span><span class="tic off"></span>
+      <span class="tic off"></span><span class="tic w"></span><span class="tic off"></span>
+      <span class="tic off"></span><span class="tic off"></span><span class="tic w"></span>
+      <span class="tic off"></span><span class="tic off"></span><span class="tic off"></span>
+    </div>
+  </div>
+
+  <div class="ritmo">
+    <div class="ritmo-nom">Declarar nivel<small>3 o 4 veces en todo el proyecto</small></div>
+    <div class="barra">
+      <span class="tic off"></span><span class="tic off"></span><span class="tic off"></span>
+      <span class="tic off"></span><span class="tic off"></span><span class="tic m"></span>
+      <span class="tic off"></span><span class="tic off"></span><span class="tic off"></span>
+      <span class="tic off"></span><span class="tic off"></span><span class="tic m"></span>
+      <span class="tic off"></span><span class="tic off"></span><span class="tic off"></span>
+      <span class="tic off"></span><span class="tic off"></span><span class="tic m"></span>
+      <span class="tic off"></span><span class="tic off"></span><span class="tic off"></span>
+      <span class="tic off"></span><span class="tic off"></span><span class="tic m"></span>
+    </div>
+  </div>
+
+  <div class="ejemplo" style="margin-top:20px">
+    <b>El diagnóstico.</b> Una pantalla que muestra las tres cosas al mismo tamaño y en el
+    mismo bloque le está diciendo al usuario que las tres importan igual y pasan igual de
+    seguido. Su cabeza intenta encontrar el orden y no lo encuentra, porque no está ahí.
+    Eso es exactamente lo que sentías al abrirla.
+  </div>
+
+  <div class="ejemplo">
+    <b>Ya está arreglado.</b> Hoy la mesa muestra la puerta del nivel arriba (lo que pasa
+    pocas veces, pero es lo que decide), después la medición, y al final el trabajo. Cada
+    grupo con su contador. Es el mismo contenido en el orden en que la cabeza lo necesita.
+  </div>
+</section>
+
+<!-- ============================ 3 ============================ -->
+<section>
+  <h2><span class="num">3</span> Pedir menos al crear, no más</h2>
+  <p class="bajada">Hoy el asistente pide los indicadores de todos los niveles el primer
+  día. Nadie sabe el día 1 cómo va a medir un TRL 7.</p>
+
+  <div style="margin-bottom:22px">
+    <span class="etiqueta et-mal">Hoy · todo al inicio</span>
+    <div class="tiempo">
+      <div class="paso pide">Día 1<small>indicadores TRL 4</small></div>
+      <div class="paso pide">Día 1<small>indicadores TRL 5</small></div>
+      <div class="paso pide">Día 1<small>indicadores TRL 6</small></div>
+      <div class="paso pide">Día 1<small>indicadores TRL 7</small></div>
+    </div>
+    <p class="nota">Los dos últimos se escriben inventados, porque el equipo todavía no
+    sabe en qué entorno va a validar ni con qué instrumento. Después nadie los usa: se
+    borran o se dejan ahí sin medir.</p>
+  </div>
+
+  <div>
+    <span class="etiqueta et-bien">Como debería · justo a tiempo</span>
+    <div class="tiempo">
+      <div class="paso pide-ok">Día 1<small>indicadores TRL 4</small></div>
+      <div class="paso espera">Mes 3<small>al llegar a TRL 5</small></div>
+      <div class="paso espera">Mes 7<small>al llegar a TRL 6</small></div>
+      <div class="paso espera">Mes 11<small>al llegar a TRL 7</small></div>
+    </div>
+    <p class="nota">Se piden solo los del nivel que viene, cuando el equipo ya sabe la
+    respuesta, y con la IA proponiendo a partir de lo que el proyecto ya demostró.
+    <strong>Así lo hace Horizon Europe</strong>: los indicadores se definen por paquete de
+    trabajo, a medida que se avanza.</p>
+  </div>
+</section>
+
+<!-- ============================ 4 ============================ -->
+<section>
+  <h2><span class="num">4</span> Los dos agujeros del proceso actual</h2>
+  <p class="bajada">Concretos, verificables y con arreglo conocido.</p>
+
+  <div class="agujero">
+    <div class="ico">🚪</div>
+    <div>
+      <h4>El nivel inicial se autodeclara</h4>
+      <p>Al crear un proyecto se escribe «empiezo en TRL 6» y el sistema lo cree, sin pedir
+      nada que lo respalde. Pero el TRL de partida no es una opinión: en una evaluación
+      formal también hay que demostrarlo.</p>
+      <div class="ejemplo">
+        <b>La pregunta que te va a hacer un cliente serio:</b> «¿y cómo sabemos que este
+        proyecto realmente parte en 6?». Hoy la respuesta es: porque alguien lo escribió.
+      </div>
+      <div class="ejemplo">
+        <b>Arreglo.</b> Pedir al menos una evidencia del nivel declarado al crear, o marcar
+        el proyecto como «nivel de partida sin verificar» hasta que se cargue.
+      </div>
+    </div>
+  </div>
+
+  <div class="agujero">
+    <div class="ico">📎</div>
+    <div>
+      <h4>La evidencia se cuenta por existir, no por servir</h4>
+      <p>La llave «Prueba» se abre si hay <b>al menos un archivo</b> en la etapa. El sistema
+      no sabe qué contiene ese archivo ni a qué indicador respalda.</p>
+      <div class="par" style="margin-top:12px">
+        <div class="caja mal" style="padding:15px">
+          <span class="etiqueta et-mal">Hoy</span>
+          <div class="proy">
+            <div class="proy-cab" style="background:#7f1d1d"><span>Etapa TRL 5</span><span class="trl-chip">1 archivo</span></div>
+            <div class="comp"><b>foto_cafe.jpg</b><span class="pill p-alto">abre la llave</span></div>
+          </div>
+          <p class="nota">Cualquier archivo sirve.</p>
+        </div>
+        <div class="caja bien" style="padding:15px">
+          <span class="etiqueta et-bien">Como debería</span>
+          <div class="proy">
+            <div class="proy-cab" style="background:#14653a"><span>Indicador: 30 ensayos</span><span class="trl-chip">respaldado</span></div>
+            <div class="comp"><b>ensayos_planta.pdf</b><span class="pill p-alto">↳ respalda</span></div>
+          </div>
+          <p class="nota">La evidencia cuelga del indicador.</p>
+        </div>
+      </div>
+      <div class="ejemplo">
+        <b>Es el cambio chico que más sube la seriedad del producto.</b> Un campo más en la
+        evidencia —a qué indicador respalda— y la llave pasa a exigir que cada medición
+        cumplida tenga su respaldo, no que la carpeta no esté vacía.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 5 ============================ -->
+<section>
+  <h2><span class="num">5</span> Qué haría, y en qué orden</h2>
+  <p class="bajada">Ordenado por lo que más mejora el producto respecto de lo que cuesta.</p>
+
+  <table>
+    <thead>
+      <tr><th>Cambio</th><th>Esfuerzo</th><th>¿Antes de vender?</th><th>Por qué</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>Evidencia colgada del indicador</b></td>
+        <td><span class="esfuerzo e-bajo">Bajo</span></td>
+        <td class="marca-si">Sí</td>
+        <td>Un campo nuevo. Convierte la llave «Prueba» en algo real y es lo que más
+        distingue el producto de un gestor de archivos.</td>
+      </tr>
+      <tr>
+        <td><b>Indicadores por nivel, no todos al inicio</b></td>
+        <td><span class="esfuerzo e-medio">Medio</span></td>
+        <td class="marca-si">Sí</td>
+        <td>Quita el momento más incómodo de la creación. El usuario deja de inventar
+        datos que no tiene.</td>
+      </tr>
+      <tr>
+        <td><b>Respaldar el nivel inicial</b></td>
+        <td><span class="esfuerzo e-bajo">Bajo</span></td>
+        <td class="marca-no">Opcional</td>
+        <td>Cierra el hueco más visible ante un cliente exigente. Se puede resolver con
+        una marca de «sin verificar» mientras tanto.</td>
+      </tr>
+      <tr>
+        <td><b>Tecnología como portadora del TRL</b></td>
+        <td><span class="esfuerzo e-alto">Alto</span></td>
+        <td class="marca-no">No — versión 2</td>
+        <td>Es lo correcto según la norma, pero implica migrar los datos que ya existen.
+        No se toca antes de una demostración.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="cierre">
+  <h2><span class="num">✓</span> El resumen en dos frases</h2>
+  <p><strong>Antes de vender:</strong> cuelga la evidencia del indicador y pide los
+  indicadores por nivel. Son los dos cambios que hacen que el producto resista la primera
+  pregunta difícil de un cliente.</p>
+  <p><strong>Para la versión 2:</strong> mueve el TRL del proyecto a la tecnología. Es el
+  cambio conceptualmente correcto, y el día que llegue una empresa con un proyecto de
+  tres componentes, va a ser la diferencia entre servirle o pedirle que mienta.</p>
+</section>
+
+</div>
+</body>
+</html>
