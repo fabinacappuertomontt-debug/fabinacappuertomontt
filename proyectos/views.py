@@ -5,6 +5,7 @@ from django.contrib.auth.forms import AuthenticationForm, SetPasswordForm
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
+from email.utils import formataddr, parseaddr
 from django.http import FileResponse, Http404, JsonResponse
 from django.db import close_old_connections, transaction
 from django.db.models.deletion import ProtectedError
@@ -371,7 +372,8 @@ def enviar_codigo_verificacion(request, usuario):
             "Confirmar correo",
             verificar_url,
             organizacion=usuario.organizacion,
-        )
+        ),
+        organizacion=usuario.organizacion,
     )
 
 
@@ -420,7 +422,8 @@ def enviar_solicitud_aprobacion_externa(request, usuario):
             "Aprobar solicitud",
             aprobar_url,
             organizacion=usuario.organizacion,
-        )
+        ),
+        organizacion=usuario.organizacion,
     )
 
 
@@ -439,7 +442,7 @@ def enviar_resultado_aprobacion(usuario, aprobado):
             "Tu solicitud de acceso fue rechazada. Si crees que es un error, contacta al equipo administrador.\n\n"
             f"{marca_de_organizacion(usuario.organizacion)['nombre']}"
         )
-    return enviar_correo_simple(asunto, [usuario.email], mensaje)
+    return enviar_correo_simple(asunto, [usuario.email], mensaje, organizacion=usuario.organizacion)
 
 
 def registro_publico(request):
@@ -864,7 +867,8 @@ def enviar_credenciales_encargado(request, encargado, password_temporal, es_rese
             "Entrar a la plataforma",
             url_login,
             organizacion=organizacion,
-        )
+        ),
+        organizacion=organizacion,
     )
 
 
@@ -2144,7 +2148,22 @@ def correo_html_organizacion(
     """
 
 
-def enviar_correo_simple(asunto, destinatarios, mensaje, html=None):
+def remitente_de_organizacion(organizacion=None):
+    """Arma el "De:" con el nombre de la empresa y la direccion verificada.
+
+    La direccion no se puede inventar: el proveedor solo deja enviar desde una
+    casilla verificada. El nombre visible si es libre, y es lo que la persona lee
+    primero, asi que ahi va la empresa a la que pertenece el correo.
+    """
+    configurado = getattr(settings, "DEFAULT_FROM_EMAIL", "") or ""
+    direccion = parseaddr(configurado)[1] or configurado
+    nombre = marca_de_organizacion(organizacion)["nombre"]
+    if not direccion:
+        return configurado
+    return formataddr((nombre, direccion))
+
+
+def enviar_correo_simple(asunto, destinatarios, mensaje, html=None, organizacion=None):
     destinatarios = [correo for correo in destinatarios if correo]
     if not destinatarios:
         return False
@@ -2152,7 +2171,7 @@ def enviar_correo_simple(asunto, destinatarios, mensaje, html=None):
         correo = EmailMultiAlternatives(
             asunto,
             mensaje,
-            settings.DEFAULT_FROM_EMAIL,
+            remitente_de_organizacion(organizacion),
             destinatarios,
         )
         if html:
@@ -2199,7 +2218,8 @@ def notificar_responsables_proyecto(request, proyecto):
         f"Nuevo proyecto asignado: {proyecto.nombre}",
         destinatarios,
         mensaje,
-        correo_html_organizacion("Nuevo proyecto asignado", subtitulo, contenido, "Revisar proyecto", url, organizacion=proyecto.organizacion)
+        correo_html_organizacion("Nuevo proyecto asignado", subtitulo, contenido, "Revisar proyecto", url, organizacion=proyecto.organizacion),
+        organizacion=proyecto.organizacion,
     )
 
 
@@ -2254,7 +2274,8 @@ def notificar_creador_proyecto(request, proyecto):
         f"Proyecto creado: {proyecto.nombre}",
         [proyecto.creador.email],
         mensaje,
-        correo_html_organizacion("Proyecto creado", "Resumen de creación y responsables", contenido, "Revisar proyecto", url, organizacion=proyecto.organizacion)
+        correo_html_organizacion("Proyecto creado", "Resumen de creación y responsables", contenido, "Revisar proyecto", url, organizacion=proyecto.organizacion),
+        organizacion=proyecto.organizacion,
     )
 
 
@@ -2301,7 +2322,8 @@ def notificar_creador_fase_completada(request, fase):
         f"Etapa completada: {fase.nombre}",
         [proyecto.creador.email],
         mensaje,
-        correo_html_organizacion("Etapa completada", proyecto.nombre, contenido, "Revisar etapa", url, organizacion=proyecto.organizacion)
+        correo_html_organizacion("Etapa completada", proyecto.nombre, contenido, "Revisar etapa", url, organizacion=proyecto.organizacion),
+        organizacion=proyecto.organizacion,
     )
 
 
@@ -2334,7 +2356,8 @@ def notificar_creador_movimiento(request, proyecto, titulo, descripcion, fase=No
         f"{titulo}: {proyecto.nombre}",
         [proyecto.creador.email],
         mensaje,
-        correo_html_organizacion(titulo, proyecto.nombre, contenido, "Revisar proyecto", url, organizacion=proyecto.organizacion)
+        correo_html_organizacion(titulo, proyecto.nombre, contenido, "Revisar proyecto", url, organizacion=proyecto.organizacion),
+        organizacion=proyecto.organizacion,
     )
 
 
