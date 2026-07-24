@@ -45,7 +45,9 @@ class NotificationAndGroupChatTests(TestCase):
 
     def test_project_creation_triggers_notifications(self):
         # Create a project
-        url = reverse("proyecto_crear")
+        # El formulario de una sola pagina sigue existiendo; "proyecto_crear"
+        # ahora es el wizard, asi que esta prueba apunta al clasico.
+        url = reverse("proyecto_crear_clasico")
         post_data = {
             "nombre": "Proyecto de Prueba",
             "descripcion": "Descripción del proyecto de prueba.",

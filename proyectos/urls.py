@@ -54,7 +54,10 @@ urlpatterns = [
     path("proyectos/crear/<int:pk>/descartar/", views_wizard.wizard_descartar, name="wizard_descartar"),
     path("proyectos/crear/<int:pk>/objetivo/<int:objetivo_id>/quitar/", views_wizard.wizard_eliminar_objetivo, name="wizard_eliminar_objetivo"),
     path("proyectos/crear/<int:pk>/resultado/<int:resultado_id>/quitar/", views_wizard.wizard_eliminar_resultado, name="wizard_eliminar_resultado"),
-    path("proyectos/nuevo/", views.ProyectoCreateView.as_view(), name="proyecto_crear"),
+    # /proyectos/nuevo/ es la puerta de siempre; ahora abre el wizard. El nombre
+    # se mantiene para que todos los botones que ya existen lleven al flujo nuevo.
+    path("proyectos/nuevo/", views_wizard.wizard_inicio, name="proyecto_crear"),
+    path("proyectos/nuevo/formulario-clasico/", views.ProyectoCreateView.as_view(), name="proyecto_crear_clasico"),
     path("proyectos/<int:pk>/", views.proyecto_detalle, name="proyecto_detalle"),
     path("proyectos/<int:pk>/descargar-pdf/", views.descargar_proyecto_pdf, name="proyecto_descargar_pdf"),
     path("proyectos/<int:pk>/mesa-estado/", views.proyecto_mesa_estado, name="proyecto_mesa_estado"),
