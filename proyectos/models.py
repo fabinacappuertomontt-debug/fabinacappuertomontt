@@ -500,12 +500,24 @@ class Proyecto(models.Model):
 
     @property
     def niveles_trl_aprobados(self):
-        """Niveles cuyo avance ya fue aprobado por un responsable."""
-        return set(
-            self.revisiones_ia.filter(
-                decision="aceptada", fase__isnull=False
-            ).values_list("fase__trl", flat=True)
-        )
+        """Niveles cuyo avance quedo aprobado tras la revision.
+
+        Lo que importa es el resultado neto, no el boton apretado: aceptar un
+        "mantener en trabajo" NO es aprobar el avance. Se aprueba cuando la IA
+        lo recomienda y el responsable esta de acuerdo, o cuando la IA dice que
+        no y el responsable decide avanzar igual, que es su prerrogativa y queda
+        registrada con su justificacion.
+        """
+        aprobados = set()
+        revisiones = self.revisiones_ia.filter(fase__isnull=False).exclude(
+            decision=RevisionIAEtapa.Decision.PENDIENTE
+        ).select_related("fase")
+        for revision in revisiones:
+            de_acuerdo = revision.decision == RevisionIAEtapa.Decision.ACEPTADA
+            avanza = revision.recomienda_avanzar == de_acuerdo
+            if avanza:
+                aprobados.add(revision.fase.trl)
+        return aprobados
 
     def estado_puerta_trl(self, trl):
         """Las tres llaves para subir a un nivel: dato, prueba y juicio.

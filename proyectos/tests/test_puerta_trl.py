@@ -121,3 +121,36 @@ class PuertaTrlTests(TestCase):
 
         self.aprobar_nivel()
         self.assertTrue(self.proyecto.estado_puerta_trl(4)["abierta"])
+
+    # ── el veredicto neto, no el boton apretado ─────────────────────────
+
+    def revisar(self, recomienda, decision):
+        RevisionIAEtapa.objects.create(
+            proyecto=self.proyecto, fase=self.proyecto.fases.get(trl=4),
+            etapa_slug="validacion", etapa_nombre="Validacion",
+            recomienda_avanzar=recomienda, decision=decision,
+        )
+
+    def test_aceptar_un_no_avanzar_no_abre_la_puerta(self):
+        # El bug que encontramos probando: aceptar "mantener en trabajo" no es
+        # aprobar el avance, es estar de acuerdo en NO avanzar.
+        self.revisar(recomienda=False, decision=RevisionIAEtapa.Decision.ACEPTADA)
+        self.assertFalse(self.proyecto.estado_puerta_trl(4)["juicio"])
+
+    def test_aceptar_un_si_avanzar_abre_la_puerta(self):
+        self.revisar(recomienda=True, decision=RevisionIAEtapa.Decision.ACEPTADA)
+        self.assertTrue(self.proyecto.estado_puerta_trl(4)["juicio"])
+
+    def test_el_responsable_puede_avanzar_pese_a_la_ia(self):
+        # La IA dice que no, el responsable discrepa y avanza igual: es su
+        # prerrogativa y queda registrada.
+        self.revisar(recomienda=False, decision=RevisionIAEtapa.Decision.RECHAZADA)
+        self.assertTrue(self.proyecto.estado_puerta_trl(4)["juicio"])
+
+    def test_el_responsable_puede_frenar_pese_a_la_ia(self):
+        self.revisar(recomienda=True, decision=RevisionIAEtapa.Decision.RECHAZADA)
+        self.assertFalse(self.proyecto.estado_puerta_trl(4)["juicio"])
+
+    def test_una_revision_pendiente_no_cuenta(self):
+        self.revisar(recomienda=True, decision=RevisionIAEtapa.Decision.PENDIENTE)
+        self.assertFalse(self.proyecto.estado_puerta_trl(4)["juicio"])
