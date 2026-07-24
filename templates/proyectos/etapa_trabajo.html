@@ -63,13 +63,73 @@
                 </div>
             {% endif %}
 
-            <div class="workspace-section-title compact">
+            {# Un solo bloque: la medicion y el trabajo son las dos caras de la misma
+               etapa, tenerlas separadas hacia parecer que eran dos pendientes. #}
+            <div class="workspace-section-title compact" id="panel-indicadores">
                 <div>
-                    <span class="eyebrow">Criterios de la etapa</span>
-                    <h2>Completa los criterios para avanzar</h2>
+                    <span class="eyebrow">Esta etapa</span>
+                    <h2>Lo que falta para avanzar</h2>
                 </div>
-                <strong class="stage-count">{{ etapa.completadas }}/{{ etapa.total }}</strong>
             </div>
+
+            {% if proyecto.usa_trl and indicadores_etapa %}
+                {# El contador vive en cada grupo: uno cuenta mediciones, el otro pasos. #}
+                <p class="stage-group-label">
+                    <span><i class="bi bi-bullseye"></i> La medicion &mdash; es la que decide el nivel</span>
+                    <strong>{{ indicadores_cumplidos }}/{{ indicadores_etapa|length }}</strong>
+                </p>
+                <div class="stage-criteria-table mb-3">
+                    {% for ind in indicadores_etapa %}
+                        <div id="fila-ind-{{ ind.id }}" class="stage-criteria-row stage-criteria-indicador {% if ind.cumplido %}stage-criteria-completada{% else %}stage-criteria-en_proceso{% endif %}" data-url="{% url 'indicador_actualizar' pk=proyecto.pk indicador_id=ind.id %}" data-medible="{{ ind.es_medible|yesno:'1,0' }}">
+                            <div class="ind-titulo">
+                                {% if ind.es_medible %}
+                                    {# El sistema decide con la medicion; no hay casilla que marcar. #}
+                                    <span class="ind-estado {% if ind.cumplido %}ind-estado-ok{% endif %}" data-id="{{ ind.id }}" aria-hidden="true">
+                                        <i class="bi {% if ind.cumplido %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+                                    </span>
+                                {% else %}
+                                    <input type="checkbox" class="form-check-input ind-check" data-id="{{ ind.id }}" id="ind-{{ ind.id }}"
+                                        {% if ind.cumplido %}checked{% endif %}{% if not puede_editar_proyecto %} disabled{% endif %}>
+                                {% endif %}
+                                <label for="ind-{{ ind.id }}">
+                                    <strong>{{ ind.descripcion }}</strong>
+                                    <span>{{ ind.resultado.descripcion }} <em>TRL {{ ind.resultado.trl_objetivo }}</em></span>
+                                </label>
+                            </div>
+                            <div class="ind-medida">
+                                {% if ind.es_medible %}
+                                    <span class="ind-medida-etiqueta">Medido</span>
+                                    <input type="number" step="any" inputmode="decimal" class="form-control form-control-sm ind-valor text-end"
+                                        data-id="{{ ind.id }}" value="{{ ind.valor_medido|default_if_none:'' }}" placeholder="0"
+                                        {% if not puede_editar_proyecto %}disabled{% endif %}>
+                                    <span class="ind-medida-meta">/ {{ ind.meta_valor|floatformat:"-2" }} {{ ind.unidad }}</span>
+                                {% else %}
+                                    <span class="ind-medida-etiqueta">Valor</span>
+                                    <input type="text" class="form-control form-control-sm ind-valor" data-id="{{ ind.id }}"
+                                        value="{{ ind.valor_actual }}" placeholder="Opcional: una nota"
+                                        {% if not puede_editar_proyecto %}disabled{% endif %}>
+                                {% endif %}
+                                {% if puede_editar_proyecto %}
+                                    <button class="btn btn-sm btn-outline-success btn-guardar-ind" data-id="{{ ind.id }}" title="Guardar valor">
+                                        <i class="bi bi-floppy"></i>
+                                    </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <p class="stage-group-label">
+                    <span><i class="bi bi-list-check"></i> El trabajo &mdash; los pasos que sostienen la medicion</span>
+                    <strong>{{ etapa.completadas }}/{{ etapa.total }}</strong>
+                </p>
+            {% else %}
+                <p class="stage-group-label">
+                    <span><i class="bi bi-list-check"></i> Los pasos de esta etapa</span>
+                    <strong>{{ etapa.completadas }}/{{ etapa.total }}</strong>
+                </p>
+            {% endif %}
+
             <div class="stage-criteria-table">
                 {% for paso in etapa.pasos %}
                     <div class="stage-criteria-row stage-criteria-{{ paso.fase.estado }}">
@@ -90,86 +150,6 @@
                 {% endfor %}
             </div>
 
-            {% if proyecto.usa_trl and indicadores_etapa %}
-                <div class="inline-indicators-section mt-4 pt-3 border-top" id="panel-indicadores">
-                    <div class="workspace-section-title compact mb-3">
-                        <div>
-                            <span class="eyebrow" style="color: #cf3f4f;"><i class="bi bi-ui-checks-grid me-1"></i> Indicadores de esta etapa</span>
-                            <h3 class="h6 mb-0">Cumplimiento de metas TRL</h3>
-                        </div>
-                        <span class="badge bg-secondary" style="font-weight: 800; border-radius: 6px; padding: 4px 8px;">
-                            {{ indicadores_etapa|length }} en total
-                        </span>
-                    </div>
-                    
-                    <div class="stage-criteria-table">
-                        {% for ind in indicadores_etapa %}
-                            <div id="fila-ind-{{ ind.id }}" class="stage-criteria-row {% if ind.cumplido %}stage-criteria-completada{% else %}stage-criteria-en_proceso{% endif %} d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3" data-url="{% url 'indicador_actualizar' pk=proyecto.pk indicador_id=ind.id %}" data-medible="{{ ind.es_medible|yesno:'1,0' }}">
-                                <div class="form-check d-flex align-items-start gap-2 mb-0 flex-grow-1">
-                                    {% if ind.es_medible %}
-                                        {# El sistema decide con la medicion; no hay casilla que marcar. #}
-                                        <span class="ind-estado mt-1 {% if ind.cumplido %}ind-estado-ok{% endif %}" data-id="{{ ind.id }}" aria-hidden="true">
-                                            <i class="bi {% if ind.cumplido %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
-                                        </span>
-                                    {% else %}
-                                        <input
-                                          type="checkbox"
-                                          class="form-check-input ind-check mt-1"
-                                          data-id="{{ ind.id }}"
-                                          id="ind-{{ ind.id }}"
-                                          {% if ind.cumplido %}checked{% endif %}
-                                          {% if not puede_editar_proyecto %}disabled{% endif %}
-                                          style="cursor: pointer; width: 1.2rem; height: 1.2rem;"
-                                        >
-                                    {% endif %}
-                                    <label class="form-check-label ms-2" for="ind-{{ ind.id }}" style="cursor: pointer;">
-                                        <strong style="font-size: 0.95rem; font-weight: 800; color: var(--color-text); display: inline;">{{ ind.descripcion }}</strong>
-                                        <span class="d-block text-muted small mt-1" style="font-size: 0.78rem; font-weight: 600;">
-                                            Resultado: {{ ind.resultado.descripcion }} <span class="badge bg-light text-dark border ms-1" style="font-size: 0.7rem; font-weight: 800;">TRL {{ ind.resultado.trl_objetivo }}</span>
-                                        </span>
-                                    </label>
-                                </div>
-                                <div class="d-flex align-items-center gap-2" style="min-width: 250px; width: 100%; max-width: 340px;">
-                                    {% if ind.es_medible %}
-                                        <span class="text-muted small" style="font-weight: 700; white-space: nowrap;">Medido:</span>
-                                        <input
-                                          type="number" step="any" inputmode="decimal"
-                                          class="form-control form-control-sm ind-valor text-end"
-                                          data-id="{{ ind.id }}"
-                                          value="{{ ind.valor_medido|default_if_none:'' }}"
-                                          placeholder="0"
-                                          {% if not puede_editar_proyecto %}disabled{% endif %}
-                                          style="border-radius: 6px; font-weight: 700; padding: 4px 8px; max-width: 6.5rem;"
-                                        >
-                                        <span class="text-muted small" style="font-weight: 700; white-space: nowrap;">/ {{ ind.meta_valor|floatformat:"-2" }} {{ ind.unidad }}</span>
-                                    {% else %}
-                                        <span class="text-muted small" style="font-weight: 700; white-space: nowrap;">Valor:</span>
-                                        <input
-                                          type="text"
-                                          class="form-control form-control-sm ind-valor"
-                                          data-id="{{ ind.id }}"
-                                          value="{{ ind.valor_actual }}"
-                                          placeholder="Opcional: una nota"
-                                          {% if not puede_editar_proyecto %}disabled{% endif %}
-                                          style="border-radius: 6px; font-weight: 700; padding: 4px 8px;"
-                                        >
-                                    {% endif %}
-                                    {% if puede_editar_proyecto %}
-                                        <button
-                                          class="btn btn-sm btn-outline-success btn-guardar-ind"
-                                          data-id="{{ ind.id }}"
-                                          title="Guardar valor"
-                                          style="border-radius: 6px; padding: 4px 8px;"
-                                        >
-                                          <i class="bi bi-floppy"></i>
-                                        </button>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            {% endif %}
         </article>
 
         <article class="stage-panel">
@@ -454,7 +434,34 @@
         (() => {
             const CSRF = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
 
-            async function guardarIndicador(id) {
+            // Bajar de nivel se pregunta antes de escribirlo. El backend corta el
+            // guardado y devuelve la pregunta; aqui se muestra y se reintenta.
+            function preguntarRetroceso(data) {
+                return new Promise((resolve) => {
+                    const modalEl = document.getElementById('modal-retroceso');
+                    if (!modalEl) { resolve(window.confirm(data.mensaje)); return; }
+
+                    modalEl.querySelector('[data-rol="desde"]').textContent = data.nivel_antes;
+                    modalEl.querySelector('[data-rol="hasta"]').textContent = data.nivel_despues;
+                    modalEl.querySelector('[data-rol="mensaje"]').textContent = data.mensaje;
+
+                    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                    let confirmado = false;
+
+                    const alConfirmar = () => { confirmado = true; modal.hide(); };
+                    const alCerrar = () => {
+                        modalEl.querySelector('[data-rol="confirmar"]').removeEventListener('click', alConfirmar);
+                        modalEl.removeEventListener('hidden.bs.modal', alCerrar);
+                        resolve(confirmado);
+                    };
+
+                    modalEl.querySelector('[data-rol="confirmar"]').addEventListener('click', alConfirmar);
+                    modalEl.addEventListener('hidden.bs.modal', alCerrar);
+                    modal.show();
+                });
+            }
+
+            async function guardarIndicador(id, confirmarRetroceso = false) {
                 const fila = document.getElementById(`fila-ind-${id}`);
                 if (!fila) return;
                 const url = fila.dataset.url;
@@ -473,6 +480,7 @@
                 const cuerpo = medible
                     ? { valor_medido: valor.value }
                     : { cumplido: check ? check.checked : false, valor_actual: valor.value };
+                if (confirmarRetroceso) cuerpo.confirmar_retroceso = true;
 
                 try {
                     const resp = await fetch(url, {
@@ -498,6 +506,19 @@
                             btn.className = "btn btn-sm btn-success text-white";
                         }
                         setTimeout(() => location.reload(), 600);
+                    } else if (data.requiere_confirmacion) {
+                        // Nada se guardo todavia: el backend deshizo el cambio.
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = '<i class="bi bi-floppy"></i>';
+                        }
+                        const acepta = await preguntarRetroceso(data);
+                        if (acepta) {
+                            await guardarIndicador(id, true);
+                        } else if (check) {
+                            check.checked = !check.checked;  // devolver la casilla a como estaba
+                        }
+                        return;
                     } else {
                         throw new Error(data.error || 'Error desconocido');
                     }
@@ -525,6 +546,28 @@
         })();
     </script>
     {% endif %}
+
+    {# Aviso de retroceso de nivel: se arma vacio y el JS lo rellena. #}
+    <div class="modal fade" id="modal-retroceso" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content aviso-retroceso">
+                <div class="modal-body text-center p-4">
+                    <div class="aviso-retroceso__icono"><i class="bi bi-arrow-down-circle"></i></div>
+                    <h2 class="h5 fw-bolder mt-3 mb-2">El proyecto bajaria de nivel</h2>
+                    <div class="aviso-retroceso__salto">
+                        <span class="aviso-retroceso__nivel">TRL <strong data-rol="desde">-</strong></span>
+                        <i class="bi bi-arrow-right"></i>
+                        <span class="aviso-retroceso__nivel aviso-retroceso__nivel--baja">TRL <strong data-rol="hasta">-</strong></span>
+                    </div>
+                    <p class="text-muted small fw-semibold mt-3 mb-0" data-rol="mensaje"></p>
+                </div>
+                <div class="modal-footer border-0 pt-0 px-4 pb-4 d-flex gap-2">
+                    <button type="button" class="btn btn-light flex-fill fw-bold" data-bs-dismiss="modal">Dejar como esta</button>
+                    <button type="button" class="btn btn-warning flex-fill fw-bold" data-rol="confirmar">Si, bajar el nivel</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 

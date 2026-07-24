@@ -341,16 +341,17 @@ class TrlStressLogicTests(TestCase):
         self.assertEqual(proyecto.porcentaje_avance, 25)
 
     @override_settings(GEMINI_API_KEY="", GROQ_API_KEY="")
-    def test_mesa_inicial_por_reglas_crea_tareas_sin_avanzar_trl(self):
+    def test_mesa_inicial_prepara_las_etapas_sin_llenarlas_de_tareas(self):
+        # Al crear un proyecto se arma la ruta de etapas, pero las tareas las
+        # decide el equipo: nadie pidio 21 tareas que no escribio.
         proyecto = self.crear_proyecto_trl()
         self.crear_estructura_trl(proyecto)
 
-        tareas_creadas = generar_mesa_trabajo_inicial(proyecto)
+        generar_mesa_trabajo_inicial(proyecto)
         sincronizar_trl_desde_resultados(proyecto)
         proyecto.refresh_from_db()
 
-        self.assertGreater(tareas_creadas, 0)
-        self.assertGreater(proyecto.tareas.count(), 0)
+        self.assertEqual(proyecto.tareas.count(), 0)
         self.assertTrue(any(fase.evidencias_sugeridas for fase in proyecto.fases.all()))
         self.assertEqual(proyecto.porcentaje_avance, 0)
         self.assertEqual(proyecto.nivel_actual, 3)
@@ -374,7 +375,7 @@ class TrlStressLogicTests(TestCase):
         )
 
         self.assertNotIn("TRL", textos)
-        self.assertGreater(proyecto.tareas.count(), 0)
+        self.assertTrue(tablero)
 
     def test_fases_simples_actualizan_barra_de_avance(self):
         proyecto = self.crear_proyecto_simple()
@@ -618,7 +619,9 @@ class TrlStressLogicTests(TestCase):
             content_type='application/json'
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json(), {'ok': True})
+        datos = resp.json()
+        self.assertTrue(datos['ok'])
+        self.assertEqual(datos['nivel_actual'], 3)
 
         indicador.refresh_from_db()
         self.assertTrue(indicador.cumplido)

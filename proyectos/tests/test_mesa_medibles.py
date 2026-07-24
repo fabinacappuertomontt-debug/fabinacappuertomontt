@@ -87,4 +87,4 @@ class MesaIndicadoresMediblesTests(TestCase):
         respuesta = self.client.get(url)
         self.assertEqual(respuesta.status_code, 200)
         self.assertContains(respuesta, 'data-medible="1"')
-        self.assertContains(respuesta, "Medido:")
+        self.assertContains(respuesta, "ind-medida-etiqueta")

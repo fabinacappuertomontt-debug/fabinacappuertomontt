@@ -371,7 +371,7 @@ def enviar_codigo_verificacion(request, usuario):
             "Confirmar correo",
             verificar_url,
             organizacion=usuario.organizacion,
-        ),
+        )
     )
 
 
@@ -420,7 +420,7 @@ def enviar_solicitud_aprobacion_externa(request, usuario):
             "Aprobar solicitud",
             aprobar_url,
             organizacion=usuario.organizacion,
-        ),
+        )
     )
 
 
@@ -864,7 +864,7 @@ def enviar_credenciales_encargado(request, encargado, password_temporal, es_rese
             "Entrar a la plataforma",
             url_login,
             organizacion=organizacion,
-        ),
+        )
     )
 
 
@@ -1814,7 +1814,14 @@ def plan_mesa_por_reglas(proyecto):
     return {"ok": True, "origen": "reglas", "etapas": etapas}
 
 
-def aplicar_plan_mesa_trabajo(proyecto, plan):
+def aplicar_plan_mesa_trabajo(proyecto, plan, crear_tareas=True):
+    """Personaliza las fases del proyecto y, si se pide, crea sus tareas.
+
+    Las tareas van aparte porque al crear un proyecto no conviene llenarlo de
+    trabajo que nadie pidio: el equipo decide si quiere generarlas con IA o
+    escribir las suyas. Los criterios y las evidencias sugeridas de cada fase si
+    se aplican siempre, porque son la guia del nivel.
+    """
     fases = {fase.trl: fase for fase in FaseProyecto.objects.filter(proyecto=proyecto)}
     responsable = proyecto.responsables.order_by("nombre", "username").first() or proyecto.creador
     tareas_creadas = 0
@@ -1837,6 +1844,8 @@ def aplicar_plan_mesa_trabajo(proyecto, plan):
             cambios.append("objetivo")
         if cambios:
             fase.save(update_fields=[*cambios, "fecha_actualizacion"])
+        if not crear_tareas:
+            continue
         for tarea_data in etapa.get("tareas", [])[:8]:
             nombre = str(tarea_data.get("nombre", "") if isinstance(tarea_data, dict) else tarea_data).strip()
             if not nombre:
@@ -1865,7 +1874,8 @@ def actualizar_estado_mesa_trabajo(proyecto, estado, mensaje):
 
 
 def generar_mesa_trabajo_base(proyecto):
-    return aplicar_plan_mesa_trabajo(proyecto, plan_mesa_por_reglas(proyecto))
+    # Sin tareas: al crear un proyecto no se le impone trabajo que nadie pidio.
+    return aplicar_plan_mesa_trabajo(proyecto, plan_mesa_por_reglas(proyecto), crear_tareas=False)
 
 
 def generar_mesa_trabajo_ia_async(proyecto_id):
@@ -1881,25 +1891,21 @@ def generar_mesa_trabajo_ia_async(proyecto_id):
             # Ambas IAs fallaron o tardaron demasiado
             # Aplicar reglas y crear fases por defecto
             crear_fases_para_proyecto(proyecto)
-            aplicar_plan_mesa_trabajo(proyecto, plan_mesa_por_reglas(proyecto))
-            total_tareas = proyecto.tareas.count()
+            aplicar_plan_mesa_trabajo(proyecto, plan_mesa_por_reglas(proyecto), crear_tareas=False)
+            # La mesa esta lista cuando el proyecto tiene sus fases; las tareas
+            # ya no se generan solas, asi que no sirven para medir el exito.
+            total_fases = proyecto.fases.count()
             logger.warning(
-                "[IA] Ambas IAs fallaron para proyecto %s (%.1fs). Tareas en BD: %s.",
-                proyecto_id, tiempo_total, total_tareas
+                "[IA] Ambas IAs fallaron para proyecto %s (%.1fs). Fases en BD: %s.",
+                proyecto_id, tiempo_total, total_fases
             )
-            if total_tareas > 0:
-                # Ya hay tareas base — dejar como LISTA para que el usuario pueda trabajar
-                actualizar_estado_mesa_trabajo(
-                    proyecto,
-                    Proyecto.MesaTrabajoEstado.LISTA,
-                    f"La IA no respondio a tiempo. Se usa la mesa base preparada con {total_tareas} tareas. Puedes editar el proyecto para regenerarla.",
-                )
-            else:
-                actualizar_estado_mesa_trabajo(
-                    proyecto,
-                    Proyecto.MesaTrabajoEstado.ERROR,
-                    "La IA no respondio y no se pudieron crear tareas. Edita y guarda el proyecto para intentarlo nuevamente.",
-                )
+            actualizar_estado_mesa_trabajo(
+                proyecto,
+                Proyecto.MesaTrabajoEstado.LISTA if total_fases else Proyecto.MesaTrabajoEstado.ERROR,
+                "La IA no respondio a tiempo. Se usa la ruta de etapas base; puedes generar tareas cuando quieras."
+                if total_fases else
+                "La IA no respondio y no se pudo preparar la ruta de etapas. Edita y guarda el proyecto para reintentar.",
+            )
             return
 
         # 1. Crear o actualizar fases personalizadas devueltas por la IA
@@ -1938,13 +1944,13 @@ def generar_mesa_trabajo_ia_async(proyecto_id):
             proyecto.fases.exclude(id__in=fases_creadas_ids).delete()
 
         # 3. Aplicar tareas vinculadas a las fases que ya están en la base de datos
-        tareas = aplicar_plan_mesa_trabajo(proyecto, plan)
-        total_tareas = proyecto.tareas.count()
-        logger.info("[IA] Mesa generada con IA para proyecto %s. Tareas nuevas: %s, total: %s.", proyecto_id, tareas, total_tareas)
+        aplicar_plan_mesa_trabajo(proyecto, plan, crear_tareas=False)
+        total_fases = proyecto.fases.count()
+        logger.info("[IA] Mesa generada con IA para proyecto %s. Fases: %s.", proyecto_id, total_fases)
         actualizar_estado_mesa_trabajo(
             proyecto,
             Proyecto.MesaTrabajoEstado.LISTA,
-            f"Mesa de trabajo generada con IA ({plan.get('origen','ia')}). {total_tareas} tareas en total.",
+            f"Ruta de etapas preparada con IA ({plan.get('origen','ia')}). {total_fases} etapas listas para trabajar.",
         )
     except Proyecto.DoesNotExist:
         logger.warning("[IA] El proyecto %s ya no existe. Finalizando hilo de IA.", proyecto_id)
@@ -1952,12 +1958,12 @@ def generar_mesa_trabajo_ia_async(proyecto_id):
         logger.exception("[IA] Error inesperado en hilo IA para proyecto %s: %s", proyecto_id, exc)
         try:
             proyecto = Proyecto.objects.prefetch_related("fases", "responsables", "objetivos__resultados__indicadores").get(pk=proyecto_id)
-            aplicar_plan_mesa_trabajo(proyecto, plan_mesa_por_reglas(proyecto))
-            total_tareas = proyecto.tareas.count()
+            aplicar_plan_mesa_trabajo(proyecto, plan_mesa_por_reglas(proyecto), crear_tareas=False)
+            total_fases = proyecto.fases.count()
             actualizar_estado_mesa_trabajo(
                 proyecto,
-                Proyecto.MesaTrabajoEstado.LISTA if total_tareas > 0 else Proyecto.MesaTrabajoEstado.ERROR,
-                f"Ocurrio un error con la IA. Mesa base disponible con {total_tareas} tareas.",
+                Proyecto.MesaTrabajoEstado.LISTA if total_fases else Proyecto.MesaTrabajoEstado.ERROR,
+                f"Ocurrio un error con la IA. Ruta de etapas base disponible ({total_fases} etapas).",
             )
         except Proyecto.DoesNotExist:
             logger.warning("[IA] El proyecto %s ya no existe durante el fallback.", proyecto_id)
@@ -2193,7 +2199,7 @@ def notificar_responsables_proyecto(request, proyecto):
         f"Nuevo proyecto asignado: {proyecto.nombre}",
         destinatarios,
         mensaje,
-        correo_html_organizacion("Nuevo proyecto asignado", subtitulo, contenido, "Revisar proyecto", url, organizacion=proyecto.organizacion),
+        correo_html_organizacion("Nuevo proyecto asignado", subtitulo, contenido, "Revisar proyecto", url, organizacion=proyecto.organizacion)
     )
 
 
@@ -2248,7 +2254,7 @@ def notificar_creador_proyecto(request, proyecto):
         f"Proyecto creado: {proyecto.nombre}",
         [proyecto.creador.email],
         mensaje,
-        correo_html_organizacion("Proyecto creado", "Resumen de creación y responsables", contenido, "Revisar proyecto", url, organizacion=proyecto.organizacion),
+        correo_html_organizacion("Proyecto creado", "Resumen de creación y responsables", contenido, "Revisar proyecto", url, organizacion=proyecto.organizacion)
     )
 
 
@@ -2295,7 +2301,7 @@ def notificar_creador_fase_completada(request, fase):
         f"Etapa completada: {fase.nombre}",
         [proyecto.creador.email],
         mensaje,
-        correo_html_organizacion("Etapa completada", proyecto.nombre, contenido, "Revisar etapa", url, organizacion=proyecto.organizacion),
+        correo_html_organizacion("Etapa completada", proyecto.nombre, contenido, "Revisar etapa", url, organizacion=proyecto.organizacion)
     )
 
 
@@ -2328,7 +2334,7 @@ def notificar_creador_movimiento(request, proyecto, titulo, descripcion, fase=No
         f"{titulo}: {proyecto.nombre}",
         [proyecto.creador.email],
         mensaje,
-        correo_html_organizacion(titulo, proyecto.nombre, contenido, "Revisar proyecto", url, organizacion=proyecto.organizacion),
+        correo_html_organizacion(titulo, proyecto.nombre, contenido, "Revisar proyecto", url, organizacion=proyecto.organizacion)
     )
 
 
@@ -3158,6 +3164,7 @@ def etapa_trabajo(request, pk, slug):
         "usos_etapa": proyecto.usos_inventario.filter(filtro_etapa).select_related("item", "usuario") if fases_etapa else proyecto.usos_inventario.none(),
         "revision_ia_ultima": revision_ia_ultima,
         "indicadores_etapa": indicadores_etapa,
+        "indicadores_cumplidos": sum(1 for i in indicadores_etapa if i.cumplido),
         "next_url": request.path,
         "es_admin_laboratorio": usuario_es_admin_laboratorio(request.user),
         "puede_editar_proyecto": usuario_puede_editar_proyecto(request.user, proyecto),
@@ -3962,6 +3969,15 @@ def crear_observacion(request, pk):
     )
 
 
+class _RetrocesoTRL(Exception):
+    """Corta la transaccion cuando el cambio bajaria el nivel sin confirmar."""
+
+    def __init__(self, desde, hasta):
+        super().__init__(f"TRL {desde} -> {hasta}")
+        self.desde = desde
+        self.hasta = hasta
+
+
 def _decimal_o_none(valor):
     """Convierte a numero lo que llega del cliente, aceptando coma decimal."""
     if valor in (None, ""):
@@ -3990,34 +4006,61 @@ def actualizar_indicador(request, pk, indicador_id):
     except json.JSONDecodeError:
         return JsonResponse({"ok": False, "error": "JSON inválido."}, status=400)
 
-    if indicador.tipo in TIPOS_INDICADOR_MEDIBLES:
-        # Indicador medible: el equipo registra la medicion y el sistema decide.
-        # Marcar a mano deja de tener efecto; lo hace calcular_cumplido en save().
-        indicador.valor_medido = _decimal_o_none(data.get("valor_medido"))
-        indicador.valor_actual = (
-            f"{indicador.valor_medido} {indicador.unidad}".strip()
-            if indicador.valor_medido is not None
-            else ""
-        )
-    else:
-        # Binario o cualitativo: aqui la persona es el instrumento de medicion.
-        indicador.cumplido = bool(data.get("cumplido", False))
-        indicador.valor_actual = str(data.get("valor_actual", "")).strip()
-    indicador.save()
+    nivel_antes = proyecto.nivel_actual
+    fases_completadas_antes = set(
+        proyecto.fases.filter(estado=FaseProyecto.Estado.COMPLETADA).values_list("pk", flat=True)
+    )
+    confirmo_retroceso = bool(data.get("confirmar_retroceso", False))
+    nuevas_completadas = []
 
-    # Obtener el conjunto de IDs de las fases completadas antes de sincronizar
-    fases_completadas_antes = set(proyecto.fases.filter(estado=FaseProyecto.Estado.COMPLETADA).values_list("pk", flat=True))
+    try:
+        with transaction.atomic():
+            if indicador.tipo in TIPOS_INDICADOR_MEDIBLES:
+                # Indicador medible: el equipo registra la medicion y el sistema decide.
+                # Marcar a mano deja de tener efecto; lo hace calcular_cumplido en save().
+                indicador.valor_medido = _decimal_o_none(data.get("valor_medido"))
+                indicador.valor_actual = (
+                    f"{indicador.valor_medido} {indicador.unidad}".strip()
+                    if indicador.valor_medido is not None
+                    else ""
+                )
+            else:
+                # Binario o cualitativo: aqui la persona es el instrumento de medicion.
+                indicador.cumplido = bool(data.get("cumplido", False))
+                indicador.valor_actual = str(data.get("valor_actual", "")).strip()
+            indicador.save()
 
-    sincronizar_trl_desde_resultados(proyecto)
-    sincronizar_avance_simple_desde_objetivos(proyecto)
+            sincronizar_trl_desde_resultados(proyecto)
+            sincronizar_avance_simple_desde_objetivos(proyecto)
 
-    # Identificar si alguna fase pasó a estar completada y notificar solo al creador del proyecto
-    fases_completadas_despues = proyecto.fases.filter(estado=FaseProyecto.Estado.COMPLETADA)
-    for fase in fases_completadas_despues:
-        if fase.pk not in fases_completadas_antes:
-            notificar_creador_fase_completada(request, fase)
+            # nivel_actual se calcula a partir de los resultados, no es una columna:
+            # hay que releer el proyecto para que no responda con lo que ya tenia en memoria.
+            nivel_despues = Proyecto.objects.get(pk=proyecto.pk).nivel_actual
+            if proyecto.usa_trl and nivel_despues < nivel_antes and not confirmo_retroceso:
+                # Bajar de nivel no es un guardado mas: hay que preguntarlo antes de
+                # dejarlo escrito. Deshacemos todo y devolvemos la pregunta.
+                raise _RetrocesoTRL(nivel_antes, nivel_despues)
 
-    return JsonResponse({"ok": True})
+            for fase in proyecto.fases.filter(estado=FaseProyecto.Estado.COMPLETADA):
+                if fase.pk not in fases_completadas_antes:
+                    nuevas_completadas.append(fase)
+    except _RetrocesoTRL as aviso:
+        return JsonResponse({
+            "ok": False,
+            "requiere_confirmacion": True,
+            "nivel_antes": aviso.desde,
+            "nivel_despues": aviso.hasta,
+            "mensaje": (
+                f"Este cambio baja el proyecto de TRL {aviso.desde} a TRL {aviso.hasta}. "
+                "El nivel deja de estar respaldado por la medicion. "
+                "La evidencia y las revisiones ya cargadas se conservan."
+            ),
+        })
+
+    for fase in nuevas_completadas:
+        notificar_creador_fase_completada(request, fase)
+
+    return JsonResponse({"ok": True, "nivel_actual": Proyecto.objects.get(pk=proyecto.pk).nivel_actual})
 
 
 class NumberedCanvas(canvas.Canvas):
