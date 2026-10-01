@@ -173,7 +173,6 @@ class Area(models.Model):
 
 class Usuario(AbstractUser):
     class Rol(models.TextChoices):
-        SUPERADMIN = "superadmin", "Superadmin"
         ADMIN_ORGANIZACION = "admin_organizacion", "Administrador de organizacion"
         LIDER = "lider", "Lider"
         INTEGRANTE = "integrante", "Integrante"

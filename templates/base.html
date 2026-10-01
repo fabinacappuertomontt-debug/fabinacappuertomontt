@@ -82,7 +82,7 @@
                             <i class="bi bi-box-seam-fill"></i>
                             <span>Inventario</span>
                         </a>
-                        {% if user.is_superuser or user.rol == 'superadmin' or user.rol == 'admin_organizacion' or user.rol == 'administrador' %}
+                        {% if user.is_superuser or user.rol == 'admin_organizacion' or user.rol == 'administrador' %}
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'usuario_lista' or request.resolver_match.url_name == 'usuario_crear' %}is-active{% endif %}" href="{% url 'usuario_lista' %}">
                                 <i class="bi bi-people-fill"></i>
                                 <span>Usuarios</span>
