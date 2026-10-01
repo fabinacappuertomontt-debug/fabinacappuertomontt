@@ -4,10 +4,10 @@
 
 name: Build and deploy Python app to Azure Web App - trl-fablab
 
+# Despliegue solo manual (Actions > Run workflow). Antes corria en cada push a main;
+# se desactivo en la entrega para que nadie publique a produccion por accidente.
+# Ver docs/DOCUMENTACION_TECNICA.md, seccion "Despliegue en Azure".
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 concurrency:
